@@ -82,9 +82,85 @@ FeatureTracker::FeatureTracker()
     hasPrediction = false;
 }
 
+bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
+{
+    if (!vinsConfig().sem_enable || sem_mask.empty())
+        return true;
+    const int x = cvRound(pt.x);
+    const int y = cvRound(pt.y);
+    if (x < 0 || y < 0 || x >= sem_mask.cols || y >= sem_mask.rows)
+        return false;
+    return sem_mask.at<uchar>(y, x) >= static_cast<uchar>(vinsConfig().sem_static_value);
+}
+
+void FeatureTracker::rejectSemanticDynamic()
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable || cur_pts.empty())
+        return;
+
+    const int total = static_cast<int>(cur_pts.size());
+    const int mask_available = sem_mask.empty() ? 0 : 1;
+    double dynamic_pixel_ratio = 0.0;
+    if (mask_available)
+    {
+        if (sem_mask.size() != cv::Size(col, row))
+            cv::resize(sem_mask, sem_mask, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
+        int dynamic_pixels = 0;
+        for (int y = 0; y < sem_mask.rows; y++)
+        {
+            const uchar *row_ptr = sem_mask.ptr<uchar>(y);
+            for (int x = 0; x < sem_mask.cols; x++)
+            {
+                if (row_ptr[x] < static_cast<uchar>(cfg.sem_static_value))
+                    dynamic_pixels++;
+            }
+        }
+        dynamic_pixel_ratio =
+            static_cast<double>(dynamic_pixels) / static_cast<double>(sem_mask.total());
+    }
+
+    int rejected = 0;
+    if (mask_available)
+    {
+        vector<uchar> status(cur_pts.size(), 1);
+        for (size_t i = 0; i < cur_pts.size(); i++)
+        {
+            if (!isSemanticStatic(cur_pts[i]))
+            {
+                status[i] = 0;
+                rejected++;
+            }
+        }
+        if (rejected > 0)
+        {
+            reduceVector(prev_pts, status);
+            reduceVector(cur_pts, status);
+            reduceVector(ids, status);
+            reduceVector(track_cnt, status);
+        }
+    }
+
+    if (!cfg.sem_stats_path.empty())
+    {
+        std::ofstream sem_stats(cfg.sem_stats_path, std::ios::app);
+        const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
+        sem_stats << static_cast<long long>(cur_time * 1e9) << ","
+                  << total << "," << rejected << "," << ratio << ","
+                  << static_cast<int>(cur_pts.size()) << ","
+                  << mask_available << "," << dynamic_pixel_ratio << "\n";
+    }
+}
+
 void FeatureTracker::setMask()
 {
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
+    if (vinsConfig().sem_enable && !sem_mask.empty())
+    {
+        if (sem_mask.size() != mask.size())
+            cv::resize(sem_mask, sem_mask, mask.size(), 0, 0, cv::INTER_NEAREST);
+        cv::bitwise_and(mask, sem_mask, mask);
+    }
 
     // prefer to keep features that are tracked for long time
     vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
@@ -103,7 +179,7 @@ void FeatureTracker::setMask()
 
     for (auto &it : cnt_pts_id)
     {
-        if (mask.at<uchar>(it.second.first) == 255)
+        if (mask.at<uchar>(it.second.first) == 255 && isSemanticStatic(it.second.first))
         {
             cur_pts.push_back(it.second.first);
             ids.push_back(it.second.second);
@@ -121,7 +197,7 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1)
+map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask)
 {
     TicToc t_r;
     cur_time = _cur_time;
@@ -129,6 +205,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     cur_img1 = _img1;  // (F) keep right image accessible to rejectGeoDynamic()
     row = cur_img.rows;
     col = cur_img.cols;
+    sem_mask = _sem_mask;
+    if (vinsConfig().sem_enable && !sem_mask.empty() && sem_mask.size() != cur_img.size())
+        cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
     cv::Mat rightImg = _img1;
     /*
     {
@@ -194,6 +273,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
 
     if (vinsConfig().geodf_enable)
         rejectGeoDynamic();
+    if (vinsConfig().sem_enable)
+        rejectSemanticDynamic();
 
     for (auto &n : track_cnt)
         n++;

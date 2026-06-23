@@ -11,6 +11,35 @@
 
 #include "feature_tracker.h"
 #include <opencv2/imgproc/imgproc_c.h>
+#include <fstream>
+#include <cmath>
+
+namespace {
+
+// OpenCV/HZ epipolar: x'^T F x = 0 with x=points1 (cur), x'=points2 (prev).
+// p1=x, p2=x' => Sampson^2 = (x'^T F x)^2 / (||F x||_{1:2}^2 + ||F^T x'||_{1:2}^2).
+double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2f &p2)
+{
+    const double f11 = F.at<double>(0, 0), f12 = F.at<double>(0, 1), f13 = F.at<double>(0, 2);
+    const double f21 = F.at<double>(1, 0), f22 = F.at<double>(1, 1), f23 = F.at<double>(1, 2);
+    const double f31 = F.at<double>(2, 0), f32 = F.at<double>(2, 1), f33 = F.at<double>(2, 2);
+
+    const double x1 = p1.x, y1 = p1.y;
+    const double x2 = p2.x, y2 = p2.y;
+
+    const double Fx1x = f11 * x1 + f12 * y1 + f13;
+    const double Fx1y = f21 * x1 + f22 * y1 + f23;
+    const double Ftx2x = f11 * x2 + f21 * y2 + f31;
+    const double Ftx2y = f12 * x2 + f22 * y2 + f32;
+
+    const double num = x2 * Fx1x + y2 * Fx1y + f31 * x1 + f32 * y1 + f33;
+    const double denom = Fx1x * Fx1x + Fx1y * Fx1y + Ftx2x * Ftx2x + Ftx2y * Ftx2y;
+    if (denom < 1e-12)
+        return 0.0;
+    return (num * num) / denom;
+}
+
+}  // namespace
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
@@ -161,6 +190,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
         //printf("track cnt %d\n", (int)ids.size());
     }
+
+    if (vinsConfig().geodf_enable)
+        rejectGeoDynamic();
 
     for (auto &n : track_cnt)
         n++;
@@ -337,6 +369,192 @@ void FeatureTracker::rejectWithF()
         reduceVector(track_cnt, status);
         ROS_DEBUG("FM ransac: %d -> %lu: %f", size_a, cur_pts.size(), 1.0 * cur_pts.size() / size_a);
         ROS_DEBUG("FM ransac costs: %fms", t_f.toc());
+    }
+}
+
+void FeatureTracker::rejectGeoDynamic()
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.geodf_enable || !cfg.geodf_hard_reject)
+        return;
+
+    const int total = static_cast<int>(cur_pts.size());
+    if (total < 8 || prev_pts.size() != cur_pts.size())
+        return;
+
+    if (total < cfg.geodf_min_feature_num)
+        return;
+
+    TicToc t_geo;
+    vector<cv::Point2f> un_cur_pts(total), un_prev_pts(total);
+    for (int i = 0; i < total; i++)
+    {
+        Eigen::Vector3d tmp_p;
+        m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y), tmp_p);
+        tmp_p.x() = FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0;
+        tmp_p.y() = FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0;
+        un_cur_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
+
+        m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[i].x, prev_pts[i].y), tmp_p);
+        tmp_p.x() = FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0;
+        tmp_p.y() = FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0;
+        un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
+    }
+
+    cv::Mat F;
+    vector<uchar> f_status;
+    F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
+                               cfg.geodf_ransac_th_px, 0.99, f_status);
+    if (F.empty())
+        return;
+
+    vector<double> errors(total, 0.0);
+    vector<double> scored_errors;
+    scored_errors.reserve(total);
+    vector<int> candidates;
+    candidates.reserve(total);
+    int scored = 0;
+    int ransac_outliers = 0;
+    int sampson_above_th = 0;
+
+    for (int i = 0; i < total; i++)
+    {
+        if (track_cnt[i] < cfg.geodf_min_track_cnt)
+            continue;
+        scored++;
+        errors[i] = sampsonDistance(F, un_cur_pts[i], un_prev_pts[i]);
+        scored_errors.push_back(errors[i]);
+        if (errors[i] > cfg.geodf_sampson_th)
+            sampson_above_th++;
+        const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
+        if (ransac_outlier)
+            ransac_outliers++;
+        if (ransac_outlier && errors[i] > cfg.geodf_sampson_th)
+            candidates.push_back(i);
+    }
+
+    double mean_sampson = 0.0, median_sampson = 0.0, max_sampson = 0.0;
+    if (!scored_errors.empty())
+    {
+        double sum = 0.0;
+        for (double e : scored_errors)
+            sum += e;
+        mean_sampson = sum / scored_errors.size();
+        std::sort(scored_errors.begin(), scored_errors.end());
+        const size_t n = scored_errors.size();
+        median_sampson = (n % 2 == 0)
+                             ? 0.5 * (scored_errors[n / 2 - 1] + scored_errors[n / 2])
+                             : scored_errors[n / 2];
+        max_sampson = scored_errors.back();
+    }
+
+    const double frame_outlier_ratio =
+        scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
+    if (geo_activation_ema < 0.0)
+        geo_activation_ema = frame_outlier_ratio;
+    else
+        geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
+                             (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
+
+    const size_t candidates_raw = candidates.size();
+    int frame_active = 1;
+    if (cfg.geodf_adaptive)
+    {
+        const double hi = cfg.geodf_activate_ratio;
+        const double lo = cfg.geodf_activate_ratio * cfg.geodf_deactivate_frac;
+        geo_activation_active = geo_activation_active
+                                    ? (geo_activation_ema >= lo)
+                                    : (geo_activation_ema >= hi);
+        frame_active = geo_activation_active ? 1 : 0;
+        if (!frame_active)
+            candidates.clear();
+    }
+
+    vector<uchar> keep(total, 1);
+    int rejected = 0;
+    int guard_triggered = 0;
+    int guard_capped = 0;
+    if (!candidates.empty())
+    {
+        sort(candidates.begin(), candidates.end(), [&](int a, int b) {
+            return errors[a] > errors[b];
+        });
+
+        int max_reject = static_cast<int>(candidates.size());
+        if (cfg.geodf_ratio_guard)
+        {
+            const int ratio_cap = static_cast<int>(std::floor(cfg.geodf_max_reject_ratio * total));
+            if (static_cast<int>(candidates.size()) > ratio_cap)
+                guard_triggered = 1;
+            max_reject = ratio_cap;
+        }
+
+        const int max_reject_by_min = std::max(0, total - cfg.geodf_min_feature_num);
+        max_reject = std::min(max_reject, max_reject_by_min);
+
+        for (int idx : candidates)
+        {
+            if (rejected >= max_reject)
+                break;
+            keep[idx] = 0;
+            rejected++;
+        }
+        if (static_cast<int>(candidates.size()) > rejected)
+            guard_capped = 1;
+    }
+
+    if (cfg.geodf_dump_features && !cfg.geodf_feat_path.empty())
+    {
+        std::ofstream feat(cfg.geodf_feat_path, std::ios::app);
+        const long long ts = static_cast<long long>(cur_time * 1e9);
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            const int ransac_outlier = (f_status.empty() || f_status[i] == 0) ? 1 : 0;
+            feat << ts << "," << ids[i] << ","
+                 << cur_pts[i].x << "," << cur_pts[i].y << ","
+                 << errors[i] << "," << ransac_outlier << ","
+                 << (keep[i] ? 0 : 1) << "\n";
+        }
+    }
+
+    if (rejected > 0)
+    {
+        vector<uchar> status(keep.begin(), keep.end());
+        reduceVector(prev_pts, status);
+        reduceVector(cur_pts, status);
+        reduceVector(ids, status);
+        reduceVector(track_cnt, status);
+    }
+
+    if (!cfg.geodf_stats_path.empty())
+    {
+        std::ofstream geo_stats(cfg.geodf_stats_path, std::ios::app);
+        const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
+        geo_stats << static_cast<long long>(cur_time * 1e9) << ","
+                  << total << "," << scored << "," << ransac_outliers << ","
+                  << sampson_above_th << "," << candidates_raw << ","
+                  << rejected << "," << ratio << "," << cur_pts.size() << ","
+                  << mean_sampson << "," << median_sampson << "," << max_sampson << ","
+                  << guard_triggered << "," << guard_capped << ","
+                  << geo_activation_ema << "," << frame_active << ","
+                  << t_geo.toc() << "\n";
+    }
+
+    if (cfg.geodf_debug)
+    {
+        static int debug_cnt = 0;
+        if (debug_cnt++ % 50 == 0)
+        {
+            ROS_INFO("GeoDF: reject %d/%d (cand %zu scored %d guard %d) %.2fms",
+                     rejected, total, candidates.size(), scored, guard_triggered, t_geo.toc());
+        }
+    }
+    else
+    {
+        ROS_DEBUG("GeoDF reject: %d/%d (cand %zu) cost %fms",
+                  rejected, total, candidates.size(), t_geo.toc());
     }
 }
 

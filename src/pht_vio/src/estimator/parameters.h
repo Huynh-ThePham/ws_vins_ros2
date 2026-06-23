@@ -66,6 +66,24 @@ struct VinsConfig
     int show_track = 0;
     int flow_back = 0;
 
+    // GeoDF-VINS-Hard (geometry-only dynamic feature rejection, front-end only)
+    int geodf_enable = 0;
+    int geodf_hard_reject = 1;
+    double geodf_ransac_th_px = 1.0;
+    double geodf_sampson_th = 3.0;
+    int geodf_min_track_cnt = 2;
+    int geodf_min_feature_num = 40;
+    double geodf_max_reject_ratio = 0.4;
+    int geodf_ratio_guard = 1;
+    int geodf_debug = 0;
+    int geodf_dump_features = 0;
+    int geodf_adaptive = 0;
+    double geodf_activate_ratio = 0.12;
+    double geodf_activate_ema = 0.15;
+    double geodf_deactivate_frac = 0.6;
+    std::string geodf_stats_path;
+    std::string geodf_feat_path;
+
     void reset();
     bool loadFromYaml(const std::string &config_file);
 };

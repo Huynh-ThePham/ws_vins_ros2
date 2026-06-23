@@ -147,6 +147,79 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         printf("no imu, fix extrinsic param; no time offset calibration\n");
     }
 
+    geodf_enable = 0;
+    geodf_hard_reject = 1;
+    geodf_ransac_th_px = 1.0;
+    geodf_sampson_th = 3.0;
+    geodf_min_track_cnt = 2;
+    geodf_min_feature_num = 40;
+    geodf_max_reject_ratio = 0.4;
+    geodf_ratio_guard = 1;
+    geodf_debug = 0;
+    geodf_dump_features = 0;
+    geodf_adaptive = 0;
+    geodf_activate_ratio = 0.12;
+    geodf_activate_ema = 0.15;
+    geodf_deactivate_frac = 0.6;
+    if (!fsSettings["geodf_enable"].empty())
+        geodf_enable = (int)fsSettings["geodf_enable"];
+    if (!fsSettings["geodf_hard_reject"].empty())
+        geodf_hard_reject = (int)fsSettings["geodf_hard_reject"];
+    if (!fsSettings["geodf_ransac_th_px"].empty())
+        geodf_ransac_th_px = (double)fsSettings["geodf_ransac_th_px"];
+    if (!fsSettings["geodf_sampson_th"].empty())
+        geodf_sampson_th = (double)fsSettings["geodf_sampson_th"];
+    else if (!fsSettings["geodf_tau"].empty())
+        geodf_sampson_th = (double)fsSettings["geodf_tau"];
+    if (!fsSettings["geodf_min_track_cnt"].empty())
+        geodf_min_track_cnt = (int)fsSettings["geodf_min_track_cnt"];
+    if (!fsSettings["geodf_min_feature_num"].empty())
+        geodf_min_feature_num = (int)fsSettings["geodf_min_feature_num"];
+    if (!fsSettings["geodf_reject_ratio_max"].empty())
+        geodf_max_reject_ratio = (double)fsSettings["geodf_reject_ratio_max"];
+    else if (!fsSettings["geodf_max_reject_ratio"].empty())
+        geodf_max_reject_ratio = (double)fsSettings["geodf_max_reject_ratio"];
+    if (!fsSettings["geodf_ratio_guard"].empty())
+        geodf_ratio_guard = (int)fsSettings["geodf_ratio_guard"];
+    if (!fsSettings["geodf_debug"].empty())
+        geodf_debug = (int)fsSettings["geodf_debug"];
+    if (!fsSettings["geodf_dump_features"].empty())
+        geodf_dump_features = (int)fsSettings["geodf_dump_features"];
+    if (!fsSettings["geodf_adaptive"].empty())
+        geodf_adaptive = (int)fsSettings["geodf_adaptive"];
+    if (!fsSettings["geodf_activate_ratio"].empty())
+        geodf_activate_ratio = (double)fsSettings["geodf_activate_ratio"];
+    if (!fsSettings["geodf_activate_ema"].empty())
+        geodf_activate_ema = (double)fsSettings["geodf_activate_ema"];
+    if (!fsSettings["geodf_deactivate_frac"].empty())
+        geodf_deactivate_frac = (double)fsSettings["geodf_deactivate_frac"];
+
+    if (geodf_enable) {
+        geodf_stats_path = output_folder + "/geo_df_stats.csv";
+        std::ofstream geo_stats(geodf_stats_path, std::ios::out);
+        geo_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,sampson_above_th,"
+                     "candidates,rejected,reject_ratio,tracks_after,"
+                     "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
+                     "activation_signal,frame_active,geo_ms\n";
+        geo_stats.close();
+        if (geodf_dump_features) {
+            geodf_feat_path = output_folder + "/geo_df_features.csv";
+            std::ofstream feat(geodf_feat_path, std::ios::out);
+            feat << "timestamp_ns,feature_id,u,v,sampson,ransac_outlier,rejected\n";
+            feat.close();
+        }
+        ROS_INFO_STREAM("GeoDF-VINS-Hard enabled: sampson_th=" << geodf_sampson_th
+                        << " ransac_th_px=" << geodf_ransac_th_px
+                        << " max_reject_ratio=" << geodf_max_reject_ratio
+                        << " ratio_guard=" << geodf_ratio_guard
+                        << " hard_reject=" << geodf_hard_reject
+                        << " dump_features=" << geodf_dump_features
+                        << " adaptive=" << geodf_adaptive
+                        << " activate_ratio=" << geodf_activate_ratio
+                        << " activate_ema=" << geodf_activate_ema
+                        << " deactivate_frac=" << geodf_deactivate_frac);
+    }
+
     fsSettings.release();
     return true;
 }

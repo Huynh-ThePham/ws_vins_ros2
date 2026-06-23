@@ -134,7 +134,44 @@ VIO parameters are loaded into `VinsConfig` via `vinsConfig().loadFromYaml(path)
 |--------|---------|
 | `baseline/euroc-verified` | Frozen EuRoC stereo+IMU baseline (VIO + loop closure match upstream accuracy). **Do not commit algorithm experiments here.** |
 | `main` | Integration branch; may track baseline or receive merges after review |
-| `research/*` | Feature branches (e.g. dynamic MAF filtering). Branch from `baseline/euroc-verified`, merge only when benchmarked |
+| `paper/geodf-vins-hard-q4` | **Q4 paper:** GeoDF-VINS-Hard + adaptive self-gating (EuRoC + VIODE benchmarks). Branch from `baseline/euroc-verified`. |
+| `research/*` | Other experimental branches; branch from baseline, merge only when benchmarked |
+
+### GeoDF-VINS-Hard (`paper/geodf-vins-hard-q4`)
+
+Q4 paper branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
+
+| Method | Config | Use case |
+|--------|--------|----------|
+| `baseline` | `euroc_stereo_imu_config.yaml` | No filter |
+| `geodf_hard` | `euroc_stereo_imu_geodf_config.yaml` | Always-on + ratio guard (EuRoC static sanity) |
+| `alwayson` / `geodf_dump` | `euroc_stereo_imu_geodf_dump_config.yaml` | Always-on + per-feature dump (detection eval) |
+| `adaptive` | `euroc_stereo_imu_geodf_adaptive_config.yaml` | **Recommended** — scene-aware self-gating |
+| `geodf_noguard` | `euroc_stereo_imu_geodf_noguard_config.yaml` | Ablation (no ratio guard) |
+
+VIODE configs under `src/config/viode/` (max_cnt=120, pinhole calib).
+
+**Datasets:** EuRoC (`EUROC_ROOT`) + VIODE (`VIODE_ROOT`, default `city_day`).
+
+```bash
+# EuRoC single run
+./scripts/run_geodf_euroc.sh MH_01_easy adaptive --eval
+
+# EuRoC static ablation (baseline / always-on / adaptive)
+./scripts/run_euroc_static_ablation.sh
+
+# Full EuRoC study + filter impact
+./scripts/run_geodf_full_benchmark.sh all
+
+# VIODE dynamic (converts ROS1 bag → ros2_bag on first run)
+VIODE_ROOT=/media/theph/Data1/ws_research_datasets/viode \
+  ./scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
+
+# Full pipeline (EuRoC + VIODE)
+./scripts/run_geodf_benchmark_all.sh all
+```
+
+Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
 
 Re-run EuRoC checks before merging research into baseline:
 

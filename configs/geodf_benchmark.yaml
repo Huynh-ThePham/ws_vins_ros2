@@ -1,0 +1,48 @@
+# GeoDF-VINS-Hard benchmark configuration (see docs/PROPOSAL_GeoDF-VINS-Hard.md)
+
+methods:
+  baseline:
+    config_mode: stereo_imu
+    geodf_enable: 0
+  geodf_hard:
+    config_mode: stereo_imu_geodf
+    geodf_enable: 1
+    geodf_hard_reject: 1
+    geodf_ratio_guard: 1
+  geodf_noguard:
+    config_mode: stereo_imu_geodf_noguard
+    geodf_enable: 1
+    geodf_hard_reject: 1
+    geodf_ratio_guard: 0
+
+geodf_params:
+  geodf_enable: 1
+  geodf_hard_reject: 1
+  geodf_ransac_th_px: 1.0
+  geodf_sampson_th: 3.0
+  geodf_min_track_cnt: 2
+  geodf_min_feature_num: 40
+  geodf_reject_ratio_max: 0.40
+  geodf_debug: 1
+
+static_sequences:
+  - MH_01_easy
+  - MH_02_easy
+  - MH_03_medium
+  - MH_04_difficult
+  - MH_05_difficult
+
+# Dynamic evaluation: published VIODE (see scripts/run_geodf_viode.sh)
+viode:
+  env: city_day
+  levels: [0_none, 1_low, 2_mid, 3_high]
+
+acceptance:
+  static_degradation_max_pct: 20.0
+
+metrics:
+  - ate_rmse
+  - rpe_rmse
+  - fps
+  - rejection_ratio
+  - rejected_per_frame

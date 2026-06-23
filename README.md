@@ -134,6 +134,28 @@ bash scripts/regenerate_benchmark_summaries.sh                   # refresh JSON 
 
 Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_refactor_summary.json`.
 
+## GeoDF-VINS-Hard (Q4 paper branch: `paper/geodf-vins-hard-q4`)
+
+Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
+```bash
+# EuRoC: single run (baseline | geodf_hard | alwayson | adaptive)
+bash scripts/run_geodf_euroc.sh MH_01_easy adaptive 40 --eval
+
+# EuRoC static ablation + full study
+bash scripts/run_euroc_static_ablation.sh
+bash scripts/run_geodf_full_benchmark.sh all
+
+# VIODE real-dynamic (ROS1 bag auto-converted to ros2_bag)
+export VIODE_ROOT=/media/theph/Data1/ws_research_datasets/viode
+bash scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
+
+# Everything (EuRoC + VIODE)
+bash scripts/run_geodf_benchmark_all.sh all
+```
+
+Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
+
 ## Manual Node Launch
 
 ```bash
@@ -201,6 +223,7 @@ ros2 bag play MH_01_easy_ros2 --clock
 Config files are installed to `share/pht_vio_ros/config/` and include presets for:
 
 - EuRoC (`euroc/`)
+- VIODE (`viode/`) — GeoDF dynamic-scene benchmark
 - KITTI odometry (`kitti_odom/`)
 - KITTI raw + GPS (`kitti_raw/`)
 - RealSense D435i (`realsense_d435i/`)

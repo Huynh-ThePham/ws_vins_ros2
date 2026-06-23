@@ -42,6 +42,7 @@ public:
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
     void rejectWithF();
+    void rejectGeoDynamic();
     void undistortedPoints();
     vector<cv::Point2f> undistortedPts(vector<cv::Point2f> &pts, camodocal::CameraPtr cam);
     vector<cv::Point2f> ptsVelocity(vector<int> &ids, vector<cv::Point2f> &pts, 
@@ -81,4 +82,8 @@ public:
     bool stereo_cam;
     int n_id;
     bool hasPrediction;
+
+    // GeoDF scene-aware activation state (EMA of frame epipolar-outlier ratio).
+    double geo_activation_ema = -1.0;
+    bool geo_activation_active = false;
 };

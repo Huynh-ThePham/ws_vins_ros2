@@ -12,6 +12,9 @@ venv/
 # Benchmark outputs (regenerate with scripts/)
 results/
 
+# VIODE ROS2 converted bags (regenerate: scripts/viode_prepare_ros2_bag.sh)
+data/viode_ros2/
+
 # Large loop-closure vocabulary (auto-downloaded at build time)
 src/support_files/brief_k10L6.bin
 **/brief_k10L6.bin

@@ -53,9 +53,43 @@ FeatureTracker::FeatureTracker()
     hasPrediction = false;
 }
 
+bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
+{
+    if (!vinsConfig().sem_enable || sem_mask.empty())
+        return true;
+    const int x = cvRound(pt.x);
+    const int y = cvRound(pt.y);
+    if (x < 0 || y < 0 || x >= sem_mask.cols || y >= sem_mask.rows)
+        return false;
+    return sem_mask.at<uchar>(y, x) >= static_cast<uchar>(vinsConfig().sem_static_value);
+}
+
+void FeatureTracker::rejectSemanticDynamic()
+{
+    if (!vinsConfig().sem_enable || sem_mask.empty() || cur_pts.empty())
+        return;
+
+    vector<uchar> status(cur_pts.size(), 1);
+    for (size_t i = 0; i < cur_pts.size(); i++)
+    {
+        if (!isSemanticStatic(cur_pts[i]))
+            status[i] = 0;
+    }
+    reduceVector(prev_pts, status);
+    reduceVector(cur_pts, status);
+    reduceVector(ids, status);
+    reduceVector(track_cnt, status);
+}
+
 void FeatureTracker::setMask()
 {
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
+    if (vinsConfig().sem_enable && !sem_mask.empty())
+    {
+        if (sem_mask.size() != mask.size())
+            cv::resize(sem_mask, sem_mask, mask.size(), 0, 0, cv::INTER_NEAREST);
+        cv::bitwise_and(mask, sem_mask, mask);
+    }
 
     // prefer to keep features that are tracked for long time
     vector<pair<int, pair<cv::Point2f, int>>> cnt_pts_id;
@@ -74,7 +108,7 @@ void FeatureTracker::setMask()
 
     for (auto &it : cnt_pts_id)
     {
-        if (mask.at<uchar>(it.second.first) == 255)
+        if (mask.at<uchar>(it.second.first) == 255 && isSemanticStatic(it.second.first))
         {
             cur_pts.push_back(it.second.first);
             ids.push_back(it.second.second);
@@ -92,13 +126,16 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1)
+map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask)
 {
     TicToc t_r;
     cur_time = _cur_time;
     cur_img = _img;
     row = cur_img.rows;
     col = cur_img.cols;
+    sem_mask = _sem_mask;
+    if (vinsConfig().sem_enable && !sem_mask.empty() && sem_mask.size() != cur_img.size())
+        cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
     cv::Mat rightImg = _img1;
     /*
     {
@@ -161,6 +198,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         ROS_DEBUG("temporal optical flow costs: %fms", t_o.toc());
         //printf("track cnt %d\n", (int)ids.size());
     }
+
+    rejectSemanticDynamic();
 
     for (auto &n : track_cnt)
         n++;

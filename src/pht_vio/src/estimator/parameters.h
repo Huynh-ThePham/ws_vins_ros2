@@ -66,6 +66,11 @@ struct VinsConfig
     int show_track = 0;
     int flow_back = 0;
 
+    // SAD-VINS: semantic dynamic masking (YOLO segmentation front-end)
+    int sem_enable = 0;
+    std::string sem_mask_topic = "/dynamic_mask";
+    int sem_static_value = 255;
+
     void reset();
     bool loadFromYaml(const std::string &config_file);
 };

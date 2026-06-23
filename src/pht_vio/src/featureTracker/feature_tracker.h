@@ -37,8 +37,10 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
+    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat());
     void setMask();
+    void rejectSemanticDynamic();
+    bool isSemanticStatic(const cv::Point2f &pt) const;
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
     void rejectWithF();
@@ -63,6 +65,7 @@ public:
     cv::Mat imTrack;
     cv::Mat mask;
     cv::Mat fisheye_mask;
+    cv::Mat sem_mask;
     cv::Mat prev_img, cur_img;
     vector<cv::Point2f> n_pts;
     vector<cv::Point2f> predict_pts;

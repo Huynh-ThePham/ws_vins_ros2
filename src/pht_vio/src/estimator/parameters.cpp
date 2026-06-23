@@ -43,6 +43,18 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     show_track = fsSettings["show_track"];
     flow_back = fsSettings["flow_back"];
 
+    cv::FileNode sem_enable_node = fsSettings["sem_enable"];
+    if (!sem_enable_node.empty())
+        sem_enable = static_cast<int>(sem_enable_node);
+    cv::FileNode sem_mask_topic_node = fsSettings["sem_mask_topic"];
+    if (!sem_mask_topic_node.empty())
+        sem_mask_topic = static_cast<std::string>(sem_mask_topic_node);
+    cv::FileNode sem_static_value_node = fsSettings["sem_static_value"];
+    if (!sem_static_value_node.empty())
+        sem_static_value = static_cast<int>(sem_static_value_node);
+    if (sem_enable)
+        ROS_INFO("SAD-VINS semantic mask enabled, topic: %s", sem_mask_topic.c_str());
+
     multiple_thread = fsSettings["multiple_thread"];
 
     use_imu = fsSettings["imu"];

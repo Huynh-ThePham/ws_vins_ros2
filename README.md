@@ -134,9 +134,9 @@ bash scripts/regenerate_benchmark_summaries.sh                   # refresh JSON 
 
 Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_refactor_summary.json`.
 
-## GeoDF-VINS-Hard (Q4 paper branch: `paper/geodf-vins-hard-q4`)
+## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026-q4`)
 
-Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 
 ```bash
 # EuRoC: single run (baseline | geodf_hard | alwayson | adaptive)

@@ -77,6 +77,15 @@ paper/sad-vins-2026-q1                 # SAD-VINS (semantic-adaptive dynamic)
 paper/dyn-robust-vio-2027-icra2027     # future conference paper
 ```
 
+**Current paper branches** (inherit baseline sensor modality: **stereo + IMU**)
+
+| Branch | Method | Sensor | Primary config |
+|--------|--------|--------|----------------|
+| `paper/geodf-adaptive-vins-2026-q4` | Geometry-only dynamic filter | stereo + IMU | `euroc_stereo_imu_geodf_*.yaml` |
+| `paper/sad-vins-2026-q1` | YOLO semantic dynamic mask | stereo + IMU | `euroc_stereo_imu_sem_config.yaml` |
+
+Paper branches must **not** downgrade to mono-only unless the manuscript explicitly targets mono VIO.
+
 **Venue codes**
 
 | Code | Meaning |

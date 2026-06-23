@@ -1,10 +1,11 @@
 %YAML:1.0
 
-# SAD-VINS: stereo EuRoC config with semantic dynamic masking (YOLO front-end)
-# Run with: ros2 launch pht_vio_ros euroc_stereo_imu_sem.launch.py
+# SAD-VINS: stereo + IMU EuRoC config (same modality as euroc_stereo_imu_config.yaml)
+# Semantic add-on: YOLO mask on cam0 only; cam1 + IMU unchanged.
+# Run: ros2 launch pht_vio_ros euroc_stereo_imu_sem.launch.py
 
-imu: 1
-num_of_cam: 2
+imu: 1          # IMU enabled (Visual-Inertial, not VO-only)
+num_of_cam: 2   # stereo: cam0 + cam1
 
 imu_topic: "/imu0"
 image0_topic: "/cam0/image_raw"

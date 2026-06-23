@@ -22,7 +22,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'config',
             default_value=default_config,
-            description='Path to SAD-VINS config YAML file'),
+            description='Path to SAD-VINS stereo+IMU config YAML'),
         DeclareLaunchArgument(
             'enable_yolo',
             default_value='true',

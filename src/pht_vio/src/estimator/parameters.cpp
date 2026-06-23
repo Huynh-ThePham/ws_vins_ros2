@@ -52,8 +52,6 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     cv::FileNode sem_static_value_node = fsSettings["sem_static_value"];
     if (!sem_static_value_node.empty())
         sem_static_value = static_cast<int>(sem_static_value_node);
-    if (sem_enable)
-        ROS_INFO("SAD-VINS semantic mask enabled, topic: %s", sem_mask_topic.c_str());
 
     multiple_thread = fsSettings["multiple_thread"];
 
@@ -84,6 +82,15 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     std::cout << "result path " << vins_result_path << std::endl;
     std::ofstream fout(vins_result_path, std::ios::out);
     fout.close();
+
+    if (sem_enable) {
+        sem_stats_path = output_folder + "/sem_stats.csv";
+        std::ofstream sem_stats(sem_stats_path, std::ios::out);
+        sem_stats << "timestamp_ns,tracks_before,rejected,reject_ratio,tracks_after,"
+                     "mask_available,dynamic_pixel_ratio\n";
+        sem_stats.close();
+        ROS_INFO("SAD-VINS semantic mask enabled, topic: %s", sem_mask_topic.c_str());
+    }
 
     estimate_extrinsic = fsSettings["estimate_extrinsic"];
     if (estimate_extrinsic == 2) {

@@ -66,19 +66,61 @@ bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
 
 void FeatureTracker::rejectSemanticDynamic()
 {
-    if (!vinsConfig().sem_enable || sem_mask.empty() || cur_pts.empty())
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable || cur_pts.empty())
         return;
 
-    vector<uchar> status(cur_pts.size(), 1);
-    for (size_t i = 0; i < cur_pts.size(); i++)
+    const int total = static_cast<int>(cur_pts.size());
+    const int mask_available = sem_mask.empty() ? 0 : 1;
+    double dynamic_pixel_ratio = 0.0;
+    if (mask_available)
     {
-        if (!isSemanticStatic(cur_pts[i]))
-            status[i] = 0;
+        if (sem_mask.size() != cv::Size(col, row))
+            cv::resize(sem_mask, sem_mask, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
+        int dynamic_pixels = 0;
+        for (int y = 0; y < sem_mask.rows; y++)
+        {
+            const uchar *row_ptr = sem_mask.ptr<uchar>(y);
+            for (int x = 0; x < sem_mask.cols; x++)
+            {
+                if (row_ptr[x] < static_cast<uchar>(cfg.sem_static_value))
+                    dynamic_pixels++;
+            }
+        }
+        dynamic_pixel_ratio =
+            static_cast<double>(dynamic_pixels) / static_cast<double>(sem_mask.total());
     }
-    reduceVector(prev_pts, status);
-    reduceVector(cur_pts, status);
-    reduceVector(ids, status);
-    reduceVector(track_cnt, status);
+
+    int rejected = 0;
+    if (mask_available)
+    {
+        vector<uchar> status(cur_pts.size(), 1);
+        for (size_t i = 0; i < cur_pts.size(); i++)
+        {
+            if (!isSemanticStatic(cur_pts[i]))
+            {
+                status[i] = 0;
+                rejected++;
+            }
+        }
+        if (rejected > 0)
+        {
+            reduceVector(prev_pts, status);
+            reduceVector(cur_pts, status);
+            reduceVector(ids, status);
+            reduceVector(track_cnt, status);
+        }
+    }
+
+    if (!cfg.sem_stats_path.empty())
+    {
+        std::ofstream sem_stats(cfg.sem_stats_path, std::ios::app);
+        const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
+        sem_stats << static_cast<long long>(cur_time * 1e9) << ","
+                  << total << "," << rejected << "," << ratio << ","
+                  << static_cast<int>(cur_pts.size()) << ","
+                  << mask_available << "," << dynamic_pixel_ratio << "\n";
+    }
 }
 
 void FeatureTracker::setMask()

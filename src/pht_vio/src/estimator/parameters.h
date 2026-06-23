@@ -70,6 +70,7 @@ struct VinsConfig
     int sem_enable = 0;
     std::string sem_mask_topic = "/dynamic_mask";
     int sem_static_value = 255;
+    std::string sem_stats_path;
 
     void reset();
     bool loadFromYaml(const std::string &config_file);

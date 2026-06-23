@@ -1,7 +1,20 @@
 # SAD-VINS: Semantic-Adaptive Dynamic Visual-Inertial Navigation
 
 **Branch:** `paper/sad-vins-2026-q1`  
-**Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` (frozen EuRoC reference)
+**Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` (frozen EuRoC reference)  
+**Sensor setup:** **stereo camera + IMU** (same as baseline; not mono-only)
+
+## Sensor setup (stereo + IMU)
+
+SAD-VINS keeps the baseline **stereo Visual-Inertial SLAM** stack unchanged in the backend. Only the **front-end** adds semantic masking on the left camera (`cam0`).
+
+| Sensor | EuRoC topic | Role |
+|--------|-------------|------|
+| IMU | `/imu0` | Preintegration + bias estimation |
+| Left camera | `/cam0/image_raw` | KLT tracking + YOLO input |
+| Right camera | `/cam1/image_raw` | Stereo depth / right-track validation |
+
+YAML flags: `imu: 1`, `num_of_cam: 2` — identical modality to `euroc_stereo_imu_config.yaml`.
 
 ## Motivation
 
@@ -12,13 +25,15 @@ This design follows the YOLO segmentation pipeline from the Khang ORB-SLAM3 refe
 ## Pipeline
 
 ```text
+/imu0 ─────────────────────────────────────────► VINS backend (IMU preintegration)
+/cam1/image_raw ───────────────────────────────► stereo right track
 /cam0/image_raw ──► YOLOv11n-seg ──► /dynamic_mask (mono8: 255=static, 0=dynamic)
         │                                      │
-        └──────────────► VINS FeatureTracker ◄─┘
+        └──────────────► VINS FeatureTracker ◄─┘  (cam0 + cam1, stereo KLT)
                               │
-                         reject + mask gating
+                         reject + mask gating (cam0 only)
                               │
-                         VIO backend (unchanged)
+                    stereo + IMU optimizer (unchanged)
 ```
 
 ### Dynamic COCO classes (default)
@@ -90,11 +105,26 @@ ros2 launch pht_vio_ros euroc_stereo_imu_sem.launch.py enable_yolo:=false
 
 These are **orthogonal** and can be combined in a future hybrid branch if needed.
 
-## Evaluation (TODO)
+## Evaluation (2026-06-23, stereo + IMU)
 
-- EuRoC sequences with dynamic content (if available) or VIODE dynamic scenes
-- Compare baseline vs SAD-VINS: ATE, track survival, dynamic pixel rejection rate
-- Latency budget: YOLO avg ms + VINS front-end
+Protocol mirrors GeoDF branch: EuRoC 5×MH (baseline vs sad_sem), VIODE city_day 4 levels.
+
+Report: `results/sad_evaluation/EVALUATION_REPORT.md`
+
+| Dataset | Result |
+|---------|--------|
+| EuRoC | **5/5 PASS** (|Δ ATE| ≤ 20%); filter active, low reject on static scenes |
+| VIODE 2_mid | **−17.0%** ATE (0.166 → 0.138 m) |
+| VIODE 3_high | **−31.0%** ATE (0.346 → 0.239 m) |
+| VIODE 0_none/1_low | Regressed (YOLO false positives + 0.5× bag rate for YOLO runs) |
+
+**Verdict:** Filter **works** (mask 100%, reject scales with dynamic pixel %). **Useful** on high-dynamic VIODE; needs tuning for low-dynamic scenes.
+
+```bash
+./scripts/run_sad_full_evaluation.sh   # EuRoC + VIODE + report
+./scripts/run_sad_euroc.sh MH_03_medium sad_sem --eval
+./scripts/run_sad_viode.sh "2_mid 3_high" "baseline sad_sem"
+```
 
 ## References
 

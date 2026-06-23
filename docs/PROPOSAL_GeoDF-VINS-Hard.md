@@ -453,8 +453,8 @@ EuRoC static (gốc) + VIODE real-dynamic (gốc) benchmark
 | 5 | VIODE dynamic experiments + ablation (baseline/always-on/adaptive) |
 | 6 | Viết paper + figures (ATE, rejection ratio, FPS, detection lift) |
 
-**Hạ tầng sẵn có (`ws_vins`):** VINS-Fusion stereo+IMU (Docker), EuRoC MH_01–05, evo ATE/RPE, scripts `run_euroc.sh` / `run_geodf_study.sh`.
+**Branch:** `paper/geodf-adaptive-vins-2026-q4` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
 
 ---
 
-*Proposal version: 2026-06-22 · Workspace: `/home/theph/ws_vins`*
+*Proposal version: 2026-06-23 · Workspace: `/home/theph/ws_vins_ros2` (ROS 2)*

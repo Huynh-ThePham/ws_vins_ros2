@@ -19,7 +19,13 @@ Official ROS 2 port of [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VI
 | `pht_global_fusion_ros` | GPS fusion ROS 2 node |
 | `pht_slam` | Metapackage (depends on all of the above) |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries and research workflow.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries and [docs/BRANCHING.md](docs/BRANCHING.md) for the multi-paper git branch policy.
+
+| Branch | Role |
+|--------|------|
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen stereo Visual-Inertial SLAM reference (EuRoC) |
+| `paper/geodf-adaptive-vins-2026-q4` | GeoDF-VINS-Hard + adaptive self-gating (Q4 paper) |
+| `paper/<method>-<year>-<venue>` | One branch per future manuscript |
 
 ### Workspace setup
 

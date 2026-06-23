@@ -179,7 +179,7 @@ bash scripts/run_euroc_static_ablation.sh
 bash scripts/run_geodf_full_benchmark.sh all
 
 # VIODE real-dynamic (ROS1 bag auto-converted to ros2_bag)
-export VIODE_ROOT=/media/theph/Data1/ws_research_datasets/viode
+export VIODE_ROOT=/path/to/viode
 bash scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
 
 # Everything (EuRoC + VIODE)

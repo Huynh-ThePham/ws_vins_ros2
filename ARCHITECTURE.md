@@ -135,13 +135,13 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)** — international naming
 | Branch | Purpose |
 |--------|---------|
 | `main` | Integration branch; reviewed merges only |
-| `baseline/ros2-euroc-stereo-imu-v1` | Frozen EuRoC stereo+IMU reference (VIO + loop closure verified). **No algorithm experiments.** |
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **ROS 2 stereo Visual-Inertial SLAM** reference (EuRoC verified: VIO + loop closure). **No algorithm experiments.** |
 | `paper/<method>-<year>-<venue>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026-q4`) |
 | `exp/<topic>` | Exploratory work; not publication-bound |
 
 ```text
 main
- └── baseline/ros2-euroc-stereo-imu-v1
+ └── baseline/ros2-stereo-vi-slam-euroc-v1
        ├── paper/geodf-adaptive-vins-2026-q4
        ├── paper/sad-vins-2026-q1          (planned)
        └── exp/<scratch>
@@ -193,4 +193,4 @@ Re-run EuRoC checks before merging research into baseline:
 ./scripts/regenerate_benchmark_summaries.sh
 ```
 
-Tag releases on the baseline branch, e.g. `baseline-v1.0-euroc`.
+Tag releases on the baseline branch, e.g. `baseline-v1.0-ros2-stereo-vi-slam-euroc`.

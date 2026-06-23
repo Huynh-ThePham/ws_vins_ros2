@@ -17,27 +17,36 @@ All names use **lowercase ASCII**, **kebab-case**, and **no spaces**.
 Format:
 
 ```text
-baseline/<platform>-<benchmark>-<modality>-v<N>
+baseline/<platform>-<sensor-modality>-<system>-<benchmark>-v<N>
 ```
 
 | Field | Meaning | Examples |
 |-------|---------|----------|
 | `platform` | Runtime stack | `ros2`, `ros1` |
+| `sensor-modality` | Camera + inertial setup | `stereo`, `mono`, `stereo-imu` (prefer `stereo` when IMU is implied by system) |
+| `system` | Academic system class | `vi-slam` (Visual-Inertial SLAM), `vio` (odometry-only), `vins` |
 | `benchmark` | Primary validation dataset | `euroc`, `kitti`, `viode` |
-| `modality` | Sensor config | `stereo-imu`, `mono-imu`, `stereo` |
 | `vN` | Major baseline revision | `v1`, `v2` |
+
+**Terminology (international)**
+
+| Token | Full name | When to use |
+|-------|-----------|-------------|
+| `vi-slam` | **Visual-Inertial SLAM** | Stereo/Mono + IMU + mapping or loop closure (this workspace) |
+| `vio` | **Visual-Inertial Odometry** | Pose tracking only, no loop closure in scope |
+| `vins` | Visual-Inertial Navigation System | Product-style name; use if paper brands as VINS |
 
 **Rules**
 
 - Branch from `main` (or previous baseline tag), verify metrics, then **freeze**.
 - Bugfix-only; no algorithm experiments.
-- Tag each freeze: `baseline/ros2-euroc-stereo-imu-v1` → git tag `baseline-v1.0-euroc`.
+- Tag each freeze: e.g. git tag `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
 **Current baseline**
 
 | Branch | Description |
 |--------|-------------|
-| `baseline/ros2-euroc-stereo-imu-v1` | Verified EuRoC stereo+IMU (VIO + loop closure). Former name: `baseline/euroc-verified`. |
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | ROS 2 **stereo Visual-Inertial SLAM** reference verified on EuRoC (VIO + loop closure). Former names: `baseline/euroc-verified`, `baseline/ros2-euroc-stereo-imu-v1`. |
 
 ## 2. Paper branches
 
@@ -97,14 +106,14 @@ Examples: `exp/imu-gated-geodf`, `exp/soft-weight-backend`.
 
 ```text
 main
- └── baseline/ros2-euroc-stereo-imu-v1     [frozen]
+ └── baseline/ros2-stereo-vi-slam-euroc-v1     [frozen]
        ├── paper/geodf-adaptive-vins-2026-q4
        ├── paper/sad-vins-2026-q1
        └── exp/<scratch>
 ```
 
 1. Verify baseline on EuRoC (and other core benchmarks).
-2. `git checkout -b paper/<new-paper> baseline/ros2-euroc-stereo-imu-v1`
+2. `git checkout -b paper/<new-paper> baseline/ros2-stereo-vi-slam-euroc-v1`
 3. Implement method + benchmarks on the paper branch.
 4. Tag baseline/paper milestones; open PR to `main` only when integrating stable code.
 
@@ -112,7 +121,8 @@ main
 
 | Old branch | New branch |
 |------------|------------|
-| `baseline/euroc-verified` | `baseline/ros2-euroc-stereo-imu-v1` |
+| `baseline/euroc-verified` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
+| `baseline/ros2-euroc-stereo-imu-v1` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
 | `paper/geodf-vins-hard-q4` | `paper/geodf-adaptive-vins-2026-q4` |
 | `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026-q1` (recommended) |
 

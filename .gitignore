@@ -12,6 +12,9 @@ venv/
 # Benchmark outputs (regenerate with scripts/)
 results/
 
+# Converted dataset bags (regenerate locally; do not commit)
+data/
+
 # Large loop-closure vocabulary (auto-downloaded at build time)
 src/support_files/brief_k10L6.bin
 **/brief_k10L6.bin

@@ -1,8 +1,40 @@
 # PHT SLAM (ROS 2)
 
+[![ROS 2](https://img.shields.io/badge/ROS_2-Humble|Iron|Jazzy-blue)](https://docs.ros.org/en/humble/)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 Official ROS 2 port of [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VINS-Fusion) — an optimization-based multi-sensor state estimator for visual-inertial odometry, loop closure, and GPS fusion.
 
 **Supported ROS 2 distros:** Humble, Iron, Jazzy (tested on Humble)
+
+## Clone & build
+
+```bash
+git clone git@github.com:Huynh-ThePham/ws_vins_ros2.git
+cd ws_vins_ros2
+git checkout main   # or a research branch — see below
+source /opt/ros/${ROS_DISTRO}/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+source scripts/setup_ws.bash
+```
+
+## Research branches
+
+Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** · [CONTRIBUTING.md](CONTRIBUTING.md)
+
+| Branch | Role |
+|--------|------|
+| **`main`** | Stable integration (start here) |
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen stereo **Visual-Inertial SLAM** reference (EuRoC verified) |
+| [`paper/geodf-adaptive-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026-q4) | GeoDF-VINS-Hard + adaptive self-gating (Q4 paper) |
+
+New paper branch:
+
+```bash
+git fetch origin
+git checkout -b paper/my-method-2026-q4 origin/baseline/ros2-stereo-vi-slam-euroc-v1
+```
 
 ## Packages
 
@@ -19,7 +51,7 @@ Official ROS 2 port of [VINS-Fusion](https://github.com/HKUST-Aerial-Robotics/VI
 | `pht_global_fusion_ros` | GPS fusion ROS 2 node |
 | `pht_slam` | Metapackage (depends on all of the above) |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries and research workflow.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for module boundaries.
 
 ### Workspace setup
 
@@ -225,14 +257,16 @@ The original ROS 1 source is preserved in `src/VINS-Fusion-ROS1/` (excluded from
 
 ## License
 
-GPL-3.0 — see [src/LICENCE](src/LICENCE).
+GPL-3.0 — see [LICENSE](LICENSE) (same as upstream VINS-Fusion).
 
 ## Citation
 
 If you use VINS-Fusion in academic research, please cite the original papers. See [support_files/paper_bib.txt](src/support_files/paper_bib.txt).
 
+When using research branches (e.g. GeoDF-Adaptive), cite that work separately once published.
+
 ## Authors
 
 Original VINS-Fusion: [HKUST Aerial Robotics Group](http://uav.ust.hk/)
 
-ROS 2 port: community contribution based on the original codebase.
+ROS 2 port and research extensions: [Huynh-ThePham/ws_vins_ros2](https://github.com/Huynh-ThePham/ws_vins_ros2) contributors — see [CONTRIBUTING.md](CONTRIBUTING.md).

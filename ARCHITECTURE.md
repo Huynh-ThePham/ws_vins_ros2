@@ -128,13 +128,25 @@ Output trajectory: `output_path/vio.csv` from the YAML config.
 
 VIO parameters are loaded into `VinsConfig` via `vinsConfig().loadFromYaml(path)` (see `pht_vio/src/estimator/parameters.h`). Loop-closure node settings use `LoopClosureConfig` in `pht_loop_closure/src/loop_closure_config.hpp`.
 
-## Git branches (baseline vs research)
+## Git branches (baseline vs papers)
+
+Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)**.
 
 | Branch | Purpose |
 |--------|---------|
-| `baseline/euroc-verified` | Frozen EuRoC stereo+IMU baseline (VIO + loop closure match upstream accuracy). **Do not commit algorithm experiments here.** |
-| `main` | Integration branch; may track baseline or receive merges after review |
-| `research/*` | Feature branches (e.g. dynamic MAF filtering). Branch from `baseline/euroc-verified`, merge only when benchmarked |
+| `main` | Stable ROS 2 integration (default for contributors) |
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **stereo Visual-Inertial SLAM** reference (EuRoC verified). **No algorithm experiments.** |
+| `paper/<method>-<year>-<venue>` | One branch per manuscript |
+| `exp/<topic>` | Exploratory work |
+
+```text
+main
+ └── baseline/ros2-stereo-vi-slam-euroc-v1
+       ├── paper/geodf-adaptive-vins-2026-q4
+       └── paper/<future-paper>
+```
+
+Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
 Re-run EuRoC checks before merging research into baseline:
 
@@ -144,4 +156,4 @@ Re-run EuRoC checks before merging research into baseline:
 ./scripts/regenerate_benchmark_summaries.sh
 ```
 
-Tag releases on the baseline branch, e.g. `v0.1-euroc-baseline`.
+Tag releases on the baseline branch, e.g. `baseline-v1.0-ros2-stereo-vi-slam-euroc`.

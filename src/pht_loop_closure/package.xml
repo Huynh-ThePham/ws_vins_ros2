@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>pht_loop_closure</name>
+  <version>0.1.0</version>
+  <description>Loop closure algorithm library (PHT SLAM, ROS-free core)</description>
+  <maintainer email="qintonguav@gmail.com">qintong</maintainer>
+  <license>GPL-3.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>pht_slam_common</depend>
+  <depend>pht_camera_models</depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>libceres-dev</build_depend>
+  <build_depend>libopencv-dev</build_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

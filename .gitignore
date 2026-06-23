@@ -1,0 +1,27 @@
+# ROS 2 / colcon
+build/
+install/
+log/
+
+# Python
+*.pyc
+__pycache__/
+.venv/
+venv/
+
+# Benchmark outputs (regenerate with scripts/)
+results/
+
+# Large loop-closure vocabulary (auto-downloaded at build time)
+src/support_files/brief_k10L6.bin
+**/brief_k10L6.bin
+
+# Reference tree: nested upstream clone metadata + duplicate large assets
+src/VINS-Fusion-ROS1/.git/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

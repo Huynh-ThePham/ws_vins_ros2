@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>pht_global_fusion</name>
+  <version>0.1.0</version>
+  <description>Global GPS/VIO fusion algorithm core (PHT SLAM)</description>
+  <maintainer email="qintonguav@gmail.com">qintong</maintainer>
+  <license>GPL-3.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>pht_slam_common</depend>
+  <depend>nav_msgs</depend>
+  <build_depend>eigen</build_depend>
+  <build_depend>libceres-dev</build_depend>
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

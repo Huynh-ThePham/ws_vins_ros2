@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a build, runtime, or accuracy issue
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please include ROS distro, branch name, and reproduction steps.
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      placeholder: main / baseline/ros2-stereo-vi-slam-euroc-v1 / paper/...
+    validations:
+      required: true
+  - type: dropdown
+    id: ros_distro
+    attributes:
+      label: ROS 2 distro
+      options:
+        - Humble
+        - Iron
+        - Jazzy
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: commands, launch file, dataset
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

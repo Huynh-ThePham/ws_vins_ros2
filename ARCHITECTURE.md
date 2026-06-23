@@ -134,8 +134,8 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)** — international naming
 
 | Branch | Purpose |
 |--------|---------|
-| `main` | Integration branch; reviewed merges only |
-| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **ROS 2 stereo Visual-Inertial SLAM** reference (EuRoC verified: VIO + loop closure). **No algorithm experiments.** |
+| `main` | Stable ROS 2 integration (default for contributors) |
+| `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **ROS 2 stereo Visual-Inertial SLAM** reference (EuRoC verified). **No algorithm experiments.** |
 | `paper/<method>-<year>-<venue>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026-q4`) |
 | `exp/<topic>` | Exploratory work; not publication-bound |
 
@@ -147,7 +147,7 @@ main
        └── exp/<scratch>
 ```
 
-Tag baseline freezes: `baseline-v1.0-euroc`.
+Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
 ### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026-q4`)
 
@@ -176,8 +176,8 @@ VIODE configs under `src/config/viode/` (max_cnt=120, pinhole calib).
 ./scripts/run_geodf_full_benchmark.sh all
 
 # VIODE dynamic (converts ROS1 bag → ros2_bag on first run)
-VIODE_ROOT=/media/theph/Data1/ws_research_datasets/viode \
-  ./scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
+export VIODE_ROOT=/path/to/viode
+./scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
 
 # Full pipeline (EuRoC + VIODE)
 ./scripts/run_geodf_benchmark_all.sh all

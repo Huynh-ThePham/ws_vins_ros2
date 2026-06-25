@@ -30,4 +30,19 @@ for level in $LEVELS; do
         --out "${out}/detection_eval.json"
 done
 
-echo "[detection] done"
+MASK_ROOT="${WS}/results/viode/masks"
+mkdir -p "$MASK_ROOT"
+for level in $LEVELS; do
+    src="${WS}/results/viode/${VIODE_ENV}_${level}_geodf_dump/masks"
+    if [ -d "$src" ]; then
+        ln -sfn "../${VIODE_ENV}_${level}_geodf_dump/masks" "${MASK_ROOT}/${VIODE_ENV}_${level}"
+    fi
+done
+
+python3 "${WS}/scripts/eval_viode_detection.py" \
+    --root "${WS}/results/viode" \
+    --mask-root "$MASK_ROOT" \
+    --env "$VIODE_ENV" \
+    --levels "$LEVELS"
+
+echo "[detection] done -> ${WS}/results/viode/viode_${VIODE_ENV}_detection.md"

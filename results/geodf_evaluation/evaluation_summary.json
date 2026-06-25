@@ -1,0 +1,588 @@
+{
+  "euroc": {
+    "MH_01_easy": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "MH_01_easy_baseline_s40",
+          "sequence": "MH_01_easy_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 40.0,
+          "ate_rmse_m": 0.180019,
+          "ate_mean_m": 0.156944,
+          "ate_median_m": 0.156873,
+          "ate_max_m": 0.375692,
+          "rpe_rmse_m": 0.044989,
+          "n_poses_est": 1430,
+          "n_poses_gt": 36382
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_01_easy_baseline_s40"
+      },
+      "alwayson": {
+        "metrics": {
+          "run_dir": "MH_01_easy_alwayson_s40",
+          "sequence": "MH_01_easy_alwayson",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 40.0,
+          "ate_rmse_m": 0.206607,
+          "ate_mean_m": 0.177818,
+          "ate_median_m": 0.179122,
+          "ate_max_m": 0.456852,
+          "rpe_rmse_m": 0.044449,
+          "n_poses_est": 1430,
+          "n_poses_gt": 36382
+        },
+        "filter": {
+          "mean_reject_pct": 0.2643097048611106,
+          "frames_with_reject_pct": 19.65277777777778,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_01_easy_alwayson_s40"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "MH_01_easy_adaptive_s40",
+          "sequence": "MH_01_easy_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 40.0,
+          "ate_rmse_m": 0.165785,
+          "ate_mean_m": 0.143613,
+          "ate_median_m": 0.136608,
+          "ate_max_m": 0.355557,
+          "rpe_rmse_m": 0.04498,
+          "n_poses_est": 1430,
+          "n_poses_gt": 36382
+        },
+        "filter": {
+          "mean_reject_pct": 0.023412793749999997,
+          "frames_with_reject_pct": 1.1458333333333333,
+          "armed_pct": 1.7361111111111112
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_01_easy_adaptive_s40"
+      }
+    },
+    "MH_02_easy": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "MH_02_easy_baseline_s35",
+          "sequence": "MH_02_easy_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 35.0,
+          "ate_rmse_m": 0.168406,
+          "ate_mean_m": 0.158714,
+          "ate_median_m": 0.173152,
+          "ate_max_m": 0.253704,
+          "rpe_rmse_m": 0.039299,
+          "n_poses_est": 1159,
+          "n_poses_gt": 29993
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_02_easy_baseline_s35"
+      },
+      "alwayson": {
+        "metrics": {
+          "run_dir": "MH_02_easy_alwayson_s35",
+          "sequence": "MH_02_easy_alwayson",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 35.0,
+          "ate_rmse_m": 0.154631,
+          "ate_mean_m": 0.145214,
+          "ate_median_m": 0.147344,
+          "ate_max_m": 0.23351,
+          "rpe_rmse_m": 0.040168,
+          "n_poses_est": 1159,
+          "n_poses_gt": 29993
+        },
+        "filter": {
+          "mean_reject_pct": 0.2221714289991446,
+          "frames_with_reject_pct": 17.27972626176219,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_02_easy_alwayson_s35"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "MH_02_easy_adaptive_s35",
+          "sequence": "MH_02_easy_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 35.0,
+          "ate_rmse_m": 0.168737,
+          "ate_mean_m": 0.159039,
+          "ate_median_m": 0.173307,
+          "ate_max_m": 0.253482,
+          "rpe_rmse_m": 0.039322,
+          "n_poses_est": 1159,
+          "n_poses_gt": 29993
+        },
+        "filter": {
+          "mean_reject_pct": 0.004371702309666381,
+          "frames_with_reject_pct": 0.0855431993156544,
+          "armed_pct": 0.2994011976047904
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_02_easy_adaptive_s35"
+      }
+    },
+    "MH_03_medium": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "MH_03_medium_baseline_s17p5",
+          "sequence": "MH_03_medium_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 17.5,
+          "ate_rmse_m": 0.291444,
+          "ate_mean_m": 0.259868,
+          "ate_median_m": 0.227348,
+          "ate_max_m": 0.550526,
+          "rpe_rmse_m": 0.049874,
+          "n_poses_est": 1165,
+          "n_poses_gt": 26302
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_03_medium_baseline_s17p5"
+      },
+      "alwayson": {
+        "metrics": {
+          "run_dir": "MH_03_medium_alwayson_s17p5",
+          "sequence": "MH_03_medium_alwayson",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 17.5,
+          "ate_rmse_m": 0.288651,
+          "ate_mean_m": 0.259276,
+          "ate_median_m": 0.229771,
+          "ate_max_m": 0.532482,
+          "rpe_rmse_m": 0.05058,
+          "n_poses_est": 1165,
+          "n_poses_gt": 26302
+        },
+        "filter": {
+          "mean_reject_pct": 0.38938233077905404,
+          "frames_with_reject_pct": 28.480204342273307,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_03_medium_alwayson_s17p5"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "MH_03_medium_adaptive_s17p5",
+          "sequence": "MH_03_medium_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 17.5,
+          "ate_rmse_m": 0.27514,
+          "ate_mean_m": 0.244589,
+          "ate_median_m": 0.220302,
+          "ate_max_m": 0.533733,
+          "rpe_rmse_m": 0.05057,
+          "n_poses_est": 1165,
+          "n_poses_gt": 26302
+        },
+        "filter": {
+          "mean_reject_pct": 0.02961341847594721,
+          "frames_with_reject_pct": 1.1494252873563218,
+          "armed_pct": 1.7028522775649213
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_03_medium_adaptive_s17p5"
+      }
+    },
+    "MH_04_difficult": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "MH_04_difficult_baseline_s15",
+          "sequence": "MH_04_difficult_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.446511,
+          "ate_mean_m": 0.400676,
+          "ate_median_m": 0.42795,
+          "ate_max_m": 0.75331,
+          "rpe_rmse_m": 0.065217,
+          "n_poses_est": 856,
+          "n_poses_gt": 19753
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_04_difficult_baseline_s15"
+      },
+      "alwayson": {
+        "metrics": {
+          "run_dir": "MH_04_difficult_alwayson_s15",
+          "sequence": "MH_04_difficult_alwayson",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.419477,
+          "ate_mean_m": 0.373453,
+          "ate_median_m": 0.356807,
+          "ate_max_m": 0.751412,
+          "rpe_rmse_m": 0.065837,
+          "n_poses_est": 856,
+          "n_poses_gt": 19753
+        },
+        "filter": {
+          "mean_reject_pct": 0.47050598308051245,
+          "frames_with_reject_pct": 27.304550758459744,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_04_difficult_alwayson_s15"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "MH_04_difficult_adaptive_s15",
+          "sequence": "MH_04_difficult_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.445655,
+          "ate_mean_m": 0.396853,
+          "ate_median_m": 0.396565,
+          "ate_max_m": 0.760114,
+          "rpe_rmse_m": 0.064959,
+          "n_poses_est": 856,
+          "n_poses_gt": 19753
+        },
+        "filter": {
+          "mean_reject_pct": 0.10045168583042971,
+          "frames_with_reject_pct": 4.239256678281069,
+          "armed_pct": 6.039488966318235
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_04_difficult_adaptive_s15"
+      }
+    },
+    "MH_05_difficult": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "MH_05_difficult_baseline_s15",
+          "sequence": "MH_05_difficult_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.298127,
+          "ate_mean_m": 0.277392,
+          "ate_median_m": 0.281658,
+          "ate_max_m": 0.51921,
+          "rpe_rmse_m": 0.057269,
+          "n_poses_est": 976,
+          "n_poses_gt": 22212
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_05_difficult_baseline_s15"
+      },
+      "alwayson": {
+        "metrics": {
+          "run_dir": "MH_05_difficult_alwayson_s15",
+          "sequence": "MH_05_difficult_alwayson",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.318715,
+          "ate_mean_m": 0.289234,
+          "ate_median_m": 0.257466,
+          "ate_max_m": 0.581621,
+          "rpe_rmse_m": 0.057839,
+          "n_poses_est": 976,
+          "n_poses_gt": 22212
+        },
+        "filter": {
+          "mean_reject_pct": 0.32882325280898855,
+          "frames_with_reject_pct": 22.36976506639428,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_05_difficult_alwayson_s15"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "MH_05_difficult_adaptive_s15",
+          "sequence": "MH_05_difficult_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 15.0,
+          "ate_rmse_m": 0.297277,
+          "ate_mean_m": 0.276666,
+          "ate_median_m": 0.28243,
+          "ate_max_m": 0.518336,
+          "rpe_rmse_m": 0.05721,
+          "n_poses_est": 976,
+          "n_poses_gt": 22212
+        },
+        "filter": {
+          "mean_reject_pct": 0.011756056265984655,
+          "frames_with_reject_pct": 0.3069053708439898,
+          "armed_pct": 0.6138107416879796
+        },
+        "path": "/home/theph/ws_vins_ros2/results/geodf/MH_05_difficult_adaptive_s15"
+      }
+    }
+  },
+  "viode": {
+    "0_none": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "city_day_0_none_baseline",
+          "sequence": "city_day_0_none_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.154622,
+          "ate_mean_m": 0.139622,
+          "ate_median_m": 0.13056,
+          "ate_max_m": 0.344273,
+          "rpe_rmse_m": 0.024322,
+          "n_poses_est": 650,
+          "n_poses_gt": 13280
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_0_none_baseline"
+      },
+      "geodf_dump": {
+        "metrics": {
+          "run_dir": "city_day_0_none_geodf_dump",
+          "sequence": "city_day_0_none_geodf_dump",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.10782,
+          "ate_mean_m": 0.098923,
+          "ate_median_m": 0.089992,
+          "ate_max_m": 0.291316,
+          "rpe_rmse_m": 0.033785,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.5891968816880178,
+          "frames_with_reject_pct": 30.36925395629239,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_0_none_geodf_dump"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "city_day_0_none_adaptive",
+          "sequence": "city_day_0_none_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.112593,
+          "ate_mean_m": 0.100457,
+          "ate_median_m": 0.092142,
+          "ate_max_m": 0.788215,
+          "rpe_rmse_m": 0.111501,
+          "n_poses_est": 653,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.0174564592760181,
+          "frames_with_reject_pct": 0.7541478129713424,
+          "armed_pct": 1.6591251885369533
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_0_none_adaptive"
+      }
+    },
+    "1_low": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "city_day_1_low_baseline",
+          "sequence": "city_day_1_low_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.138074,
+          "ate_mean_m": 0.126227,
+          "ate_median_m": 0.125667,
+          "ate_max_m": 0.865543,
+          "rpe_rmse_m": 0.125749,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_1_low_baseline"
+      },
+      "geodf_dump": {
+        "metrics": {
+          "run_dir": "city_day_1_low_geodf_dump",
+          "sequence": "city_day_1_low_geodf_dump",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.144283,
+          "ate_mean_m": 0.130804,
+          "ate_median_m": 0.129762,
+          "ate_max_m": 0.292754,
+          "rpe_rmse_m": 0.026452,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.6355284724943481,
+          "frames_with_reject_pct": 32.02712886209495,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_1_low_geodf_dump"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "city_day_1_low_adaptive",
+          "sequence": "city_day_1_low_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.137738,
+          "ate_mean_m": 0.125761,
+          "ate_median_m": 0.11978,
+          "ate_max_m": 0.864396,
+          "rpe_rmse_m": 0.12576,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.022829678975131877,
+          "frames_with_reject_pct": 0.9796533534287868,
+          "armed_pct": 1.9593067068575736
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_1_low_adaptive"
+      }
+    },
+    "2_mid": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "city_day_2_mid_baseline",
+          "sequence": "city_day_2_mid_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.165965,
+          "ate_mean_m": 0.141925,
+          "ate_median_m": 0.122537,
+          "ate_max_m": 0.564698,
+          "rpe_rmse_m": 0.032486,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_2_mid_baseline"
+      },
+      "geodf_dump": {
+        "metrics": {
+          "run_dir": "city_day_2_mid_geodf_dump",
+          "sequence": "city_day_2_mid_geodf_dump",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.167696,
+          "ate_mean_m": 0.152197,
+          "ate_median_m": 0.136218,
+          "ate_max_m": 0.371311,
+          "rpe_rmse_m": 0.033689,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.7145330173323278,
+          "frames_with_reject_pct": 35.56895252449134,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_2_mid_geodf_dump"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "city_day_2_mid_adaptive",
+          "sequence": "city_day_2_mid_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.14817,
+          "ate_mean_m": 0.136565,
+          "ate_median_m": 0.125133,
+          "ate_max_m": 0.339463,
+          "rpe_rmse_m": 0.029325,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.051286302938960054,
+          "frames_with_reject_pct": 2.110022607385079,
+          "armed_pct": 3.165033911077619
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_2_mid_adaptive"
+      }
+    },
+    "3_high": {
+      "baseline": {
+        "metrics": {
+          "run_dir": "city_day_3_high_baseline",
+          "sequence": "city_day_3_high_baseline",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.456144,
+          "ate_mean_m": 0.371505,
+          "ate_median_m": 0.318783,
+          "ate_max_m": 1.233925,
+          "rpe_rmse_m": 0.163021,
+          "n_poses_est": 650,
+          "n_poses_gt": 13280
+        },
+        "filter": null,
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_3_high_baseline"
+      },
+      "geodf_dump": {
+        "metrics": {
+          "run_dir": "city_day_3_high_geodf_dump",
+          "sequence": "city_day_3_high_geodf_dump",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.365759,
+          "ate_mean_m": 0.282786,
+          "ate_median_m": 0.200881,
+          "ate_max_m": 0.944964,
+          "rpe_rmse_m": 0.107739,
+          "n_poses_est": 653,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 1.127856770628311,
+          "frames_with_reject_pct": 43.22482967448902,
+          "armed_pct": 100.0
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_3_high_geodf_dump"
+      },
+      "adaptive": {
+        "metrics": {
+          "run_dir": "city_day_3_high_adaptive",
+          "sequence": "city_day_3_high_adaptive",
+          "mode": "unknown",
+          "loop_fusion": false,
+          "bag_start_s": 0.0,
+          "ate_rmse_m": 0.225109,
+          "ate_mean_m": 0.203891,
+          "ate_median_m": 0.196054,
+          "ate_max_m": 0.59827,
+          "rpe_rmse_m": 0.102069,
+          "n_poses_est": 654,
+          "n_poses_gt": 13280
+        },
+        "filter": {
+          "mean_reject_pct": 0.49076745839636915,
+          "frames_with_reject_pct": 9.757942511346444,
+          "armed_pct": 10.968229954614221
+        },
+        "path": "/home/theph/ws_vins_ros2/results/viode/city_day_3_high_adaptive"
+      }
+    }
+  },
+  "verdict": {
+    "euroc_adaptive_pass": "5/5",
+    "viode_dynamic_improve": 2,
+    "viode_low_dynamic_ok": 2,
+    "overall_pass": true
+  }
+}

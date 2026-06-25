@@ -161,6 +161,16 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_activate_ratio = 0.12;
     geodf_activate_ema = 0.15;
     geodf_deactivate_frac = 0.6;
+    geodf_auto_rho = 0;
+    geodf_auto_mult = 1.8;
+    geodf_auto_margin = 0.05;
+    geodf_activate_ratio_min = 0.08;
+    geodf_activate_ratio_max = 0.40;
+    geodf_auto_floor_down = 0.02;
+    geodf_auto_floor_up = 0.004;
+    geodf_stereo_check = 0;
+    geodf_stereo_sampson_th = 3.0;
+    geodf_stereo_floor_max = 0.0;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -193,6 +203,26 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_activate_ema = (double)fsSettings["geodf_activate_ema"];
     if (!fsSettings["geodf_deactivate_frac"].empty())
         geodf_deactivate_frac = (double)fsSettings["geodf_deactivate_frac"];
+    if (!fsSettings["geodf_auto_rho"].empty())
+        geodf_auto_rho = (int)fsSettings["geodf_auto_rho"];
+    if (!fsSettings["geodf_auto_mult"].empty())
+        geodf_auto_mult = (double)fsSettings["geodf_auto_mult"];
+    if (!fsSettings["geodf_auto_margin"].empty())
+        geodf_auto_margin = (double)fsSettings["geodf_auto_margin"];
+    if (!fsSettings["geodf_activate_ratio_min"].empty())
+        geodf_activate_ratio_min = (double)fsSettings["geodf_activate_ratio_min"];
+    if (!fsSettings["geodf_activate_ratio_max"].empty())
+        geodf_activate_ratio_max = (double)fsSettings["geodf_activate_ratio_max"];
+    if (!fsSettings["geodf_auto_floor_down"].empty())
+        geodf_auto_floor_down = (double)fsSettings["geodf_auto_floor_down"];
+    if (!fsSettings["geodf_auto_floor_up"].empty())
+        geodf_auto_floor_up = (double)fsSettings["geodf_auto_floor_up"];
+    if (!fsSettings["geodf_stereo_check"].empty())
+        geodf_stereo_check = (int)fsSettings["geodf_stereo_check"];
+    if (!fsSettings["geodf_stereo_sampson_th"].empty())
+        geodf_stereo_sampson_th = (double)fsSettings["geodf_stereo_sampson_th"];
+    if (!fsSettings["geodf_stereo_floor_max"].empty())
+        geodf_stereo_floor_max = (double)fsSettings["geodf_stereo_floor_max"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -200,7 +230,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geo_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,sampson_above_th,"
                      "candidates,rejected,reject_ratio,tracks_after,"
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
-                     "activation_signal,frame_active,geo_ms\n";
+                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -217,7 +247,13 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " adaptive=" << geodf_adaptive
                         << " activate_ratio=" << geodf_activate_ratio
                         << " activate_ema=" << geodf_activate_ema
-                        << " deactivate_frac=" << geodf_deactivate_frac);
+                        << " deactivate_frac=" << geodf_deactivate_frac
+                        << " auto_rho=" << geodf_auto_rho
+                        << " auto_mult=" << geodf_auto_mult
+                        << " auto_margin=" << geodf_auto_margin
+                        << " stereo_check=" << geodf_stereo_check
+                        << " stereo_sampson_th=" << geodf_stereo_sampson_th
+                        << " stereo_floor_max=" << geodf_stereo_floor_max);
     }
 
     fsSettings.release();

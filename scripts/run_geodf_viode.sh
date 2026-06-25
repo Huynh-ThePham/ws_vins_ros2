@@ -3,7 +3,8 @@
 #
 # Usage: ./scripts/run_geodf_viode.sh [LEVELS] [METHODS]
 #   LEVELS  : "0_none 1_low 2_mid 3_high" (default)
-#   METHODS : "baseline geodf_dump adaptive" (default)
+#   METHODS : "baseline geodf_dump adaptive" (default; adaptive = PROPOSED auto-ρ_on)
+#             ablation: adaptive_fixed (fixed ρ_on), adaptive_v2 (B+F)
 #
 # Env: VIODE_ROOT, VIODE_ENV=city_day, FORCE=1 to re-run
 set -eo pipefail

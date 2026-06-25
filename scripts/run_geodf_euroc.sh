@@ -8,7 +8,9 @@
 #   geodf_hard    -> euroc_stereo_imu_geodf_config.yaml
 #   alwayson      -> euroc_stereo_imu_geodf_dump_config.yaml (always-on + feature dump)
 #   geodf_dump    -> same as alwayson
-#   adaptive      -> euroc_stereo_imu_geodf_adaptive_config.yaml
+#   adaptive      -> PROPOSED: scene-aware + auto-ρ_on (B), stereo OFF
+#   adaptive_fixed -> ablation: fixed ρ_on=0.12 (dataset-tuned oracle)
+#   adaptive_v2   -> ablation: auto-ρ_on + stereo cross-check (F)
 #   geodf_noguard -> ablation without ratio guard
 set -eo pipefail
 
@@ -39,8 +41,11 @@ if [ -z "$START" ]; then
     START="$(euroc_bag_start_s "$SEQ")"
 fi
 
-BAG="${EUROC}/${GROUP}/${SEQ}/ros2_bag"
+BAG="$(resolve_euroc_ros2_bag "$SEQ" "$WS")"
 GT="${EUROC}/${GROUP}/${SEQ}/${SEQ}/mav0/state_groundtruth_estimate0/data.csv"
+if [ ! -f "$GT" ] || [ ! -d "$BAG" ] || [ ! -f "${BAG}/metadata.yaml" ]; then
+    bash "${WS}/scripts/euroc_prepare.sh" "$SEQ"
+fi
 [ -d "$BAG" ] || { echo "Missing ros2_bag: $BAG"; exit 1; }
 [ -f "$GT" ] || { echo "Missing GT: $GT"; exit 1; }
 

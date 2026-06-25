@@ -8,6 +8,7 @@ resolve_euroc_root() {
     fi
     local candidate
     for candidate in \
+        "/media/theph/Data1/Research/Datasets/EuRoC" \
         "/media/theph/Data1/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/euroc"; do
@@ -26,6 +27,7 @@ resolve_viode_root() {
     fi
     local candidate env="${VIODE_ENV:-city_day}"
     for candidate in \
+        "/media/theph/Data1/Research/Datasets/Viode" \
         "/media/theph/Data1/ws_research_datasets/viode" \
         "/media/theph/Data/ws_research_datasets/viode"; do
         if [ -d "${candidate}/${env}" ]; then
@@ -60,10 +62,16 @@ geodf_method_to_mode() {
         baseline) echo stereo_imu ;;
         geodf|geodf_hard) echo stereo_imu_geodf ;;
         geodf_dump|alwayson) echo stereo_imu_geodf_dump ;;
-        adaptive) echo stereo_imu_geodf_adaptive ;;
+        # PROPOSED (Hướng A): scene-aware + auto-ρ_on (B), stereo OFF
+        adaptive|proposed|geodf_adaptive) echo stereo_imu_geodf_adaptive ;;
+        # Ablation: fixed ρ_on=0.12 (oracle / dataset-tuned)
+        adaptive_fixed|adaptive_v1|fixed_rho) echo stereo_imu_geodf_adaptive_fixed ;;
+        adaptive_v2) echo stereo_imu_geodf_adaptive_v2 ;;
+        adaptiveB|adaptive_b) echo stereo_imu_geodf_adaptive ;;  # same as proposed
+        geodf_dump_v2|alwayson_v2) echo stereo_imu_geodf_dump_v2 ;;
         geodf_noguard) echo stereo_imu_geodf_noguard ;;
         *)
-            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|geodf_dump|adaptive|geodf_noguard)" >&2
+            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_v2|geodf_dump_v2|geodf_noguard)" >&2
             return 1
             ;;
     esac
@@ -91,6 +99,12 @@ resolve_viode_ros2_bag() {
     local level
     level="$(basename "$(dirname "$bag_ros1")")/$(basename "$bag_ros1" .bag)"
     echo "${ws}/data/viode_ros2/${level}/ros2_bag"
+}
+
+resolve_euroc_ros2_bag() {
+    local seq="$1"
+    local ws="${2:?}"
+    echo "${ws}/data/euroc_ros2/${seq}/ros2_bag"
 }
 
 source_ros2_ws() {

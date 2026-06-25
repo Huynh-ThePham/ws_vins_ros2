@@ -81,6 +81,21 @@ struct VinsConfig
     double geodf_activate_ratio = 0.12;
     double geodf_activate_ema = 0.15;
     double geodf_deactivate_frac = 0.6;
+    // (B) auto-calibrated per-scene activation threshold (tracks static outlier-floor)
+    int geodf_auto_rho = 0;
+    double geodf_auto_mult = 1.8;
+    double geodf_auto_margin = 0.05;
+    double geodf_activate_ratio_min = 0.08;
+    double geodf_activate_ratio_max = 0.40;
+    double geodf_auto_floor_down = 0.02;
+    double geodf_auto_floor_up = 0.004;
+    // (F) stereo temporal cross-check (right-view epipolar agreement)
+    int geodf_stereo_check = 0;
+    double geodf_stereo_sampson_th = 3.0;
+    // Only trust the stereo cross-check when the scene epipolar-outlier floor is
+    // low (reliable geometry). 0 = always trust. In low-parallax scenes the floor
+    // is high and the noisier right-view pair causes false rejections, so gate it.
+    double geodf_stereo_floor_max = 0.0;
     std::string geodf_stats_path;
     std::string geodf_feat_path;
 

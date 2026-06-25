@@ -10,7 +10,12 @@ __pycache__/
 venv/
 
 # Benchmark outputs (regenerate with scripts/)
-results/
+results/*
+!results/geodf_evaluation/
+!results/geodf_evaluation/**
+
+# Run logs
+logs/
 
 # Converted dataset bags (regenerate locally; do not commit)
 data/

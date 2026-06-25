@@ -128,6 +128,21 @@ def _fmt(v, p=2):
     return f"{v:.{p}f}" if isinstance(v, float) and v == v else "—"
 
 
+def _json_safe(obj: Any) -> Any:
+    if isinstance(obj, float) and obj != obj:
+        return None
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+def _write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(_json_safe(data), indent=2) + "\n")
+
+
 def md_table(headers, rows):
     out = ["| " + " | ".join(headers) + " |", "| " + " | ".join("---" for _ in headers) + " |"]
     out += ["| " + " | ".join(r) + " |" for r in rows]
@@ -147,7 +162,12 @@ def main() -> None:
     args = ap.parse_args()
 
     if args.features and args.mask_dir:
-        print(json.dumps(evaluate(args.features, args.mask_dir, args.match_tol_ms), indent=2))
+        result = evaluate(args.features, args.mask_dir, args.match_tol_ms)
+        if args.out:
+            _write_json(args.out, result)
+            print(f"[ok] wrote {args.out}")
+        else:
+            print(json.dumps(_json_safe(result), indent=2))
         return
 
     rows = []
@@ -196,7 +216,7 @@ def main() -> None:
         ]
     out = args.out or (args.root / f"viode_{args.env}_detection.md")
     out.write_text("\n".join(lines))
-    out.with_suffix(".json").write_text(json.dumps(bundle, indent=2) + "\n")
+    _write_json(out.with_suffix(".json"), bundle)
     print(f"[ok] wrote {out}")
     if rows:
         print(md_table(headers, rows))

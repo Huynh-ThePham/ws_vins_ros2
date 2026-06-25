@@ -126,6 +126,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     TicToc t_r;
     cur_time = _cur_time;
     cur_img = _img;
+    cur_img1 = _img1;  // (F) keep right image accessible to rejectGeoDynamic()
     row = cur_img.rows;
     col = cur_img.cols;
     cv::Mat rightImg = _img1;
@@ -275,6 +276,10 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             right_pts_velocity = ptsVelocity(ids_right, cur_un_right_pts, cur_un_right_pts_map, prev_un_right_pts_map);
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
+        // (F) store id -> right pixel for next-frame stereo temporal cross-check.
+        prev_right_pts_map.clear();
+        for (size_t i = 0; i < ids_right.size(); i++)
+            prev_right_pts_map[ids_right[i]] = cur_right_pts[i];
     }
     if(vinsConfig().show_track)
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
@@ -409,10 +414,9 @@ void FeatureTracker::rejectGeoDynamic()
         return;
 
     vector<double> errors(total, 0.0);
+    vector<uchar> left_outlier(total, 0);
     vector<double> scored_errors;
     scored_errors.reserve(total);
-    vector<int> candidates;
-    candidates.reserve(total);
     int scored = 0;
     int ransac_outliers = 0;
     int sampson_above_th = 0;
@@ -427,10 +431,97 @@ void FeatureTracker::rejectGeoDynamic()
         if (errors[i] > cfg.geodf_sampson_th)
             sampson_above_th++;
         const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
+        left_outlier[i] = ransac_outlier ? 1 : 0;
         if (ransac_outlier)
             ransac_outliers++;
-        if (ransac_outlier && errors[i] > cfg.geodf_sampson_th)
+    }
+
+    // (F) Stereo temporal cross-check: a static point is consistent with BOTH the
+    // left and right temporal epipolar geometry. A dynamic point that happens to
+    // slide along the left epipolar line (Sampson_left ~ 0) is generally still an
+    // outlier in the right view, whose epipolar geometry differs by the stereo
+    // baseline. We track cur-left -> cur-right and pair with the previous frame's
+    // right pixel (by id) to estimate a right temporal F and score Sampson_right.
+    vector<double> right_err(total, 0.0);
+    vector<uchar> right_outlier(total, 0);
+    vector<uchar> right_valid(total, 0);
+    if (cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
+        !cur_img1.empty() && !prev_right_pts_map.empty())
+    {
+        vector<cv::Point2f> cur_r;
+        vector<uchar> st;
+        vector<float> er;
+        cv::calcOpticalFlowPyrLK(cur_img, cur_img1, cur_pts, cur_r, st, er,
+                                 cv::Size(21, 21), 3);
+        vector<cv::Point2f> un_cr, un_pr;
+        vector<int> ref_idx;
+        un_cr.reserve(total);
+        un_pr.reserve(total);
+        ref_idx.reserve(total);
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            if (i >= static_cast<int>(st.size()) || !st[i] || !inBorder(cur_r[i]))
+                continue;
+            auto it = prev_right_pts_map.find(ids[i]);
+            if (it == prev_right_pts_map.end())
+                continue;
+            Eigen::Vector3d tp;
+            m_camera[1]->liftProjective(Eigen::Vector2d(cur_r[i].x, cur_r[i].y), tp);
+            cv::Point2f cr(FOCAL_LENGTH * tp.x() / tp.z() + col / 2.0,
+                           FOCAL_LENGTH * tp.y() / tp.z() + row / 2.0);
+            m_camera[1]->liftProjective(Eigen::Vector2d(it->second.x, it->second.y), tp);
+            cv::Point2f pr(FOCAL_LENGTH * tp.x() / tp.z() + col / 2.0,
+                           FOCAL_LENGTH * tp.y() / tp.z() + row / 2.0);
+            un_cr.push_back(cr);
+            un_pr.push_back(pr);
+            ref_idx.push_back(i);
+        }
+        if (static_cast<int>(un_cr.size()) >= 8)
+        {
+            vector<uchar> r_status;
+            cv::Mat Fr = cv::findFundamentalMat(un_cr, un_pr, cv::FM_RANSAC,
+                                                cfg.geodf_ransac_th_px, 0.99, r_status);
+            if (!Fr.empty())
+            {
+                for (size_t k = 0; k < ref_idx.size(); k++)
+                {
+                    const int i = ref_idx[k];
+                    right_err[i] = sampsonDistance(Fr, un_cr[k], un_pr[k]);
+                    right_outlier[i] = (r_status.empty() || r_status[k] == 0) ? 1 : 0;
+                    right_valid[i] = 1;
+                }
+            }
+        }
+    }
+
+    // Candidate = dynamic if EITHER view's temporal dual-gate (RANSAC outlier AND
+    // Sampson > threshold) fires. The right branch raises recall on dynamics the
+    // left epipolar geometry misses, while each branch keeps its own dual gate.
+    // Scene gate: only trust the (noisier) right-view branch when the scene's
+    // epipolar-outlier floor is low enough that the geometry is reliable. The
+    // member geo_outlier_floor still holds the previous frame's (smooth) estimate.
+    const bool stereo_trust =
+        cfg.geodf_stereo_check &&
+        (cfg.geodf_stereo_floor_max <= 0.0 || geo_outlier_floor < 0.0 ||
+         geo_outlier_floor <= cfg.geodf_stereo_floor_max);
+    vector<int> candidates;
+    candidates.reserve(total);
+    int stereo_added = 0;
+    for (int i = 0; i < total; i++)
+    {
+        if (track_cnt[i] < cfg.geodf_min_track_cnt)
+            continue;
+        const bool left_cand = left_outlier[i] && (errors[i] > cfg.geodf_sampson_th);
+        const bool right_cand = stereo_trust && right_valid[i] &&
+                                right_outlier[i] && (right_err[i] > cfg.geodf_stereo_sampson_th);
+        if (left_cand || right_cand)
+        {
             candidates.push_back(i);
+            if (!left_cand)
+                stereo_added++;
+        }
     }
 
     double mean_sampson = 0.0, median_sampson = 0.0, max_sampson = 0.0;
@@ -456,15 +547,39 @@ void FeatureTracker::rejectGeoDynamic()
         geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
                              (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
 
+    // (B) Update a running estimate of the scene's static epipolar-outlier floor:
+    // adapt down quickly (to catch genuinely static stretches) and creep up slowly
+    // (so transient dynamics do not inflate it). The arm threshold then sits a
+    // margin above this floor, so a high-noise scene (e.g. dense traffic) needs a
+    // proportionally higher outlier ratio to arm — fixing fixed-threshold over-arming.
+    if (geo_outlier_floor < 0.0)
+        geo_outlier_floor = frame_outlier_ratio;
+    else
+    {
+        const double b = (frame_outlier_ratio < geo_outlier_floor)
+                             ? cfg.geodf_auto_floor_down
+                             : cfg.geodf_auto_floor_up;
+        geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
+    }
+
+    double rho_on = cfg.geodf_activate_ratio;
+    if (cfg.geodf_auto_rho)
+    {
+        rho_on = geo_outlier_floor * cfg.geodf_auto_mult + cfg.geodf_auto_margin;
+        if (rho_on < cfg.geodf_activate_ratio_min)
+            rho_on = cfg.geodf_activate_ratio_min;
+        if (rho_on > cfg.geodf_activate_ratio_max)
+            rho_on = cfg.geodf_activate_ratio_max;
+    }
+    const double rho_off = rho_on * cfg.geodf_deactivate_frac;
+
     const size_t candidates_raw = candidates.size();
     int frame_active = 1;
     if (cfg.geodf_adaptive)
     {
-        const double hi = cfg.geodf_activate_ratio;
-        const double lo = cfg.geodf_activate_ratio * cfg.geodf_deactivate_frac;
         geo_activation_active = geo_activation_active
-                                    ? (geo_activation_ema >= lo)
-                                    : (geo_activation_ema >= hi);
+                                    ? (geo_activation_ema >= rho_off)
+                                    : (geo_activation_ema >= rho_on);
         frame_active = geo_activation_active ? 1 : 0;
         if (!frame_active)
             candidates.clear();
@@ -477,7 +592,9 @@ void FeatureTracker::rejectGeoDynamic()
     if (!candidates.empty())
     {
         sort(candidates.begin(), candidates.end(), [&](int a, int b) {
-            return errors[a] > errors[b];
+            const double sa = std::max(errors[a], right_valid[a] ? right_err[a] : 0.0);
+            const double sb = std::max(errors[b], right_valid[b] ? right_err[b] : 0.0);
+            return sa > sb;
         });
 
         int max_reject = static_cast<int>(candidates.size());
@@ -539,7 +656,8 @@ void FeatureTracker::rejectGeoDynamic()
                   << mean_sampson << "," << median_sampson << "," << max_sampson << ","
                   << guard_triggered << "," << guard_capped << ","
                   << geo_activation_ema << "," << frame_active << ","
-                  << t_geo.toc() << "\n";
+                  << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
+                  << stereo_added << "\n";
     }
 
     if (cfg.geodf_debug)

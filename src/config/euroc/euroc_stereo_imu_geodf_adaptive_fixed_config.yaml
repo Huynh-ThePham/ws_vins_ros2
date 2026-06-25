@@ -70,7 +70,8 @@ load_previous_pose_graph: 0        # load and reuse previous pose graph; load fr
 pose_graph_save_path: "~/output/pose_graph/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
 
-# GeoDF-Adaptive — PROPOSED (Hướng A): EuRoC calib + auto-ρ_on, stereo OFF
+# GeoDF-Adaptive — ablation: fixed ρ_on=0.12 (dataset-tuned / oracle threshold)
+# PROPOSED config: euroc_stereo_imu_geodf_adaptive_config.yaml (auto-ρ_on)
 geodf_enable: 1
 geodf_hard_reject: 1
 geodf_ransac_th_px: 1.0
@@ -81,17 +82,8 @@ geodf_reject_ratio_max: 0.40
 geodf_ratio_guard: 1
 geodf_debug: 1
 geodf_dump_features: 0
-geodf_adaptive: 1
-geodf_activate_ratio: 0.12
-geodf_activate_ema: 0.15
-geodf_deactivate_frac: 0.6
-geodf_auto_rho: 1
-geodf_auto_mult: 1.8
-geodf_auto_margin: 0.05
-geodf_activate_ratio_min: 0.10
-geodf_activate_ratio_max: 0.40
-geodf_auto_floor_down: 0.02
-geodf_auto_floor_up: 0.004
-geodf_stereo_check: 0
-geodf_stereo_sampson_th: 6.0
-geodf_stereo_floor_max: 0.045
+# --- scene-aware activation ---
+geodf_adaptive: 1            # 1: hard-reject only on dynamic frames; 0: always-on
+geodf_activate_ratio: 0.12   # EMA outlier-ratio threshold to arm rejection
+geodf_activate_ema: 0.15     # EMA smoothing factor (0..1); lower = more smoothing
+geodf_deactivate_frac: 0.6   # disarm when EMA < activate_ratio * this (hysteresis)

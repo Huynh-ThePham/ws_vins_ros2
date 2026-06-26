@@ -102,6 +102,31 @@ struct VinsConfig
     // low (reliable geometry). 0 = always trust. In low-parallax scenes the floor
     // is high and the noisier right-view pair causes false rejections, so gate it.
     double geodf_stereo_floor_max = 0.0;
+
+    // GeoDF-Inertial (Paper #2): score features against the IMU/VINS-predicted
+    // rigid-scene epipolar geometry instead of a feature-fit fundamental matrix,
+    // so the rigidity reference does not collapse when dynamics dominate.
+    int geodf_imu_enable = 0;             // 1: use inertial epipolar scoring when reliable
+    double geodf_imu_sampson_th = 3.0;    // base Sampson threshold (pseudo-pixel^2)
+    double geodf_imu_parallax_min = 0.02; // metres; below -> low-parallax (fallback/derotate)
+    double geodf_imu_parallax_ref = 0.08; // metres; confidence-scaling reference baseline
+    double geodf_imu_tau_cap = 4.0;       // max multiplier applied to sampson_th at low parallax
+    int geodf_imu_fallback = 1;           // 1: fall back to feature-fit GeoDF when imu invalid
+    int geodf_imu_derotate = 1;           // 1: gyro-derotated residual-flow gate at low parallax
+    double geodf_imu_derotate_px = 3.0;   // residual-flow threshold (pseudo-pixels) for derotate mode
+    // Robust per-frame scale gate: reject only residuals that clearly exceed the
+    // frame's own central tendency (tau_eff' = max(tau_eff, mult * median)). A
+    // whole-frame geometry error (transient bad IMU pose) inflates the median and
+    // so widens the gate, preventing mass false rejection on static scenes, while
+    // genuine dynamics (low static median, high outliers) are still caught.
+    double geodf_imu_median_mult = 5.0;   // 0 disables the robust scale gate
+    double geodf_imu_parallax_max = 1.0;  // metres; above -> pose deemed corrupted, fall back
+    // Reliability skip: if the inertial gate would flag more than this fraction
+    // of the frame, the rigid-scene model explains too little (transient bad
+    // pose, or dynamics so dense that front-end rejection is unsafe) -> skip
+    // rejection on this frame and freeze the scene EMA. 0 disables.
+    double geodf_imu_max_dyn_frac = 0.5;
+
     std::string geodf_stats_path;
     std::string geodf_feat_path;
 

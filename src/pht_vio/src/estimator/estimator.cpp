@@ -182,6 +182,11 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
 
+    // GeoDF-Inertial: refresh the IMU-predicted epipolar geometry for this image
+    // before the front-end tracks/filters it.
+    if (vinsConfig().geodf_imu_enable)
+        pushImuEpipolarAtImage(t);
+
     if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, _img);
     else
@@ -1507,6 +1512,53 @@ void Estimator::predictPtsInNextFrame()
     }
     featureTracker.setPrediction(predictPts);
     //printf("estimator output %d predict pts\n",(int)predictPts.size());
+}
+
+void Estimator::pushImuEpipolarAtImage(double t)
+{
+    // GeoDF-Inertial (Paper #2): compute the ACTUAL inter-frame relative camera
+    // pose between the previous and current tracked image and push it to the
+    // front-end, just before trackImage() consumes it. Rotation comes from the
+    // gyro-driven IMU propagation (latest_Q), which is far more accurate than a
+    // constant-velocity extrapolation, so static correspondences keep a small
+    // epipolar residual and the inertial gate stays discriminative. The metric
+    // relative translation comes from the IMU-propagated position, re-anchored
+    // to the optimized window state every frame (short propagation horizon).
+    if (solver_flag != NON_LINEAR)
+    {
+        featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(),
+                                      Eigen::Vector3d::Zero(), false);
+        imu_epi_have_prev = false;
+        return;
+    }
+
+    mPropagate.lock();
+    const Eigen::Matrix3d cur_R = latest_Q.toRotationMatrix();
+    const Eigen::Vector3d cur_P = latest_P;
+    mPropagate.unlock();
+
+    if (imu_epi_have_prev)
+    {
+        // a = previous image (body pose Ra,Pa), b = current image (Rb,Pb).
+        // camera-b-from-camera-a: X_b = R_rel X_a + t_rel, left camera.
+        const Eigen::Matrix3d &Ric = ric[0];
+        const Eigen::Vector3d &Tic = tic[0];
+        const Eigen::Matrix3d &Ra = imu_epi_prev_R, &Rb = cur_R;
+        const Eigen::Vector3d &Pa = imu_epi_prev_P, &Pb = cur_P;
+        Eigen::Matrix3d R_rel = Ric.transpose() * Rb.transpose() * Ra * Ric;
+        Eigen::Vector3d t_rel = Ric.transpose() * Rb.transpose() *
+                                (Ra * Tic + Pa - Rb * Tic - Pb);
+        featureTracker.setImuEpipolar(R_rel, t_rel, true);
+    }
+    else
+    {
+        featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(),
+                                      Eigen::Vector3d::Zero(), false);
+    }
+
+    imu_epi_prev_R = cur_R;
+    imu_epi_prev_P = cur_P;
+    imu_epi_have_prev = true;
 }
 
 double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,

@@ -64,6 +64,8 @@ geodf_method_to_mode() {
         geodf_dump|alwayson) echo stereo_imu_geodf_dump ;;
         # PROPOSED (Hướng A): scene-aware + auto-ρ_on (B), stereo OFF
         adaptive|proposed|geodf_adaptive) echo stereo_imu_geodf_adaptive ;;
+        # PROPOSED (Paper #2): IMU-predicted epipolar geometry (inertial GeoDF)
+        inertial|geodf_inertial|proposed2) echo stereo_imu_geodf_inertial ;;
         # Ablation: fixed ρ_on=0.12 (oracle / dataset-tuned)
         adaptive_fixed|adaptive_v1|fixed_rho) echo stereo_imu_geodf_adaptive_fixed ;;
         adaptive_v2) echo stereo_imu_geodf_adaptive_v2 ;;
@@ -71,7 +73,7 @@ geodf_method_to_mode() {
         geodf_dump_v2|alwayson_v2) echo stereo_imu_geodf_dump_v2 ;;
         geodf_noguard) echo stereo_imu_geodf_noguard ;;
         *)
-            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_v2|geodf_dump_v2|geodf_noguard)" >&2
+            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|inertial|geodf_noguard)" >&2
             return 1
             ;;
     esac

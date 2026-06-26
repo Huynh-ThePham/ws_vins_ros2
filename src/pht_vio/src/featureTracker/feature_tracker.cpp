@@ -39,6 +39,69 @@ double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2
     return (num * num) / denom;
 }
 
+// GeoDF-Inertial (Paper #2): build the pseudo-pixel fundamental matrix from the
+// IMU/VINS-predicted relative camera pose (E = [t]_x R). The convention matches
+// sampsonDistance(F, cur, prev), i.e. prev^T F cur = 0, so the inertial path and
+// the feature-fit path share the same scoring code. Sampson distance is
+// invariant to the scale of F, so t is normalized for numerical cleanliness.
+cv::Mat imuFundamental(const Eigen::Matrix3d &R_rel, const Eigen::Vector3d &t_rel,
+                       double f, double cx, double cy)
+{
+    Eigen::Vector3d t = t_rel;
+    const double n = t.norm();
+    if (n < 1e-9)
+        return cv::Mat();
+    t /= n;
+    Eigen::Matrix3d tx;
+    tx <<    0.0, -t.z(),  t.y(),
+           t.z(),    0.0, -t.x(),
+          -t.y(),  t.x(),    0.0;
+    const Eigen::Matrix3d E = tx * R_rel;            // x_cur^T E x_prev = 0
+    Eigen::Matrix3d Kinv;
+    Kinv << 1.0 / f,     0.0, -cx / f,
+                0.0, 1.0 / f, -cy / f,
+                0.0,     0.0,     1.0;
+    const Eigen::Matrix3d Feig = Kinv.transpose() * E.transpose() * Kinv;
+    cv::Mat F(3, 3, CV_64F);
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
+            F.at<double>(r, c) = Feig(r, c);
+    return F;
+}
+
+// Pure-rotation pseudo-pixel homography H = K R K^{-1}. Predicts where a
+// previous pixel lands under the predicted rotation only; the residual versus
+// the observed pixel reveals independently moving points when translation
+// parallax is too small for epipolar geometry to be reliable.
+cv::Mat imuRotationHomography(const Eigen::Matrix3d &R_rel,
+                              double f, double cx, double cy)
+{
+    Eigen::Matrix3d K;
+    K << f, 0.0, cx,
+         0.0, f, cy,
+         0.0, 0.0, 1.0;
+    Eigen::Matrix3d Kinv;
+    Kinv << 1.0 / f,     0.0, -cx / f,
+                0.0, 1.0 / f, -cy / f,
+                0.0,     0.0,     1.0;
+    const Eigen::Matrix3d Heig = K * R_rel * Kinv;
+    cv::Mat H(3, 3, CV_64F);
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
+            H.at<double>(r, c) = Heig(r, c);
+    return H;
+}
+
+cv::Point2f applyHomography(const cv::Mat &H, const cv::Point2f &p)
+{
+    const double x = H.at<double>(0, 0) * p.x + H.at<double>(0, 1) * p.y + H.at<double>(0, 2);
+    const double y = H.at<double>(1, 0) * p.x + H.at<double>(1, 1) * p.y + H.at<double>(1, 2);
+    const double w = H.at<double>(2, 0) * p.x + H.at<double>(2, 1) * p.y + H.at<double>(2, 2);
+    if (std::fabs(w) < 1e-12)
+        return p;
+    return cv::Point2f(static_cast<float>(x / w), static_cast<float>(y / w));
+}
+
 }  // namespace
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
@@ -404,12 +467,62 @@ void FeatureTracker::rejectGeoDynamic()
         un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
     }
 
+    // ---- GeoDF-Inertial mode selection (Paper #2) -------------------------
+    // Prefer the IMU/VINS-predicted epipolar geometry as the rigid-scene
+    // reference: it does not depend on the static-feature majority, so it does
+    // not collapse when dynamics dominate (the parking_lot failure of Paper #1).
+    //   mode 0: feature-fit fundamental matrix (Paper #1, also the fallback)
+    //   mode 1: inertial Sampson gate against the IMU-predicted F
+    //   mode 2: gyro-derotated residual-flow gate (low-parallax / rotation)
+    // A wildly large inter-frame baseline means the IMU propagation was
+    // corrupted (e.g. back-end lag); treat the pose as unusable and fall back.
+    const bool imu_pose_ok = cfg.geodf_imu_enable && imu_epi_valid &&
+                             imu_t_norm <= cfg.geodf_imu_parallax_max;
+    const bool imu_reliable = imu_pose_ok && imu_t_norm >= cfg.geodf_imu_parallax_min;
+    const bool imu_derot = imu_pose_ok && imu_t_norm < cfg.geodf_imu_parallax_min &&
+                           cfg.geodf_imu_derotate;
+
+    int mode = 0;
+    double tau_eff = cfg.geodf_sampson_th;
     cv::Mat F;
     vector<uchar> f_status;
-    F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
-                               cfg.geodf_ransac_th_px, 0.99, f_status);
-    if (F.empty())
-        return;
+    cv::Mat H_derot;
+
+    if (imu_reliable)
+    {
+        F = imuFundamental(imu_R_rel, imu_t_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+        if (!F.empty())
+        {
+            mode = 1;
+            // Geometry-confidence scaling: loosen the gate at small parallax,
+            // where the epipolar constraint is ill-conditioned for static points.
+            double scale = cfg.geodf_imu_parallax_ref / std::max(imu_t_norm, 1e-6);
+            scale = std::min(std::max(scale, 1.0), cfg.geodf_imu_tau_cap);
+            tau_eff = cfg.geodf_imu_sampson_th * scale;
+        }
+    }
+    else if (imu_derot)
+    {
+        H_derot = imuRotationHomography(imu_R_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+        if (!H_derot.empty())
+        {
+            mode = 2;
+            tau_eff = cfg.geodf_imu_derotate_px;  // residual-flow threshold (px)
+        }
+    }
+
+    if (mode == 0)
+    {
+        // Feature-fit fallback (Paper #1). In inertial-only mode (fallback off)
+        // with no reliable IMU geometry, skip rejection on this frame.
+        if (cfg.geodf_imu_enable && !cfg.geodf_imu_fallback)
+            return;
+        F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
+                                   cfg.geodf_ransac_th_px, 0.99, f_status);
+        if (F.empty())
+            return;
+        tau_eff = cfg.geodf_sampson_th;
+    }
 
     vector<double> errors(total, 0.0);
     vector<uchar> left_outlier(total, 0);
@@ -419,18 +532,51 @@ void FeatureTracker::rejectGeoDynamic()
     int ransac_outliers = 0;
     int sampson_above_th = 0;
 
+    // Pass 1: per-feature residual against the chosen geometry.
     for (int i = 0; i < total; i++)
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
         scored++;
-        errors[i] = sampsonDistance(F, un_cur_pts[i], un_prev_pts[i]);
+        if (mode == 2)
+        {
+            const cv::Point2f pred = applyHomography(H_derot, un_prev_pts[i]);
+            const double dx = un_cur_pts[i].x - pred.x;
+            const double dy = un_cur_pts[i].y - pred.y;
+            errors[i] = std::sqrt(dx * dx + dy * dy);
+        }
+        else
+        {
+            errors[i] = sampsonDistance(F, un_cur_pts[i], un_prev_pts[i]);
+        }
         scored_errors.push_back(errors[i]);
-        if (errors[i] > cfg.geodf_sampson_th)
+    }
+
+    // Robust per-frame scale gate (inertial modes only): widen the threshold
+    // when the whole frame's residual is elevated (a transient bad IMU pose
+    // shifts every epipolar line together), so static scenes are not
+    // mass-rejected; genuine dynamics keep a low static median and are caught.
+    if (mode != 0 && cfg.geodf_imu_median_mult > 0.0 && !scored_errors.empty())
+    {
+        std::vector<double> tmp(scored_errors);
+        const size_t midx = tmp.size() / 2;
+        std::nth_element(tmp.begin(), tmp.begin() + midx, tmp.end());
+        const double med = tmp[midx];
+        tau_eff = std::max(tau_eff, cfg.geodf_imu_median_mult * med);
+    }
+
+    // Pass 2: outlier flags and frame counts at the (robust) threshold.
+    for (int i = 0; i < total; i++)
+    {
+        if (track_cnt[i] < cfg.geodf_min_track_cnt)
+            continue;
+        if (errors[i] > tau_eff)
             sampson_above_th++;
-        const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
-        left_outlier[i] = ransac_outlier ? 1 : 0;
-        if (ransac_outlier)
+        const bool outlier = (mode == 0)
+                                 ? (f_status.empty() || f_status[i] == 0)
+                                 : (errors[i] > tau_eff);
+        left_outlier[i] = outlier ? 1 : 0;
+        if (outlier)
             ransac_outliers++;
     }
 
@@ -443,7 +589,7 @@ void FeatureTracker::rejectGeoDynamic()
     vector<double> right_err(total, 0.0);
     vector<uchar> right_outlier(total, 0);
     vector<uchar> right_valid(total, 0);
-    if (cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
+    if (mode == 0 && cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
         !cur_img1.empty() && !prev_right_pts_map.empty())
     {
         vector<cv::Point2f> cur_r;
@@ -511,7 +657,7 @@ void FeatureTracker::rejectGeoDynamic()
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
-        const bool left_cand = left_outlier[i] && (errors[i] > cfg.geodf_sampson_th);
+        const bool left_cand = left_outlier[i] && (errors[i] > tau_eff);
         const bool right_cand = stereo_trust && right_valid[i] &&
                                 right_outlier[i] && (right_err[i] > cfg.geodf_stereo_sampson_th);
         if (left_cand || right_cand)
@@ -539,25 +685,42 @@ void FeatureTracker::rejectGeoDynamic()
 
     const double frame_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
-    if (geo_activation_ema < 0.0)
-        geo_activation_ema = frame_outlier_ratio;
-    else
-        geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
-                             (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
+
+    // Reliability skip (inertial modes): when the IMU-predicted geometry would
+    // reject more than max_dyn_frac of the frame, the rigid-scene model explains
+    // too little of the scene. This is either a transient corrupted IMU pose (a
+    // whole-frame epipolar shift) or a dynamics-saturated frame where front-end
+    // rejection starves the estimator; in both cases we skip rejection here and
+    // freeze the scene EMA/floor so the bad frame cannot fool the scene gate.
+    const bool pose_unreliable =
+        (mode != 0) && cfg.geodf_imu_max_dyn_frac > 0.0 &&
+        frame_outlier_ratio > cfg.geodf_imu_max_dyn_frac;
+
+    if (!pose_unreliable)
+    {
+        if (geo_activation_ema < 0.0)
+            geo_activation_ema = frame_outlier_ratio;
+        else
+            geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
+                                 (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
+    }
 
     // (B) Update a running estimate of the scene's static epipolar-outlier floor:
     // adapt down quickly (to catch genuinely static stretches) and creep up slowly
     // (so transient dynamics do not inflate it). The arm threshold then sits a
     // margin above this floor, so a high-noise scene (e.g. dense traffic) needs a
     // proportionally higher outlier ratio to arm — fixing fixed-threshold over-arming.
-    if (geo_outlier_floor < 0.0)
-        geo_outlier_floor = frame_outlier_ratio;
-    else
+    if (!pose_unreliable)
     {
-        const double b = (frame_outlier_ratio < geo_outlier_floor)
-                             ? cfg.geodf_auto_floor_down
-                             : cfg.geodf_auto_floor_up;
-        geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
+        if (geo_outlier_floor < 0.0)
+            geo_outlier_floor = frame_outlier_ratio;
+        else
+        {
+            const double b = (frame_outlier_ratio < geo_outlier_floor)
+                                 ? cfg.geodf_auto_floor_down
+                                 : cfg.geodf_auto_floor_up;
+            geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
+        }
     }
 
     double rho_on = cfg.geodf_activate_ratio;
@@ -581,6 +744,11 @@ void FeatureTracker::rejectGeoDynamic()
         frame_active = geo_activation_active ? 1 : 0;
         if (!frame_active)
             candidates.clear();
+    }
+    if (pose_unreliable)
+    {
+        candidates.clear();
+        frame_active = 0;
     }
 
     // Track-level temporal voting: only features flagged on >= vote_frames
@@ -668,7 +836,7 @@ void FeatureTracker::rejectGeoDynamic()
         {
             if (track_cnt[i] < cfg.geodf_min_track_cnt)
                 continue;
-            const int ransac_outlier = (f_status.empty() || f_status[i] == 0) ? 1 : 0;
+            const int ransac_outlier = left_outlier[i];
             feat << ts << "," << ids[i] << ","
                  << cur_pts[i].x << "," << cur_pts[i].y << ","
                  << errors[i] << "," << ransac_outlier << ","
@@ -697,7 +865,8 @@ void FeatureTracker::rejectGeoDynamic()
                   << guard_triggered << "," << guard_capped << ","
                   << geo_activation_ema << "," << frame_active << ","
                   << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
-                  << stereo_added << "," << confirmed_n << "\n";
+                  << stereo_added << "," << confirmed_n << ","
+                  << mode << "," << tau_eff << "," << imu_t_norm << "\n";
     }
 
     if (cfg.geodf_debug)
@@ -705,8 +874,8 @@ void FeatureTracker::rejectGeoDynamic()
         static int debug_cnt = 0;
         if (debug_cnt++ % 50 == 0)
         {
-            ROS_INFO("GeoDF: reject %d/%d (cand %zu scored %d guard %d) %.2fms",
-                     rejected, total, candidates.size(), scored, guard_triggered, t_geo.toc());
+            ROS_INFO("GeoDF: reject %d/%d (cand %zu mode %d t_norm %.3f) %.2fms",
+                     rejected, total, candidates.size(), mode, imu_t_norm, t_geo.toc());
         }
     }
     else
@@ -895,6 +1064,15 @@ void FeatureTracker::setPrediction(map<int, Eigen::Vector3d> &predictPts)
         else
             predict_pts.push_back(prev_pts[i]);
     }
+}
+
+void FeatureTracker::setImuEpipolar(const Eigen::Matrix3d &R_rel,
+                                    const Eigen::Vector3d &t_rel, bool valid)
+{
+    imu_R_rel = R_rel;
+    imu_t_rel = t_rel;
+    imu_t_norm = t_rel.norm();
+    imu_epi_valid = valid;
 }
 
 

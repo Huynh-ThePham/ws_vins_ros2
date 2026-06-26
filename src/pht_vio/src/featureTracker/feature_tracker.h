@@ -55,6 +55,7 @@ public:
                                    vector<cv::Point2f> &curRightPts,
                                    map<int, cv::Point2f> &prevLeftPtsMap);
     void setPrediction(map<int, Eigen::Vector3d> &predictPts);
+    void setImuEpipolar(const Eigen::Matrix3d &R_rel, const Eigen::Vector3d &t_rel, bool valid);
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
     void removeOutliers(set<int> &removePtsIds);
     cv::Mat getTrackImage();
@@ -95,4 +96,12 @@ public:
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel
+
+    // GeoDF-Inertial (Paper #2): IMU/VINS-predicted prev->cur relative CAMERA
+    // pose, pushed from the estimator. Used to build the rigid-scene epipolar
+    // geometry without fitting a fundamental matrix to the features.
+    Eigen::Matrix3d imu_R_rel = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d imu_t_rel = Eigen::Vector3d::Zero();
+    bool imu_epi_valid = false;
+    double imu_t_norm = 0.0;
 };

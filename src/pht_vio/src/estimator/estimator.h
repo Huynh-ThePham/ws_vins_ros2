@@ -82,6 +82,7 @@ class Estimator
     void getPoseInWorldFrame(Eigen::Matrix4d &T);
     void getPoseInWorldFrame(int index, Eigen::Matrix4d &T);
     void predictPtsInNextFrame();
+    void pushImuEpipolarAtImage(double t);
     void outliersRejection(set<int> &removeIndex);
     double reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
                                      Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
@@ -182,6 +183,13 @@ class Estimator
     double latest_time;
     Eigen::Vector3d latest_P, latest_V, latest_Ba, latest_Bg, latest_acc_0, latest_gyr_0;
     Eigen::Quaterniond latest_Q;
+
+    // GeoDF-Inertial (Paper #2): IMU-propagated body pose snapshot at the
+    // previous tracked image, used to compute the actual inter-frame relative
+    // camera pose (gyro-driven rotation) for the inertial epipolar gate.
+    Eigen::Matrix3d imu_epi_prev_R = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d imu_epi_prev_P = Eigen::Vector3d::Zero();
+    bool imu_epi_have_prev = false;
 
     bool initFirstPoseFlag;
     bool initThreadFlag;

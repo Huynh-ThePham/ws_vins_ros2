@@ -173,6 +173,17 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_stereo_check = 0;
     geodf_stereo_sampson_th = 3.0;
     geodf_stereo_floor_max = 0.0;
+    geodf_imu_enable = 0;
+    geodf_imu_sampson_th = 3.0;
+    geodf_imu_parallax_min = 0.02;
+    geodf_imu_parallax_ref = 0.08;
+    geodf_imu_tau_cap = 4.0;
+    geodf_imu_fallback = 1;
+    geodf_imu_derotate = 1;
+    geodf_imu_derotate_px = 3.0;
+    geodf_imu_median_mult = 5.0;
+    geodf_imu_parallax_max = 1.0;
+    geodf_imu_max_dyn_frac = 0.5;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -229,6 +240,28 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_stereo_sampson_th = (double)fsSettings["geodf_stereo_sampson_th"];
     if (!fsSettings["geodf_stereo_floor_max"].empty())
         geodf_stereo_floor_max = (double)fsSettings["geodf_stereo_floor_max"];
+    if (!fsSettings["geodf_imu_enable"].empty())
+        geodf_imu_enable = (int)fsSettings["geodf_imu_enable"];
+    if (!fsSettings["geodf_imu_sampson_th"].empty())
+        geodf_imu_sampson_th = (double)fsSettings["geodf_imu_sampson_th"];
+    if (!fsSettings["geodf_imu_parallax_min"].empty())
+        geodf_imu_parallax_min = (double)fsSettings["geodf_imu_parallax_min"];
+    if (!fsSettings["geodf_imu_parallax_ref"].empty())
+        geodf_imu_parallax_ref = (double)fsSettings["geodf_imu_parallax_ref"];
+    if (!fsSettings["geodf_imu_tau_cap"].empty())
+        geodf_imu_tau_cap = (double)fsSettings["geodf_imu_tau_cap"];
+    if (!fsSettings["geodf_imu_fallback"].empty())
+        geodf_imu_fallback = (int)fsSettings["geodf_imu_fallback"];
+    if (!fsSettings["geodf_imu_derotate"].empty())
+        geodf_imu_derotate = (int)fsSettings["geodf_imu_derotate"];
+    if (!fsSettings["geodf_imu_derotate_px"].empty())
+        geodf_imu_derotate_px = (double)fsSettings["geodf_imu_derotate_px"];
+    if (!fsSettings["geodf_imu_median_mult"].empty())
+        geodf_imu_median_mult = (double)fsSettings["geodf_imu_median_mult"];
+    if (!fsSettings["geodf_imu_parallax_max"].empty())
+        geodf_imu_parallax_max = (double)fsSettings["geodf_imu_parallax_max"];
+    if (!fsSettings["geodf_imu_max_dyn_frac"].empty())
+        geodf_imu_max_dyn_frac = (double)fsSettings["geodf_imu_max_dyn_frac"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -236,7 +269,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geo_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,sampson_above_th,"
                      "candidates,rejected,reject_ratio,tracks_after,"
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
-                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed\n";
+                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed,"
+                     "imu_mode,tau_eff,imu_parallax\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -261,7 +295,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " warmup_frames=" << geodf_warmup_frames
                         << " stereo_check=" << geodf_stereo_check
                         << " stereo_sampson_th=" << geodf_stereo_sampson_th
-                        << " stereo_floor_max=" << geodf_stereo_floor_max);
+                        << " stereo_floor_max=" << geodf_stereo_floor_max
+                        << " imu_enable=" << geodf_imu_enable
+                        << " imu_sampson_th=" << geodf_imu_sampson_th
+                        << " imu_parallax_min=" << geodf_imu_parallax_min
+                        << " imu_parallax_ref=" << geodf_imu_parallax_ref
+                        << " imu_tau_cap=" << geodf_imu_tau_cap
+                        << " imu_fallback=" << geodf_imu_fallback
+                        << " imu_derotate=" << geodf_imu_derotate);
     }
 
     fsSettings.release();

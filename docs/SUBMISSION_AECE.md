@@ -31,12 +31,17 @@ algorithm-integration contribution.
 ## Current Paper Assets
 
 - Main manuscript draft: `docs/MANUSCRIPT_GeoDF-VINS-AECE.md`
+- Word export (copy into AECE template): `docs/MANUSCRIPT_GeoDF-VINS-AECE.docx`
+  (rebuild with `scripts/build_manuscript_docx.sh`)
 - Main trajectory table: `results/geodf_evaluation/PAPER_RESULTS_N5.md`
 - Main artifact index: `results/geodf_evaluation/PAPER_TABLES_AECE.md`
 - Detection evaluation: `results/geodf_evaluation/DETECTION_EVAL_VIODE.md`
-- Figures:
-  - `results/geodf_evaluation/figures/viode_ate_delta_n5.svg`
-  - `results/geodf_evaluation/figures/viode_detection_lift.svg`
+- Figures (grayscale-safe, vector + 300 dpi PNG):
+  - Fig. 1 pipeline: `results/geodf_evaluation/figures/pipeline_geodf_adaptive.{svg,pdf,png}`
+    (`scripts/make_pipeline_figure.py`)
+  - Fig. 2 ATE delta: `results/geodf_evaluation/figures/viode_ate_delta_n5_gray.{svg,pdf,png}`
+  - Fig. 3 detection lift: `results/geodf_evaluation/figures/viode_detection_lift_gray.{svg,pdf,png}`
+    (Figs. 2-3 from `scripts/make_result_figures.py`; old red/green SVGs kept for reference)
 
 ## Claims To Use
 
@@ -56,20 +61,48 @@ algorithm-integration contribution.
 
 - Do not claim universal improvement over baseline.
 - Do not claim state-of-the-art visual-inertial odometry.
-- Do not claim measured low overhead until FPS/runtime is measured.
 - Do not use hybrid/soft/YOLO experiments as main paper artifacts.
+
+## Measured Runtime (now available)
+
+- GeoDF-Adaptive per-frame cost: mean 0.28 ms, median 0.24 ms, p95 0.53 ms,
+  p99 0.83 ms over 74,994 logged frames (60 VIODE adaptive trials).
+- ~0.56% of the 50 ms (20 Hz) per-frame budget; rejection armed on 10.3% of
+  frames; CPU-only (Intel Xeon W-11955M, 8C/16T).
+- The "low-overhead" claim is now data-backed (manuscript Section 5.4, Table 5).
 
 ## Remaining Work Before Submission
 
-1. Convert `docs/MANUSCRIPT_GeoDF-VINS-AECE.md` into the official AECE `.doc`
-   template.
-2. Add final references with DOI/permanent links.
-3. Replace the Related Work placeholder table with cited references.
-4. Draw the method pipeline figure.
-5. Measure runtime/FPS or remove all measured-overhead wording.
-6. Check that the final page count is 8, 10, or 12 pages.
-7. Prepare the copyright transfer / author's guarantee form.
-8. Run an originality/plagiarism check.
+Done:
+- [x] Add final references with DOI/permanent links (manuscript References).
+- [x] Replace the Related Work placeholder table with cited references.
+- [x] Measure runtime/FPS (replaces the "remove overhead wording" option).
+
+Done:
+- [x] Method pipeline figure drawn (Fig. 1), grayscale-safe.
+- [x] Result figures regenerated grayscale-safe (Figs. 2-3).
+- [x] `.docx` generated with embedded figures + tables
+  (`docs/MANUSCRIPT_GeoDF-VINS-AECE.docx`).
+
+Remaining:
+1. Paste content from `docs/MANUSCRIPT_GeoDF-VINS-AECE.docx` into the official
+   AECE `.doc` template (apply AECE styles, two-column).
+2. Prepare the copyright transfer / author's guarantee form.
+3. Run an originality/plagiarism check.
+
+## Length Estimate vs 8-Page Target
+
+Measured paper-body content: ~2,530 prose words + 6 tables + 3 figures +
+references (~340 words). In the AECE two-column layout this is roughly 6-7
+pages, i.e. on or just under the 8-page base target -- so the risk is
+under-filling, not overflowing; no trimming is required.
+
+If more length is needed to reach a full 8 pages, expand (do not pad):
+- Add an RPE summary table (data already collected for the N=5 runs).
+- Add a fixed-rho vs auto-rho ablation paragraph + small table
+  (`viode_stereo_imu_geodf_adaptive_fixed_config.yaml` exists for this).
+- Add 2-3 more cited related-work methods (motion segmentation, IMU-aided
+  epipolar, optical-flow consistency).
 
 ## Recommended Submission Strategy
 

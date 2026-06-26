@@ -168,6 +168,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_activate_ratio_max = 0.40;
     geodf_auto_floor_down = 0.02;
     geodf_auto_floor_up = 0.004;
+    geodf_vote_frames = 1;
+    geodf_warmup_frames = 0;
     geodf_stereo_check = 0;
     geodf_stereo_sampson_th = 3.0;
     geodf_stereo_floor_max = 0.0;
@@ -217,6 +219,10 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_auto_floor_down = (double)fsSettings["geodf_auto_floor_down"];
     if (!fsSettings["geodf_auto_floor_up"].empty())
         geodf_auto_floor_up = (double)fsSettings["geodf_auto_floor_up"];
+    if (!fsSettings["geodf_vote_frames"].empty())
+        geodf_vote_frames = (int)fsSettings["geodf_vote_frames"];
+    if (!fsSettings["geodf_warmup_frames"].empty())
+        geodf_warmup_frames = (int)fsSettings["geodf_warmup_frames"];
     if (!fsSettings["geodf_stereo_check"].empty())
         geodf_stereo_check = (int)fsSettings["geodf_stereo_check"];
     if (!fsSettings["geodf_stereo_sampson_th"].empty())
@@ -230,7 +236,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geo_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,sampson_above_th,"
                      "candidates,rejected,reject_ratio,tracks_after,"
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
-                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added\n";
+                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -251,6 +257,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " auto_rho=" << geodf_auto_rho
                         << " auto_mult=" << geodf_auto_mult
                         << " auto_margin=" << geodf_auto_margin
+                        << " vote_frames=" << geodf_vote_frames
+                        << " warmup_frames=" << geodf_warmup_frames
                         << " stereo_check=" << geodf_stereo_check
                         << " stereo_sampson_th=" << geodf_stereo_sampson_th
                         << " stereo_floor_max=" << geodf_stereo_floor_max);

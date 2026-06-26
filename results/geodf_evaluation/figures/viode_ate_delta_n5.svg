@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="520" viewBox="0 0 1100 520">
+<rect width="100%" height="100%" fill="white"/>
+<text x="550.0" y="32" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700">VIODE N=5 ATE Improvement: PROPOSED vs Baseline</text>
+<text x="22" y="260.0" text-anchor="middle" font-family="Arial" font-size="14" transform="rotate(-90 22 260.0)">ATE improvement (%)</text>
+<line x1="80" y1="227.9" x2="1070" y2="227.9" stroke="#333" stroke-width="1.2"/>
+<line x1="80" y1="70" x2="80" y2="395" stroke="#333"/>
+<line x1="75" y1="395.0" x2="80" y2="395.0" stroke="#333"/>
+<text x="70" y="399.0" text-anchor="end" font-family="Arial" font-size="12">-55</text>
+<line x1="75" y1="227.9" x2="80" y2="227.9" stroke="#333"/>
+<text x="70" y="231.9" text-anchor="end" font-family="Arial" font-size="12">0</text>
+<line x1="75" y1="70.0" x2="80" y2="70.0" stroke="#333"/>
+<text x="70" y="74.0" text-anchor="end" font-family="Arial" font-size="12">52</text>
+<rect x="91.5" y="227.9" width="59.4" height="29.7" fill="#d84a3a" opacity="0.88"/>
+<text x="121.2" y="273.6" text-anchor="middle" font-family="Arial" font-size="11">-9.7</text>
+<text x="121.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 121.2 413)">CD 0</text>
+<rect x="174.1" y="227.9" width="59.4" height="20.8" fill="#d84a3a" opacity="0.88"/>
+<text x="203.8" y="264.7" text-anchor="middle" font-family="Arial" font-size="11">-6.8</text>
+<text x="203.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 203.8 413)">CD 1</text>
+<rect x="256.6" y="203.1" width="59.4" height="24.8" fill="#2a9d55" opacity="0.88"/>
+<text x="286.2" y="197.1" text-anchor="middle" font-family="Arial" font-size="11">+8.1</text>
+<text x="286.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 286.2 413)">CD 2</text>
+<rect x="339.1" y="152.9" width="59.4" height="75.0" fill="#2a9d55" opacity="0.88"/>
+<text x="368.8" y="146.9" text-anchor="middle" font-family="Arial" font-size="11">+24.5</text>
+<text x="368.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 368.8 413)">CD 3</text>
+<rect x="421.6" y="101.5" width="59.4" height="126.5" fill="#2a9d55" opacity="0.88"/>
+<text x="451.2" y="95.5" text-anchor="middle" font-family="Arial" font-size="11">+41.3</text>
+<text x="451.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 451.2 413)">CN 0</text>
+<rect x="504.1" y="227.9" width="59.4" height="20.5" fill="#d84a3a" opacity="0.88"/>
+<text x="533.8" y="264.4" text-anchor="middle" font-family="Arial" font-size="11">-6.7</text>
+<text x="533.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 533.8 413)">CN 1</text>
+<rect x="586.5" y="201.9" width="59.4" height="26.0" fill="#2a9d55" opacity="0.88"/>
+<text x="616.2" y="195.9" text-anchor="middle" font-family="Arial" font-size="11">+8.5</text>
+<text x="616.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 616.2 413)">CN 2</text>
+<rect x="669.0" y="213.8" width="59.4" height="14.1" fill="#2a9d55" opacity="0.88"/>
+<text x="698.8" y="207.8" text-anchor="middle" font-family="Arial" font-size="11">+4.6</text>
+<text x="698.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 698.8 413)">CN 3</text>
+<rect x="751.5" y="190.9" width="59.4" height="37.0" fill="#2a9d55" opacity="0.88"/>
+<text x="781.2" y="184.9" text-anchor="middle" font-family="Arial" font-size="11">+12.1</text>
+<text x="781.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 781.2 413)">PL 0</text>
+<rect x="834.0" y="198.2" width="59.4" height="29.7" fill="#2a9d55" opacity="0.88"/>
+<text x="863.8" y="192.2" text-anchor="middle" font-family="Arial" font-size="11">+9.7</text>
+<text x="863.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 863.8 413)">PL 1</text>
+<rect x="916.5" y="227.9" width="59.4" height="111.5" fill="#d84a3a" opacity="0.88"/>
+<text x="946.2" y="355.4" text-anchor="middle" font-family="Arial" font-size="11">-36.4</text>
+<text x="946.2" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 946.2 413)">PL 2</text>
+<rect x="999.0" y="227.9" width="59.4" height="135.6" fill="#d84a3a" opacity="0.88"/>
+<text x="1028.8" y="379.5" text-anchor="middle" font-family="Arial" font-size="11">-44.3</text>
+<text x="1028.8" y="413" text-anchor="end" font-family="Arial" font-size="11" transform="rotate(-45 1028.8 413)">PL 3</text>
+</svg>

@@ -310,7 +310,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         double velocity_x, velocity_y;
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
-
         Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
@@ -332,7 +331,6 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             double velocity_x, velocity_y;
             velocity_x = right_pts_velocity[i].x;
             velocity_y = right_pts_velocity[i].y;
-
             Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
             xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
             featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
@@ -585,23 +583,64 @@ void FeatureTracker::rejectGeoDynamic()
             candidates.clear();
     }
 
+    // Track-level temporal voting: only features flagged on >= vote_frames
+    // consecutive frames are eligible for hard-delete. We always advance the
+    // per-id streak (incrementing this frame's candidates, dropping the rest),
+    // so transient false positives -- 1-frame epipolar spikes from fast rotation
+    // or low parallax that dominate static / low-dynamic scenes -- never reach the
+    // threshold and are kept, protecting local accuracy (RPE); persistent dynamics
+    // accumulate and are removed (with a <= vote_frames-1 frame delay).
+    geo_frame_count++;
+    const bool have_ids = (static_cast<int>(ids.size()) == total);
+    const int vote_k = std::max(1, cfg.geodf_vote_frames);
+    if (have_ids)
+    {
+        std::map<int, int> next_streak;
+        for (int idx : candidates)
+        {
+            const int id = ids[idx];
+            const auto it = geo_dyn_streak.find(id);
+            next_streak[id] = (it != geo_dyn_streak.end() ? it->second : 0) + 1;
+        }
+        geo_dyn_streak.swap(next_streak);
+    }
+    const bool warmup =
+        geo_frame_count <= static_cast<long long>(cfg.geodf_warmup_frames);
+
+    vector<int> confirmed;
+    confirmed.reserve(candidates.size());
+    if (!warmup)
+    {
+        for (int idx : candidates)
+        {
+            if (vote_k <= 1 || !have_ids)
+            {
+                confirmed.push_back(idx);
+                continue;
+            }
+            const auto it = geo_dyn_streak.find(ids[idx]);
+            if (it != geo_dyn_streak.end() && it->second >= vote_k)
+                confirmed.push_back(idx);
+        }
+    }
+
     vector<uchar> keep(total, 1);
     int rejected = 0;
     int guard_triggered = 0;
     int guard_capped = 0;
-    if (!candidates.empty())
+    if (!confirmed.empty())
     {
-        sort(candidates.begin(), candidates.end(), [&](int a, int b) {
+        sort(confirmed.begin(), confirmed.end(), [&](int a, int b) {
             const double sa = std::max(errors[a], right_valid[a] ? right_err[a] : 0.0);
             const double sb = std::max(errors[b], right_valid[b] ? right_err[b] : 0.0);
             return sa > sb;
         });
 
-        int max_reject = static_cast<int>(candidates.size());
+        int max_reject = static_cast<int>(confirmed.size());
         if (cfg.geodf_ratio_guard)
         {
             const int ratio_cap = static_cast<int>(std::floor(cfg.geodf_max_reject_ratio * total));
-            if (static_cast<int>(candidates.size()) > ratio_cap)
+            if (static_cast<int>(confirmed.size()) > ratio_cap)
                 guard_triggered = 1;
             max_reject = ratio_cap;
         }
@@ -609,16 +648,17 @@ void FeatureTracker::rejectGeoDynamic()
         const int max_reject_by_min = std::max(0, total - cfg.geodf_min_feature_num);
         max_reject = std::min(max_reject, max_reject_by_min);
 
-        for (int idx : candidates)
+        for (int idx : confirmed)
         {
             if (rejected >= max_reject)
                 break;
             keep[idx] = 0;
             rejected++;
         }
-        if (static_cast<int>(candidates.size()) > rejected)
+        if (static_cast<int>(confirmed.size()) > rejected)
             guard_capped = 1;
     }
+    const size_t confirmed_n = confirmed.size();
 
     if (cfg.geodf_dump_features && !cfg.geodf_feat_path.empty())
     {
@@ -657,7 +697,7 @@ void FeatureTracker::rejectGeoDynamic()
                   << guard_triggered << "," << guard_capped << ","
                   << geo_activation_ema << "," << frame_active << ","
                   << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
-                  << stereo_added << "\n";
+                  << stereo_added << "," << confirmed_n << "\n";
     }
 
     if (cfg.geodf_debug)

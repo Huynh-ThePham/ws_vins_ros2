@@ -89,6 +89,12 @@ struct VinsConfig
     double geodf_activate_ratio_max = 0.40;
     double geodf_auto_floor_down = 0.02;
     double geodf_auto_floor_up = 0.004;
+    // Track-level temporal voting: hard-delete a feature only after it has been
+    // flagged dynamic on >= vote_frames consecutive frames (suppresses transient
+    // false positives that hurt local accuracy / static scenes). 1 = off.
+    int geodf_vote_frames = 1;
+    // Skip rejection for the first warmup_frames (estimator still converging). 0 = off.
+    int geodf_warmup_frames = 0;
     // (F) stereo temporal cross-check (right-view epipolar agreement)
     int geodf_stereo_check = 0;
     double geodf_stereo_sampson_th = 3.0;

@@ -92,6 +92,9 @@ geodf_activate_ratio_min: 0.10
 geodf_activate_ratio_max: 0.40
 geodf_auto_floor_down: 0.02
 geodf_auto_floor_up: 0.004
+# Track-level temporal voting: delete only after >=k consecutive dynamic flags.
+geodf_vote_frames: 2
+geodf_warmup_frames: 30
 geodf_stereo_check: 0
 geodf_stereo_sampson_th: 6.0
 geodf_stereo_floor_max: 0.045

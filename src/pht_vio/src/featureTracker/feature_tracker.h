@@ -88,6 +88,10 @@ public:
     bool geo_activation_active = false;
     // (B) running estimate of the static epipolar-outlier floor (for auto rho_on).
     double geo_outlier_floor = -1.0;
+    // Track-level temporal voting state: id -> consecutive frames flagged dynamic,
+    // and a frame counter for the warmup guard.
+    std::map<int, int> geo_dyn_streak;
+    long long geo_frame_count = 0;
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel

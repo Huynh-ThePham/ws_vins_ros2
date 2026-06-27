@@ -56,6 +56,9 @@ public:
                                    map<int, cv::Point2f> &prevLeftPtsMap);
     void setPrediction(map<int, Eigen::Vector3d> &predictPts);
     void setImuEpipolar(const Eigen::Matrix3d &R_rel, const Eigen::Vector3d &t_rel, bool valid);
+    // Hybrid static-P1 gating (estimator): publish IMU epipolar to the front-end
+    // only when the latch is on or imminently turning on (dwell precharge).
+    bool hybridNeedImuEpipolar() const;
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
     void removeOutliers(set<int> &removePtsIds);
     cv::Mat getTrackImage();
@@ -89,6 +92,10 @@ public:
     bool geo_activation_active = false;
     // (B) running estimate of the static epipolar-outlier floor (for auto rho_on).
     double geo_outlier_floor = -1.0;
+    // Hysteresis latch for hybrid source arbitration (true = inertial/derot side).
+    bool geo_hybrid_dynamic_active = false;
+    // Consecutive-frame counter for the anti-chatter dwell on the latch above.
+    int geo_hybrid_dwell_cnt = 0;
     // Track-level temporal voting state: id -> consecutive frames flagged dynamic,
     // and a frame counter for the warmup guard.
     std::map<int, int> geo_dyn_streak;

@@ -428,6 +428,7 @@ void FeatureTracker::rejectWithF()
         vector<uchar> status;
         cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC, vinsConfig().f_threshold, 0.99, status);
         int size_a = cur_pts.size();
+        (void)size_a;  // ROS_DEBUG may compile out its arguments in Release builds.
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
         reduceVector(cur_un_pts, status);
@@ -467,61 +468,159 @@ void FeatureTracker::rejectGeoDynamic()
         un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
     }
 
-    // ---- GeoDF-Inertial mode selection (Paper #2) -------------------------
-    // Prefer the IMU/VINS-predicted epipolar geometry as the rigid-scene
-    // reference: it does not depend on the static-feature majority, so it does
-    // not collapse when dynamics dominate (the parking_lot failure of Paper #1).
-    //   mode 0: feature-fit fundamental matrix (Paper #1, also the fallback)
-    //   mode 1: inertial Sampson gate against the IMU-predicted F
-    //   mode 2: gyro-derotated residual-flow gate (low-parallax / rotation)
-    // A wildly large inter-frame baseline means the IMU propagation was
-    // corrupted (e.g. back-end lag); treat the pose as unusable and fall back.
+    // ---- GeoDF-Hybrid mode selection (Paper #2) ---------------------------
+    // Two geometry sources scored with the same Paper #1 back-end (scene gate,
+    // voting, ratio guard):
+    //   mode 0: feature-fit F (Paper #1 dual gate)
+    //   mode 1: IMU-predicted F_imu + Sampson gate
+    //   mode 2: gyro-derotated residual flow (low parallax, dynamic scene)
+    //
+    // Hybrid arbitration (geodf_hybrid_enable): previous-frame P1-sensed outlier
+    // floor drives a dwell+hysteresis latch. Below floor_on -> forced Paper #1
+    // (hybrid_static_p1); above -> inertial/derotation when IMU is reliable.
     const bool imu_pose_ok = cfg.geodf_imu_enable && imu_epi_valid &&
                              imu_t_norm <= cfg.geodf_imu_parallax_max;
     const bool imu_reliable = imu_pose_ok && imu_t_norm >= cfg.geodf_imu_parallax_min;
-    const bool imu_derot = imu_pose_ok && imu_t_norm < cfg.geodf_imu_parallax_min &&
-                           cfg.geodf_imu_derotate;
+    const bool imu_derot_ok = imu_pose_ok && imu_t_norm < cfg.geodf_imu_parallax_min &&
+                              cfg.geodf_imu_derotate;
+
+    // Arbitration signal: the slow, Paper #1-derived epipolar-outlier floor ONLY.
+    // Earlier designs max-combined a fast outlier-ratio cue and the activation EMA;
+    // both are dominated by single-frame KLT/rotation spikes and pushed the signal
+    // over the threshold on static scenes, forcing spurious inertial switches that
+    // deleted good static features (e.g. city_night/0_none regressed from 0.246 to
+    // ~0.38 m). The asymmetric floor (fast-down, slow-up) only stays high under
+    // SUSTAINED dynamic density -- precisely the regime where the feature-fit
+    // fundamental matrix is contaminated and the inertial model is the better
+    // rigidity reference.
+    const double hybrid_signal = (geo_outlier_floor >= 0.0) ? geo_outlier_floor : 0.0;
+    const bool hybrid_on = cfg.geodf_hybrid_enable && cfg.geodf_imu_enable;
+    // Hysteresis latch with anti-chatter dwell. The latch flips only after the
+    // signal has stayed on the new side of the threshold for `dwell` CONSECUTIVE
+    // frames, so arbitration keys off the SUSTAINED outlier floor (the scene's
+    // dynamic regime) rather than single-frame excursions. This is what separates
+    // adjacent regimes whose instantaneous floors overlap: e.g. parking_lot 2_mid
+    // (floor median ~0.069, inertial unhelpful) must stay on Paper #1 while 3_high
+    // (median ~0.091, inertial recovers a catastrophic feature-fit failure) must
+    // latch inertial -- a per-frame threshold chatters between them, the dwell
+    // resolves them by their sustained level. Upper threshold floor_on, lower
+    // (return) threshold floor_off (< floor_on); floor_off < 0 or >= floor_on
+    // collapses to a single threshold.
+    const double floor_on = cfg.geodf_hybrid_inertial_floor;
+    double floor_off = cfg.geodf_hybrid_floor_off;
+    if (floor_off < 0.0 || floor_off > floor_on)
+        floor_off = floor_on;
+    if (hybrid_on)
+    {
+        const int dwell = std::max(1, cfg.geodf_hybrid_dwell);
+        if (!geo_hybrid_dynamic_active)
+        {
+            geo_hybrid_dwell_cnt = (hybrid_signal >= floor_on) ? geo_hybrid_dwell_cnt + 1 : 0;
+            if (geo_hybrid_dwell_cnt >= dwell)
+            {
+                geo_hybrid_dynamic_active = true;
+                geo_hybrid_dwell_cnt = 0;
+            }
+        }
+        else
+        {
+            geo_hybrid_dwell_cnt = (hybrid_signal < floor_off) ? geo_hybrid_dwell_cnt + 1 : 0;
+            if (geo_hybrid_dwell_cnt >= dwell)
+            {
+                geo_hybrid_dynamic_active = false;
+                geo_hybrid_dwell_cnt = 0;
+            }
+        }
+    }
+    else
+    {
+        geo_hybrid_dynamic_active = false;
+        geo_hybrid_dwell_cnt = 0;
+    }
+    const bool scene_dynamic = geo_hybrid_dynamic_active;
+    const bool hybrid_static_p1 = hybrid_on && !scene_dynamic;
+    const bool arb_force_p1 = hybrid_static_p1;
+    const bool use_inertial = cfg.geodf_imu_enable && imu_reliable &&
+                              (!hybrid_on || scene_dynamic);
+    const bool use_derot = cfg.geodf_imu_enable && imu_derot_ok &&
+                           (!hybrid_on || scene_dynamic);
 
     int mode = 0;
+    int hybrid_arb = 0;  // 0=n/a, 1=hybrid->P1, 2=hybrid->inertial, 3=hybrid->derot
     double tau_eff = cfg.geodf_sampson_th;
     cv::Mat F;
     vector<uchar> f_status;
     cv::Mat H_derot;
 
-    if (imu_reliable)
+    // When the latch keeps the scene on Paper #1, skip IMU/derot geometry entirely
+    // so the rejection path matches the adaptive config (no inertial F setup).
+    if (!hybrid_static_p1)
     {
-        F = imuFundamental(imu_R_rel, imu_t_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
-        if (!F.empty())
+        if (use_inertial)
         {
-            mode = 1;
-            // Geometry-confidence scaling: loosen the gate at small parallax,
-            // where the epipolar constraint is ill-conditioned for static points.
-            double scale = cfg.geodf_imu_parallax_ref / std::max(imu_t_norm, 1e-6);
-            scale = std::min(std::max(scale, 1.0), cfg.geodf_imu_tau_cap);
-            tau_eff = cfg.geodf_imu_sampson_th * scale;
+            F = imuFundamental(imu_R_rel, imu_t_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+            if (!F.empty())
+            {
+                mode = 1;
+                if (hybrid_on)
+                    hybrid_arb = 2;
+                double scale = cfg.geodf_imu_parallax_ref / std::max(imu_t_norm, 1e-6);
+                scale = std::min(std::max(scale, 1.0), cfg.geodf_imu_tau_cap);
+                tau_eff = cfg.geodf_imu_sampson_th * scale;
+            }
         }
-    }
-    else if (imu_derot)
-    {
-        H_derot = imuRotationHomography(imu_R_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
-        if (!H_derot.empty())
+        else if (use_derot)
         {
-            mode = 2;
-            tau_eff = cfg.geodf_imu_derotate_px;  // residual-flow threshold (px)
+            H_derot = imuRotationHomography(imu_R_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+            if (!H_derot.empty())
+            {
+                mode = 2;
+                if (hybrid_on)
+                    hybrid_arb = 3;
+                tau_eff = cfg.geodf_imu_derotate_px;
+            }
         }
     }
 
     if (mode == 0)
     {
-        // Feature-fit fallback (Paper #1). In inertial-only mode (fallback off)
-        // with no reliable IMU geometry, skip rejection on this frame.
-        if (cfg.geodf_imu_enable && !cfg.geodf_imu_fallback)
+        const bool inertial_only_skip =
+            cfg.geodf_imu_enable && !cfg.geodf_hybrid_enable && !cfg.geodf_imu_fallback;
+        if (inertial_only_skip)
             return;
+    }
+
+    // Paper #1 feature-fit F and hybrid arbitration sensor F_p1 share ONE RANSAC
+    // when rejection stays on Paper #1 (mode 0, including hybrid_static_p1). A
+    // separate estimate was previously taken whenever hybrid_on, even on forced-P1
+    // frames; that duplicated the adaptive call pattern, changed RANSAC ordering
+    // relative to the pure-P1 config, and made latch=0% runs diverge from Paper #1
+    // (e.g. city_night extra rejections despite mode0=100%). On dynamic frames the
+    // inertial/derot geometry performs rejection; F_p1 is estimated once more here
+    // ONLY for the arbitration sensor (outlier ratio), not for deleting features.
+    cv::Mat F_p1;
+    vector<uchar> f_status_p1;
+    const bool p1_sensor_only = hybrid_on && mode != 0;
+
+    if (mode == 0)
+    {
         F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
                                    cfg.geodf_ransac_th_px, 0.99, f_status);
         if (F.empty())
             return;
         tau_eff = cfg.geodf_sampson_th;
+        if (hybrid_on)
+        {
+            F_p1 = F;
+            f_status_p1 = f_status;
+            if (arb_force_p1)
+                hybrid_arb = 1;
+        }
+    }
+    else if (p1_sensor_only)
+    {
+        F_p1 = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
+                                      cfg.geodf_ransac_th_px, 0.99, f_status_p1);
     }
 
     vector<double> errors(total, 0.0);
@@ -686,6 +785,27 @@ void FeatureTracker::rejectGeoDynamic()
     const double frame_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
 
+    // Hybrid arbitration sensor ratio: the Paper #1 feature-fit RANSAC outlier
+    // ratio, measured every frame from F_p1 regardless of the rejection geometry.
+    // In mode 0 it already equals frame_outlier_ratio; in inertial/derotation
+    // frames it is taken from the separately-estimated F_p1 so the floor and the
+    // latch never observe the inertial residual distribution. Outside hybrid it
+    // stays frame_outlier_ratio, preserving Paper #1 and the inertial-only
+    // ablation byte-for-byte.
+    double arb_ratio = frame_outlier_ratio;
+    if (hybrid_on && mode != 0 && !f_status_p1.empty())
+    {
+        int p1_out = 0;
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            if (f_status_p1[i] == 0)
+                p1_out++;
+        }
+        arb_ratio = scored > 0 ? static_cast<double>(p1_out) / scored : 0.0;
+    }
+
     // Reliability skip (inertial modes): when the IMU-predicted geometry would
     // reject more than max_dyn_frac of the frame, the rigid-scene model explains
     // too little of the scene. This is either a transient corrupted IMU pose (a
@@ -696,12 +816,15 @@ void FeatureTracker::rejectGeoDynamic()
         (mode != 0) && cfg.geodf_imu_max_dyn_frac > 0.0 &&
         frame_outlier_ratio > cfg.geodf_imu_max_dyn_frac;
 
+    // Scene-activation EMA and the static floor both track the P1-sensed ratio
+    // (arb_ratio), so the Paper #1 scene gate and the hybrid latch are driven by
+    // one consistent dynamic-density signal.
     if (!pose_unreliable)
     {
         if (geo_activation_ema < 0.0)
-            geo_activation_ema = frame_outlier_ratio;
+            geo_activation_ema = arb_ratio;
         else
-            geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
+            geo_activation_ema = cfg.geodf_activate_ema * arb_ratio +
                                  (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
     }
 
@@ -713,13 +836,13 @@ void FeatureTracker::rejectGeoDynamic()
     if (!pose_unreliable)
     {
         if (geo_outlier_floor < 0.0)
-            geo_outlier_floor = frame_outlier_ratio;
+            geo_outlier_floor = arb_ratio;
         else
         {
-            const double b = (frame_outlier_ratio < geo_outlier_floor)
+            const double b = (arb_ratio < geo_outlier_floor)
                                  ? cfg.geodf_auto_floor_down
                                  : cfg.geodf_auto_floor_up;
-            geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
+            geo_outlier_floor = b * arb_ratio + (1.0 - b) * geo_outlier_floor;
         }
     }
 
@@ -866,7 +989,9 @@ void FeatureTracker::rejectGeoDynamic()
                   << geo_activation_ema << "," << frame_active << ","
                   << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
                   << stereo_added << "," << confirmed_n << ","
-                  << mode << "," << tau_eff << "," << imu_t_norm << "\n";
+                  << mode << "," << tau_eff << "," << imu_t_norm << ","
+                  << hybrid_signal << ","
+                  << hybrid_arb << "," << (scene_dynamic ? 1 : 0) << "\n";
     }
 
     if (cfg.geodf_debug)
@@ -874,8 +999,9 @@ void FeatureTracker::rejectGeoDynamic()
         static int debug_cnt = 0;
         if (debug_cnt++ % 50 == 0)
         {
-            ROS_INFO("GeoDF: reject %d/%d (cand %zu mode %d t_norm %.3f) %.2fms",
-                     rejected, total, candidates.size(), mode, imu_t_norm, t_geo.toc());
+            ROS_INFO("GeoDF: reject %d/%d (cand %zu mode %d arb %d signal %.3f floor %.3f) %.2fms",
+                     rejected, total, candidates.size(), mode, hybrid_arb,
+                     hybrid_signal, geo_outlier_floor, t_geo.toc());
         }
     }
     else
@@ -1073,6 +1199,28 @@ void FeatureTracker::setImuEpipolar(const Eigen::Matrix3d &R_rel,
     imu_t_rel = t_rel;
     imu_t_norm = t_rel.norm();
     imu_epi_valid = valid;
+}
+
+bool FeatureTracker::hybridNeedImuEpipolar() const
+{
+    const VinsConfig &cfg = vinsConfig();
+    if (!cfg.geodf_hybrid_enable || !cfg.geodf_imu_enable)
+        return true;
+
+    if (geo_hybrid_dynamic_active)
+        return true;
+
+    const double sig = (geo_outlier_floor >= 0.0) ? geo_outlier_floor : 0.0;
+    const double floor_on = cfg.geodf_hybrid_inertial_floor;
+    // Precharge two frames before the dwell completes: the first re-establishes the
+    // inter-image anchor after a static-P1 gap (no push during static), the second
+    // delivers a valid relative pose on the frame the latch turns ON.
+    const int dwell = std::max(1, cfg.geodf_hybrid_dwell);
+    const int precharge = std::max(0, dwell - 2);
+    if (sig >= floor_on && geo_hybrid_dwell_cnt >= precharge)
+        return true;
+
+    return false;
 }
 
 

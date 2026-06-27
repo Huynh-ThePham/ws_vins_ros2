@@ -69,9 +69,7 @@ load_previous_pose_graph: 0        # load and reuse previous pose graph; load fr
 pose_graph_save_path: "~/output/pose_graph/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0
 
-# GeoDF-Adaptive — PROPOSED method (Hướng A)
-# Scene-aware self-gating + auto-calibrated ρ_on (B); stereo cross-check OFF.
-# Ablation fixed-ρ: viode_stereo_imu_geodf_adaptive_fixed_config.yaml
+# GeoDF-Adaptive — Paper #1 baseline inside hybrid stack
 geodf_enable: 1
 geodf_hard_reject: 1
 geodf_ransac_th_px: 1.0
@@ -82,49 +80,44 @@ geodf_reject_ratio_max: 0.40
 geodf_ratio_guard: 1
 geodf_debug: 1
 geodf_dump_features: 0
-# --- scene-aware activation (v2: auto rho_on + stereo cross-check) ---
-geodf_adaptive: 1            # 1: hard-reject only on dynamic frames; 0: always-on
-geodf_activate_ratio: 0.12   # fallback fixed threshold (used when auto_rho=0)
-geodf_activate_ema: 0.15     # EMA smoothing factor (0..1); lower = more smoothing
-geodf_deactivate_frac: 0.6   # disarm when EMA < rho_on * this (hysteresis)
-# (B) auto-calibrated per-scene arm threshold
-geodf_auto_rho: 1            # 1: rho_on = floor*mult + margin (per-scene); 0: fixed
+geodf_adaptive: 1
+geodf_activate_ratio: 0.12
+geodf_activate_ema: 0.15
+geodf_deactivate_frac: 0.6
+geodf_auto_rho: 1
 geodf_auto_mult: 1.8
 geodf_auto_margin: 0.05
 geodf_activate_ratio_min: 0.10
 geodf_activate_ratio_max: 0.40
 geodf_auto_floor_down: 0.02
 geodf_auto_floor_up: 0.004
-# Track-level temporal voting: delete only after >=k consecutive dynamic flags
-# (suppresses transient false positives -> protects RPE / static scenes).
 geodf_vote_frames: 2
 geodf_warmup_frames: 30
-# (B)-only ablation: auto rho_on ON, stereo cross-check OFF.
 geodf_stereo_check: 0
 geodf_stereo_sampson_th: 6.0
 geodf_stereo_floor_max: 0.045
 
-# --- GeoDF-Inertial (Paper #2) ---
-# Score features against the IMU/VINS-predicted rigid-scene epipolar geometry
-# (essential matrix from the optimized relative pose) instead of a feature-fit
-# fundamental matrix, so the rigidity reference does not collapse when dynamics
-# dominate (fixes the parking_lot regression of Paper #1). Falls back to the
-# feature-fit GeoDF when the inertial geometry is unreliable (pre-init / low
-# parallax with derotation off).
+# --- IMU geometry sources (shared with inertial-only ablation) ---
 geodf_imu_enable: 1
-geodf_imu_sampson_th: 6.0       # base Sampson threshold (pseudo-pixel^2)
-geodf_imu_parallax_min: 0.02    # metres; below -> derotation / fallback
-geodf_imu_parallax_ref: 0.08    # geometry-confidence scaling reference
+geodf_imu_sampson_th: 6.0
+geodf_imu_parallax_min: 0.02
+geodf_imu_parallax_ref: 0.08
 geodf_imu_tau_cap: 4.0
-geodf_imu_fallback: 1           # 1: fall back to feature-fit GeoDF when imu invalid
-geodf_imu_derotate: 1           # 1: gyro-derotated residual-flow gate at low parallax
+geodf_imu_fallback: 1
+geodf_imu_derotate: 1
 geodf_imu_derotate_px: 8.0
-geodf_imu_median_mult: 0.0      # off: rely on parallax-scaling + reliability skip
-geodf_imu_parallax_max: 1.0     # metres; above -> pose corrupted, fall back
-geodf_imu_max_dyn_frac: 0.5     # skip+freeze frame if inertial gate flags > this fraction
+geodf_imu_median_mult: 0.0
+geodf_imu_parallax_max: 1.0
+geodf_imu_max_dyn_frac: 0.5
 
-# --- GeoDF-Hybrid — disabled in inertial-only ablation config ---
-geodf_hybrid_enable: 0
-geodf_hybrid_inertial_floor: 0.088  # inert (hybrid disabled in this ablation)
-geodf_hybrid_floor_off: 0.06        # inert (hybrid disabled in this ablation)
-geodf_hybrid_dwell: 8               # inert (hybrid disabled in this ablation)
+# --- GeoDF-Hybrid (Paper #2): reliability-gated arbitration ---
+# hybrid_signal = slow epipolar-outlier floor measured ALWAYS from the Paper #1
+# feature-fit geometry (F_p1), so the decision is decoupled from the active
+# rejection source and cannot self-oscillate. Latch with hysteresis + a dwell
+# (sustained-level keying): below floor_on force Paper #1; once the floor stays
+# >= floor_on for `dwell` consecutive frames, switch to inertial/derotation when
+# the IMU geometry is reliable; return to P1 after `dwell` frames < floor_off.
+geodf_hybrid_enable: 1
+geodf_hybrid_inertial_floor: 0.088  # floor_on: above static-parking p90~0.083, below 3_high p50~0.091
+geodf_hybrid_floor_off: 0.06        # floor_off: switch back to P1 below this (hysteresis)
+geodf_hybrid_dwell: 8               # anti-chatter: latch flips only after 8 consecutive frames past threshold

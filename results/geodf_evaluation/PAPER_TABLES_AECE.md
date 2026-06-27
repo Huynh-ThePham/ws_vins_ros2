@@ -23,6 +23,19 @@ provides feature-level validation against VIODE dynamic segmentation masks.
 For AECE, keep the claim practical and engineering-oriented. Do not claim
 universal dynamic-scene VIO improvement.
 
+## Reproducibility Freeze
+
+Paper #1 artifacts are tied to the frozen GeoDF-Adaptive commit:
+
+```text
+c64674097ab230465bf73576c60d3728050d3ec2
+Freeze AECE paper #1: figures, runtime, references, and Word export
+```
+
+Use `bash scripts/paper1_freeze_worktree.sh --build` before rebuilding Paper #1
+binaries or Word artifacts. Do not regenerate Paper #1 submission results from
+the Paper #2 hybrid branch, because it modifies the shared GeoDF front-end path.
+
 ## Table A: VIODE N=5 Trajectory Summary
 
 Source: `results/geodf_evaluation/PAPER_RESULTS_N5.md`
@@ -83,9 +96,8 @@ The hybrid, soft-weight, and YOLO experiments are exploratory and are excluded
 from this AECE artifact set. They should only appear as future work if discussed
 at all.
 
-## Missing Before Submission
+## Final Submission Checks
 
-- Runtime/FPS measurement if using measured "low-overhead" language.
-- Final Related Work citations with DOI/permanent links.
-- AECE template conversion to `.doc`.
+- Rebuild/check from the frozen Paper #1 worktree before final export.
+- Paste/export into the official AECE `.doc` template.
 - Copyright transfer form.

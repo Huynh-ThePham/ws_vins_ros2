@@ -127,6 +127,21 @@ struct VinsConfig
     // rejection on this frame and freeze the scene EMA. 0 disables.
     double geodf_imu_max_dyn_frac = 0.5;
 
+    // GeoDF-Hybrid (Paper #2): reliability-gated arbitration between Paper #1
+    // feature-fit geometry and IMU-predicted epipolar geometry. When enabled,
+    // P1 is preferred while the hybrid scene signal is below the threshold;
+    // inertial/derotation is used once the signal indicates dynamic density.
+    int geodf_hybrid_enable = 0;
+    double geodf_hybrid_inertial_floor = 0.08; // hysteresis upper threshold (floor_on)
+    // Hysteresis lower threshold (floor_off): once the inertial/derotation side is
+    // active it stays active until hybrid_signal drops below this. < 0 or
+    // >= inertial_floor disables hysteresis (single-threshold arbitration).
+    double geodf_hybrid_floor_off = -1.0;
+    // Anti-chatter dwell (frames): the hybrid source latch only flips after the
+    // signal stays past the threshold for this many consecutive frames, so
+    // arbitration tracks the sustained dynamic regime, not single-frame spikes.
+    int geodf_hybrid_dwell = 5;
+
     std::string geodf_stats_path;
     std::string geodf_feat_path;
 

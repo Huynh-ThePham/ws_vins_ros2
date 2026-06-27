@@ -183,9 +183,24 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
     TicToc featureTrackerTime;
 
     // GeoDF-Inertial: refresh the IMU-predicted epipolar geometry for this image
-    // before the front-end tracks/filters it.
+    // before the front-end tracks/filters it. Under hybrid arbitration, skip
+    // publishing to the front-end while the latch keeps Paper #1 (static scene)
+    // so the run matches the adaptive config; the estimator still advances its
+    // inter-image pose anchor every frame for a clean hand-off when the latch
+    // turns on (see hybridNeedImuEpipolar precharge).
     if (vinsConfig().geodf_imu_enable)
-        pushImuEpipolarAtImage(t);
+    {
+        const bool hybrid = vinsConfig().geodf_hybrid_enable;
+        const bool publish = !hybrid || featureTracker.hybridNeedImuEpipolar();
+        if (hybrid && publish && !imu_epi_publish_active)
+            imu_epi_have_prev = false;
+        imu_epi_publish_active = publish;
+        if (publish)
+            pushImuEpipolarAtImage(t, true);
+        else if (hybrid)
+            featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(),
+                                          Eigen::Vector3d::Zero(), false);
+    }
 
     if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, _img);
@@ -1514,7 +1529,7 @@ void Estimator::predictPtsInNextFrame()
     //printf("estimator output %d predict pts\n",(int)predictPts.size());
 }
 
-void Estimator::pushImuEpipolarAtImage(double t)
+void Estimator::pushImuEpipolarAtImage(double t, bool publish_to_frontend)
 {
     // GeoDF-Inertial (Paper #2): compute the ACTUAL inter-frame relative camera
     // pose between the previous and current tracked image and push it to the
@@ -1524,6 +1539,11 @@ void Estimator::pushImuEpipolarAtImage(double t)
     // epipolar residual and the inertial gate stays discriminative. The metric
     // relative translation comes from the IMU-propagated position, re-anchored
     // to the optimized window state every frame (short propagation horizon).
+    //
+    // publish_to_frontend=false (hybrid static-P1): still advance the image-pair
+    // anchor below, but mark imu_epi invalid on the tracker so rejectGeoDynamic
+    // stays on the pure Paper #1 path without IMU side effects.
+    (void)t;
     if (solver_flag != NON_LINEAR)
     {
         featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(),
@@ -1548,7 +1568,11 @@ void Estimator::pushImuEpipolarAtImage(double t)
         Eigen::Matrix3d R_rel = Ric.transpose() * Rb.transpose() * Ra * Ric;
         Eigen::Vector3d t_rel = Ric.transpose() * Rb.transpose() *
                                 (Ra * Tic + Pa - Rb * Tic - Pb);
-        featureTracker.setImuEpipolar(R_rel, t_rel, true);
+        if (publish_to_frontend)
+            featureTracker.setImuEpipolar(R_rel, t_rel, true);
+        else
+            featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(),
+                                          Eigen::Vector3d::Zero(), false);
     }
     else
     {

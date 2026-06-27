@@ -82,7 +82,7 @@ class Estimator
     void getPoseInWorldFrame(Eigen::Matrix4d &T);
     void getPoseInWorldFrame(int index, Eigen::Matrix4d &T);
     void predictPtsInNextFrame();
-    void pushImuEpipolarAtImage(double t);
+    void pushImuEpipolarAtImage(double t, bool publish_to_frontend = true);
     void outliersRejection(set<int> &removeIndex);
     double reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
                                      Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
@@ -190,6 +190,9 @@ class Estimator
     Eigen::Matrix3d imu_epi_prev_R = Eigen::Matrix3d::Identity();
     Eigen::Vector3d imu_epi_prev_P = Eigen::Vector3d::Zero();
     bool imu_epi_have_prev = false;
+    // Tracks whether hybrid published IMU epipolar on the prior frame (for anchor
+    // reset when leaving static-P1).
+    bool imu_epi_publish_active = false;
 
     bool initFirstPoseFlag;
     bool initThreadFlag;

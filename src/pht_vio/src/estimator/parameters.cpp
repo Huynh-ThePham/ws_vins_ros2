@@ -184,6 +184,10 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_imu_median_mult = 5.0;
     geodf_imu_parallax_max = 1.0;
     geodf_imu_max_dyn_frac = 0.5;
+    geodf_hybrid_enable = 0;
+    geodf_hybrid_inertial_floor = 0.08;
+    geodf_hybrid_floor_off = -1.0;
+    geodf_hybrid_dwell = 5;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -262,6 +266,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_imu_parallax_max = (double)fsSettings["geodf_imu_parallax_max"];
     if (!fsSettings["geodf_imu_max_dyn_frac"].empty())
         geodf_imu_max_dyn_frac = (double)fsSettings["geodf_imu_max_dyn_frac"];
+    if (!fsSettings["geodf_hybrid_enable"].empty())
+        geodf_hybrid_enable = (int)fsSettings["geodf_hybrid_enable"];
+    if (!fsSettings["geodf_hybrid_inertial_floor"].empty())
+        geodf_hybrid_inertial_floor = (double)fsSettings["geodf_hybrid_inertial_floor"];
+    if (!fsSettings["geodf_hybrid_floor_off"].empty())
+        geodf_hybrid_floor_off = (double)fsSettings["geodf_hybrid_floor_off"];
+    if (!fsSettings["geodf_hybrid_dwell"].empty())
+        geodf_hybrid_dwell = (int)fsSettings["geodf_hybrid_dwell"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -270,7 +282,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                      "candidates,rejected,reject_ratio,tracks_after,"
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
                      "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed,"
-                     "imu_mode,tau_eff,imu_parallax\n";
+                     "imu_mode,tau_eff,imu_parallax,hybrid_signal,hybrid_arb,scene_dynamic\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -302,7 +314,15 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " imu_parallax_ref=" << geodf_imu_parallax_ref
                         << " imu_tau_cap=" << geodf_imu_tau_cap
                         << " imu_fallback=" << geodf_imu_fallback
-                        << " imu_derotate=" << geodf_imu_derotate);
+                        << " imu_derotate=" << geodf_imu_derotate
+                        << " imu_derotate_px=" << geodf_imu_derotate_px
+                        << " imu_median_mult=" << geodf_imu_median_mult
+                        << " imu_parallax_max=" << geodf_imu_parallax_max
+                        << " imu_max_dyn_frac=" << geodf_imu_max_dyn_frac
+                        << " hybrid_enable=" << geodf_hybrid_enable
+                        << " hybrid_inertial_floor=" << geodf_hybrid_inertial_floor
+                        << " hybrid_floor_off=" << geodf_hybrid_floor_off
+                        << " hybrid_dwell=" << geodf_hybrid_dwell);
     }
 
     fsSettings.release();

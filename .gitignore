@@ -17,6 +17,10 @@ results/*
 # Run logs
 logs/
 
+# YOLO weights (download locally)
+yolo11n-seg.pt
+yolo*.pt
+
 # Converted dataset bags (regenerate locally; do not commit)
 data/
 

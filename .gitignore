@@ -11,6 +11,11 @@ venv/
 
 # Benchmark outputs (regenerate with scripts/)
 results/
+logs/
+
+# YOLO weights (download via pip/ultralytics or place locally)
+yolo11n-seg.pt
+yolo*.pt
 
 # Converted dataset bags (regenerate locally; do not commit)
 data/

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the GeoDF-Weighted (Paper #2 candidate) method on VIODE conditions using the prepared
+# Run the GeoDF-Weighted (Paper #2 proposed) method on VIODE conditions using the prepared
 # ROS 2 bags + cached ground-truth CSVs (the raw .bag files may be unmounted).
 # Reuses existing trials unless FORCE=1.
 #

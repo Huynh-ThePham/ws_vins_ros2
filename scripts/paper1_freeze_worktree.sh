@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a clean Paper #1 (GeoDF-Adaptive / AECE) worktree so Paper #2 hybrid
+# Prepare a clean Paper #1 (GeoDF-Adaptive / AECE) worktree so Paper #2
 # edits in the current checkout cannot contaminate the rebuild/submission build.
 #
 # Default action is safe: create/check a detached worktree at the frozen Paper #1

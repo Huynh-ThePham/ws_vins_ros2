@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a clean Paper #2 (GeoDF-Hybrid / RA-L) worktree so Paper #3 or
+# Prepare a clean Paper #2 (GeoDF-Weighted / RA-L) worktree so Paper #3 or
 # ongoing edits in the current checkout cannot contaminate the rebuild/submission build.
 #
 # Default action is safe: create/check a detached worktree at the frozen Paper #2
@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Update this hash after each Paper #2 freeze commit (same pattern as Paper #1).
 PAPER2_FREEZE="${PAPER2_FREEZE:-PLACEHOLDER_UPDATE_AFTER_FREEZE_COMMIT}"
 if [ "$PAPER2_FREEZE" = "PLACEHOLDER_UPDATE_AFTER_FREEZE_COMMIT" ]; then
-    PAPER2_REF="${PAPER2_REF:-paper/geodf-imu-dynamic-2026-q4}"
+    PAPER2_REF="${PAPER2_REF:-paper/geodf-weighted-dynamic-2026-q4}"
 else
     PAPER2_REF="${PAPER2_REF:-$PAPER2_FREEZE}"
 fi
@@ -89,9 +89,9 @@ fi
 
 if [ -n "$BENCHMARK_N" ]; then
     echo "[paper2-freeze] running Paper #2 VIODE N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
-    (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_hybrid_n5.sh "$BENCHMARK_N")
+    (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_weighted_n5.sh "$BENCHMARK_N")
     if [ "$DO_EUROC" = "1" ]; then
         echo "[paper2-freeze] running Paper #2 EuRoC N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
-        (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_euroc_hybrid.sh "$BENCHMARK_N")
+        (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_euroc_weighted.sh "$BENCHMARK_N")
     fi
 fi

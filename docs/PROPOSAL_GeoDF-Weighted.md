@@ -1,4 +1,4 @@
-# Paper #2 Proposal — GeoDF-Weighted
+# Paper #2 Proposed Method — GeoDF-Weighted
 
 ## Working title
 
@@ -6,11 +6,11 @@ GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting for Dynamic F
 
 ## Core change
 
-Paper #1 and the Hybrid draft remove suspected dynamic features before state
-estimation. Paper #2 should instead keep the measurements and reduce their
-visual residual confidence in the backend.
+Paper #1 removes suspected dynamic features before state estimation. Paper #2
+keeps the measurements and reduces their visual residual confidence in the
+backend.
 
-Implemented candidate:
+Selected implementation:
 
 ```text
 KLT tracks
@@ -51,6 +51,8 @@ cost contribution is weighted by `w`.
 - `src/config/viode/viode_stereo_imu_geodf_weighted_config.yaml`
 - `src/config/euroc/euroc_stereo_imu_geodf_weighted_config.yaml`
 - `scripts/run_geodf_weighted.sh`
+- `scripts/run_geodf_weighted_n5.sh`
+- `scripts/run_geodf_euroc_weighted.sh`
 - `scripts/eval_viode_detection.py --prediction weight`
 
 ## Smoke result
@@ -67,8 +69,8 @@ Mask-level detection using `weight < 0.999`:
 |---:|---:|---:|---:|
 | 76.4% | 26.7% | 5.35x | 1.37% |
 
-This is a promising direction because it improves the previous parking-lot
-failure case while preserving all feature tracks for the estimator.
+This is the selected Paper #2 direction because it improves the previous
+parking-lot failure case while preserving all feature tracks for the estimator.
 
 ## Next evaluation
 
@@ -76,6 +78,12 @@ Run N=5:
 
 ```bash
 FORCE=1 bash scripts/run_geodf_weighted.sh "0_none 1_low 2_mid 3_high" "city_day city_night parking_lot" 5
+```
+
+or equivalently:
+
+```bash
+FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
 ```
 
 Run mask evaluation for weighted predictions:

@@ -190,6 +190,8 @@ Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_a
 
 Paper #2 branch — *GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting for Dynamic Feature Robustness in Stereo-Inertial VINS*. See [docs/PROPOSAL_GeoDF-Weighted.md](docs/PROPOSAL_GeoDF-Weighted.md).
 
+**Worktree:** `../ws_vins_ros2_paper2_weight` — `bash scripts/paper2_weight_worktree.sh [--build] [--benchmark N]`
+
 | Method | Config | Use case |
 |--------|--------|----------|
 | `baseline` | `euroc_stereo_imu_config.yaml` | No filter |

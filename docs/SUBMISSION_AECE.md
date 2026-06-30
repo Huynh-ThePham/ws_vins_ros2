@@ -56,17 +56,17 @@ Freeze AECE paper #1: figures, runtime, references, and Word export
 Use the isolated worktree helper before any Paper #1 rebuild:
 
 ```bash
-# Safe check only: creates/updates ../ws_vins_ros2_paper1_freeze at the P1 commit
-bash scripts/paper1_freeze_worktree.sh
+# Safe check only: creates/updates ../ws_vins_ros2_paper1_adaptive at the P1 commit
+bash scripts/paper1_adaptive_worktree.sh
 
-# Rebuild frozen P1 binaries
-bash scripts/paper1_freeze_worktree.sh --build
+# Rebuild P1 binaries
+bash scripts/paper1_adaptive_worktree.sh --build
 
-# Optional full rerun from frozen P1 code (long)
-FORCE=1 bash scripts/paper1_freeze_worktree.sh --build --benchmark 5
+# Optional full rerun from P1 code (long)
+FORCE=1 bash scripts/paper1_adaptive_worktree.sh --build --benchmark 5
 
-# Rebuild the Word export from frozen P1 manuscript/assets
-bash scripts/paper1_freeze_worktree.sh --docx
+# Rebuild the Word export from P1 manuscript/assets
+bash scripts/paper1_adaptive_worktree.sh --docx
 ```
 
 Do not cite new Paper #1 numbers produced from branch

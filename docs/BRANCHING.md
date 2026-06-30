@@ -128,6 +128,8 @@ main
 | `paper/geodf-vins-hard-q4` | `paper/geodf-adaptive-vins-2026-q4` |
 | `paper/geodf-imu-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026-q4` |
 | `paper/geodf-weighted-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026-q4` |
+| `ws_vins_ros2_paper1_freeze` (worktree) | `ws_vins_ros2_paper1_adaptive` |
+| `ws_vins_ros2_paper2_freeze` (worktree) | `ws_vins_ros2_paper2_weight` |
 | `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026-q1` (recommended) |
 
 After renaming locally, update remote:

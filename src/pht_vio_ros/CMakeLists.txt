@@ -52,6 +52,12 @@ add_executable(kitti_gps_test src/KITTIGPSTest.cpp)
 target_link_libraries(kitti_gps_test pht_vio_ros)
 ament_target_dependencies(kitti_gps_test ${DEPS})
 
+install(TARGETS pht_vio_ros
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
+
 install(TARGETS pht_vio_node kitti_odom_test kitti_gps_test
   DESTINATION lib/${PROJECT_NAME}
 )

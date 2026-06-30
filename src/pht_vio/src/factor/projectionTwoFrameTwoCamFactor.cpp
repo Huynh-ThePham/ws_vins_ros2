@@ -10,16 +10,19 @@
  *******************************************************/
 
 #include "projectionTwoFrameTwoCamFactor.h"
+#include <algorithm>
+#include <cmath>
 
 Eigen::Matrix2d ProjectionTwoFrameTwoCamFactor::sqrt_info;
 double ProjectionTwoFrameTwoCamFactor::sum_t;
 
 ProjectionTwoFrameTwoCamFactor::ProjectionTwoFrameTwoCamFactor(const Eigen::Vector3d &_pts_i, const Eigen::Vector3d &_pts_j,
                                                                const Eigen::Vector2d &_velocity_i, const Eigen::Vector2d &_velocity_j,
-                                                               const double _td_i, const double _td_j) : 
+                                                               const double _td_i, const double _td_j, const double _weight) :
                                                                pts_i(_pts_i), pts_j(_pts_j), 
                                                                td_i(_td_i), td_j(_td_j)
 {
+    sqrt_weight = std::sqrt(std::min(1.0, std::max(0.0, _weight)));
     velocity_i.x() = _velocity_i.x();
     velocity_i.y() = _velocity_i.y();
     velocity_i.z() = 0;
@@ -77,7 +80,7 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
     residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
 #endif
 
-    residual = sqrt_info * residual;
+    residual = sqrt_weight * (sqrt_info * residual);
 
     if (jacobians)
     {
@@ -101,7 +104,7 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         reduce << 1. / dep_j, 0, -pts_camera_j(0) / (dep_j * dep_j),
             0, 1. / dep_j, -pts_camera_j(1) / (dep_j * dep_j);
 #endif
-        reduce = sqrt_info * reduce;
+        reduce = sqrt_weight * (sqrt_info * reduce);
 
         if (jacobians[0])
         {

@@ -37,7 +37,7 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
+    map<int, vector<pair<int, FeatureObservation>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat());
     void setMask();
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
@@ -100,6 +100,9 @@ public:
     // and a frame counter for the warmup guard.
     std::map<int, int> geo_dyn_streak;
     long long geo_frame_count = 0;
+    // Feature id -> visual residual weight exported to the estimator. Missing ids
+    // use weight 1.0, preserving the baseline/Paper #1 path.
+    std::map<int, double> geo_feature_weights;
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel

@@ -188,6 +188,9 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_hybrid_inertial_floor = 0.08;
     geodf_hybrid_floor_off = -1.0;
     geodf_hybrid_dwell = 5;
+    geodf_backend_weight = 0;
+    geodf_backend_min_weight = 0.15;
+    geodf_backend_weight_power = 2.0;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -274,6 +277,12 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_hybrid_floor_off = (double)fsSettings["geodf_hybrid_floor_off"];
     if (!fsSettings["geodf_hybrid_dwell"].empty())
         geodf_hybrid_dwell = (int)fsSettings["geodf_hybrid_dwell"];
+    if (!fsSettings["geodf_backend_weight"].empty())
+        geodf_backend_weight = (int)fsSettings["geodf_backend_weight"];
+    if (!fsSettings["geodf_backend_min_weight"].empty())
+        geodf_backend_min_weight = (double)fsSettings["geodf_backend_min_weight"];
+    if (!fsSettings["geodf_backend_weight_power"].empty())
+        geodf_backend_weight_power = (double)fsSettings["geodf_backend_weight_power"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -287,7 +296,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
             std::ofstream feat(geodf_feat_path, std::ios::out);
-            feat << "timestamp_ns,feature_id,u,v,sampson,ransac_outlier,rejected\n";
+            feat << "timestamp_ns,feature_id,u,v,sampson,ransac_outlier,rejected,weight\n";
             feat.close();
         }
         ROS_INFO_STREAM("GeoDF-VINS-Hard enabled: sampson_th=" << geodf_sampson_th
@@ -322,7 +331,10 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " hybrid_enable=" << geodf_hybrid_enable
                         << " hybrid_inertial_floor=" << geodf_hybrid_inertial_floor
                         << " hybrid_floor_off=" << geodf_hybrid_floor_off
-                        << " hybrid_dwell=" << geodf_hybrid_dwell);
+                        << " hybrid_dwell=" << geodf_hybrid_dwell
+                        << " backend_weight=" << geodf_backend_weight
+                        << " backend_min_weight=" << geodf_backend_min_weight
+                        << " backend_weight_power=" << geodf_backend_weight_power);
     }
 
     fsSettings.release();

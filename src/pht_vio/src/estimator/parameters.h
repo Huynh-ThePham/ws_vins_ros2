@@ -21,6 +21,9 @@ using namespace std;
 const double FOCAL_LENGTH = 460.0;
 const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
+const int FEATURE_OBS_SIZE = 8;
+
+using FeatureObservation = Eigen::Matrix<double, FEATURE_OBS_SIZE, 1>;
 
 struct VinsConfig
 {
@@ -141,6 +144,12 @@ struct VinsConfig
     // signal stays past the threshold for this many consecutive frames, so
     // arbitration tracks the sustained dynamic regime, not single-frame spikes.
     int geodf_hybrid_dwell = 5;
+
+    // GeoDF-Weighted (Paper #2 candidate): keep all scored features in the
+    // estimator, but down-weight visual residuals by the active geometry score.
+    int geodf_backend_weight = 0;
+    double geodf_backend_min_weight = 0.15;
+    double geodf_backend_weight_power = 2.0;
 
     std::string geodf_stats_path;
     std::string geodf_feat_path;

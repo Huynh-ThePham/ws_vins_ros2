@@ -184,7 +184,7 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1)
+map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1)
 {
     TicToc t_r;
     cur_time = _cur_time;
@@ -358,7 +358,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     for(size_t i = 0; i < cur_pts.size(); i++)
         prevLeftPtsMap[ids[i]] = cur_pts[i];
 
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+    map<int, vector<pair<int, FeatureObservation>>> featureFrame;
     for (size_t i = 0; i < ids.size(); i++)
     {
         int feature_id = ids[i];
@@ -373,8 +373,12 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         double velocity_x, velocity_y;
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
-        Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+        double weight = 1.0;
+        auto wit = geo_feature_weights.find(feature_id);
+        if (wit != geo_feature_weights.end())
+            weight = wit->second;
+        FeatureObservation xyz_uv_velocity;
+        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
 
@@ -394,8 +398,12 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             double velocity_x, velocity_y;
             velocity_x = right_pts_velocity[i].x;
             velocity_y = right_pts_velocity[i].y;
-            Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+            double weight = 1.0;
+            auto wit = geo_feature_weights.find(feature_id);
+            if (wit != geo_feature_weights.end())
+                weight = wit->second;
+            FeatureObservation xyz_uv_velocity;
+            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
             featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
         }
     }
@@ -442,7 +450,8 @@ void FeatureTracker::rejectWithF()
 void FeatureTracker::rejectGeoDynamic()
 {
     auto &cfg = vinsConfig();
-    if (!cfg.geodf_enable || !cfg.geodf_hard_reject)
+    geo_feature_weights.clear();
+    if (!cfg.geodf_enable || (!cfg.geodf_hard_reject && !cfg.geodf_backend_weight))
         return;
 
     const int total = static_cast<int>(cur_pts.size());
@@ -874,6 +883,23 @@ void FeatureTracker::rejectGeoDynamic()
         frame_active = 0;
     }
 
+    if (cfg.geodf_backend_weight)
+    {
+        const double min_weight = std::min(1.0, std::max(0.0, cfg.geodf_backend_min_weight));
+        const double power = std::max(0.1, cfg.geodf_backend_weight_power);
+        if (frame_active && tau_eff > 1e-12)
+        {
+            for (int i = 0; i < total; i++)
+            {
+                if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                    continue;
+                const double normalized = std::max(0.0, errors[i] / tau_eff - 1.0);
+                const double robust = 1.0 / (1.0 + std::pow(normalized, power));
+                geo_feature_weights[ids[i]] = std::max(min_weight, robust);
+            }
+        }
+    }
+
     // Track-level temporal voting: only features flagged on >= vote_frames
     // consecutive frames are eligible for hard-delete. We always advance the
     // per-id streak (incrementing this frame's candidates, dropping the rest),
@@ -960,12 +986,19 @@ void FeatureTracker::rejectGeoDynamic()
             if (track_cnt[i] < cfg.geodf_min_track_cnt)
                 continue;
             const int ransac_outlier = left_outlier[i];
+            double weight = 1.0;
+            auto wit = geo_feature_weights.find(ids[i]);
+            if (wit != geo_feature_weights.end())
+                weight = wit->second;
             feat << ts << "," << ids[i] << ","
                  << cur_pts[i].x << "," << cur_pts[i].y << ","
                  << errors[i] << "," << ransac_outlier << ","
-                 << (keep[i] ? 0 : 1) << "\n";
+                 << (keep[i] ? 0 : 1) << "," << weight << "\n";
         }
     }
+
+    if (!cfg.geodf_hard_reject)
+        rejected = 0;
 
     if (rejected > 0)
     {

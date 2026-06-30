@@ -3,8 +3,9 @@
 
 Ground truth = VIODE AirSim segmentation. A scored feature (u,v) at time t is
 DYNAMIC iff the segmentation mask at that frame marks pixel (u,v) as a moving
-vehicle. Prediction = `rejected`. Reports precision/recall/F1, precision lift
-over the dynamic base-rate, static FPR, and RANSAC-gate discrimination.
+vehicle. Prediction is either `rejected` (hard-delete mode) or `weight <
+threshold` (soft-weight mode). Reports precision/recall/F1, precision lift over
+the dynamic base-rate, static FPR, and RANSAC-gate discrimination.
 """
 from __future__ import annotations
 
@@ -43,7 +44,8 @@ def _quantile(xs: list[float], q: float) -> float:
     return xs[i]
 
 
-def evaluate(features_csv: Path, mask_dir: Path, match_tol_ms: float = 30.0) -> dict[str, Any]:
+def evaluate(features_csv: Path, mask_dir: Path, match_tol_ms: float = 30.0,
+             prediction: str = "rejected", weight_threshold: float = 0.999) -> dict[str, Any]:
     ts_list = mask_timestamps(mask_dir)
     tol_ns = int(match_tol_ms * 1e6)
 
@@ -75,7 +77,13 @@ def evaluate(features_csv: Path, mask_dir: Path, match_tol_ms: float = 30.0) -> 
             is_dyn = False
             if cache_mask is not None and 0 <= v < H and 0 <= u < W:
                 is_dyn = cache_mask[v, u] > 0
-            rejected = int(row["rejected"]) == 1
+            if prediction == "weight":
+                try:
+                    rejected = float(row.get("weight", "1.0")) < weight_threshold
+                except ValueError:
+                    rejected = False
+            else:
+                rejected = int(row["rejected"]) == 1
             try:
                 s = float(row["sampson"])
             except (KeyError, ValueError):
@@ -107,6 +115,8 @@ def evaluate(features_csv: Path, mask_dir: Path, match_tol_ms: float = 30.0) -> 
     n_static = matched - n_dynamic
     return {
         "features": n, "matched": matched,
+        "prediction": prediction,
+        "weight_threshold": weight_threshold if prediction == "weight" else None,
         "matched_pct": 100.0 * matched / n if n else 0.0,
         "n_dynamic": n_dynamic, "n_static": n_static,
         "dynamic_base_rate": base,
@@ -159,10 +169,15 @@ def main() -> None:
     ap.add_argument("--features", type=Path, default=None)
     ap.add_argument("--mask-dir", type=Path, default=None)
     ap.add_argument("--out", type=Path, default=None)
+    ap.add_argument("--method", default="geodf_dump")
+    ap.add_argument("--prediction", choices=["rejected", "weight"], default="rejected")
+    ap.add_argument("--weight-threshold", type=float, default=0.999)
     args = ap.parse_args()
 
     if args.features and args.mask_dir:
-        result = evaluate(args.features, args.mask_dir, args.match_tol_ms)
+        result = evaluate(args.features, args.mask_dir, args.match_tol_ms,
+                          prediction=args.prediction,
+                          weight_threshold=args.weight_threshold)
         if args.out:
             _write_json(args.out, result)
             print(f"[ok] wrote {args.out}")
@@ -173,12 +188,14 @@ def main() -> None:
     rows = []
     bundle: dict[str, Any] = {}
     for level in args.levels.split():
-        feat = args.root / f"{args.env}_{level}_geodf_dump" / "geo_df_features.csv"
+        feat = args.root / f"{args.env}_{level}_{args.method}" / "geo_df_features.csv"
         mdir = args.mask_root / f"{args.env}_{level}"
         if not feat.is_file() or not mdir.is_dir():
             print(f"[skip] {level}: features={feat.is_file()} masks={mdir.is_dir()}")
             continue
-        m = evaluate(feat, mdir, args.match_tol_ms)
+        m = evaluate(feat, mdir, args.match_tol_ms,
+                     prediction=args.prediction,
+                     weight_threshold=args.weight_threshold)
         bundle[level] = m
         rows.append([
             level, _pct(m["dynamic_base_rate"]), _pct(m["precision"]),
@@ -196,7 +213,10 @@ def main() -> None:
         "",
         "Ground truth = VIODE AirSim segmentation (`vehicle_dynamic_*` ids). A scored feature "
         "is dynamic iff its pixel is on a moving vehicle. **Precision lift** = precision / "
-        "dynamic base-rate; lift > 1 proves targeted rejection.",
+        "dynamic base-rate; lift > 1 proves targeted prediction.",
+        "",
+        f"Method folder suffix: `{args.method}`. Prediction: `{args.prediction}`"
+        + (f" with weight < {args.weight_threshold:g}." if args.prediction == "weight" else "."),
         "",
         md_table(headers, rows) if rows else "_No runs found. Run geodf_dump + viode_make_masks first._",
         "",
@@ -207,7 +227,7 @@ def main() -> None:
         lines += [
             "## Reviewer takeaway",
             "",
-            f"- On real moving vehicles ({key}), rejections are **{_pct(b['precision'])}** dynamic "
+            f"- On real moving vehicles ({key}), predictions are **{_pct(b['precision'])}** dynamic "
             f"vs a {_pct(b['dynamic_base_rate'])} base-rate — **{b['precision_lift']:.2f}x precision lift**.",
             f"- RANSAC gate fires on **{_pct(b['ransac_outlier_rate_dynamic'])}** of dynamic features "
             f"vs **{_pct(b['ransac_outlier_rate_static'])}** of static ones.",

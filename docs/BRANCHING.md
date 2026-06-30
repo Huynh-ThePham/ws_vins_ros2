@@ -58,7 +58,7 @@ paper/<method-slug>-<year>-<venue>
 
 | Field | Meaning | Examples |
 |-------|---------|----------|
-| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `sad-vins` |
+| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `geodf-weighted-vins`, `sad-vins` |
 | `year` | Target submission / publication year | `2026` |
 | `venue` | Journal tier or conference | `q4`, `q3`, `q2`, `q1`, `icra2026`, `iros2026`, `ral2026` |
 
@@ -72,7 +72,8 @@ paper/<method-slug>-<year>-<venue>
 **Naming examples**
 
 ```text
-paper/geodf-adaptive-vins-2026-q4      # GeoDF-VINS-Hard + scene-aware gating
+paper/geodf-adaptive-vins-2026-q4      # GeoDF-VINS-Hard + scene-aware gating (Paper #1)
+paper/geodf-weighted-vins-2026-q4      # GeoDF-Weighted backend soft weighting (Paper #2)
 paper/sad-vins-2026-q1                 # SAD-VINS (semantic-adaptive dynamic)
 paper/dyn-robust-vio-2027-icra2027     # future conference paper
 ```
@@ -108,6 +109,7 @@ Examples: `exp/imu-gated-geodf`, `exp/soft-weight-backend`.
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1     [frozen]
        ├── paper/geodf-adaptive-vins-2026-q4
+       ├── paper/geodf-weighted-vins-2026-q4
        ├── paper/sad-vins-2026-q1
        └── exp/<scratch>
 ```
@@ -124,6 +126,8 @@ main
 | `baseline/euroc-verified` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
 | `baseline/ros2-euroc-stereo-imu-v1` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
 | `paper/geodf-vins-hard-q4` | `paper/geodf-adaptive-vins-2026-q4` |
+| `paper/geodf-imu-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026-q4` |
+| `paper/geodf-weighted-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026-q4` |
 | `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026-q1` (recommended) |
 
 After renaming locally, update remote:

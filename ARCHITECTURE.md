@@ -143,6 +143,7 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)** — international naming
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1
        ├── paper/geodf-adaptive-vins-2026-q4
+       ├── paper/geodf-weighted-vins-2026-q4
        ├── paper/sad-vins-2026-q1          (planned)
        └── exp/<scratch>
 ```
@@ -184,6 +185,23 @@ export VIODE_ROOT=/path/to/viode
 ```
 
 Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
+
+### GeoDF-Weighted VINS (`paper/geodf-weighted-vins-2026-q4`)
+
+Paper #2 branch — *GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting for Dynamic Feature Robustness in Stereo-Inertial VINS*. See [docs/PROPOSAL_GeoDF-Weighted.md](docs/PROPOSAL_GeoDF-Weighted.md).
+
+| Method | Config | Use case |
+|--------|--------|----------|
+| `baseline` | `euroc_stereo_imu_config.yaml` | No filter |
+| `weighted` | `euroc_stereo_imu_geodf_weighted_config.yaml` | **Recommended** — IMU geometry scoring + backend soft weights |
+
+```bash
+# VIODE full eval (N=5)
+FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
+
+# EuRoC static regression
+FORCE=1 bash scripts/run_geodf_euroc_weighted.sh 5
+```
 
 Re-run EuRoC checks before merging research into baseline:
 

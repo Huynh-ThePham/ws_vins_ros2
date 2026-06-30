@@ -70,8 +70,8 @@ bash scripts/paper1_freeze_worktree.sh --docx
 ```
 
 Do not cite new Paper #1 numbers produced from branch
-`paper/geodf-imu-dynamic-2026-q4`; that branch intentionally contains Paper #2
-IMU/hybrid changes in the shared front-end path.
+`paper/geodf-weighted-vins-2026-q4`; that branch intentionally contains Paper #2
+GeoDF-Weighted changes in the shared front-end path.
 
 ## Claims To Use
 

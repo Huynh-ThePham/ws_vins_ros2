@@ -18,7 +18,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Update this hash after each Paper #2 freeze commit (same pattern as Paper #1).
 PAPER2_FREEZE="${PAPER2_FREEZE:-PLACEHOLDER_UPDATE_AFTER_FREEZE_COMMIT}"
 if [ "$PAPER2_FREEZE" = "PLACEHOLDER_UPDATE_AFTER_FREEZE_COMMIT" ]; then
-    PAPER2_REF="${PAPER2_REF:-paper/geodf-weighted-dynamic-2026-q4}"
+    PAPER2_REF="${PAPER2_REF:-paper/geodf-weighted-vins-2026-q4}"
 else
     PAPER2_REF="${PAPER2_REF:-$PAPER2_FREEZE}"
 fi

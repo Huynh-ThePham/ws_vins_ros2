@@ -150,6 +150,14 @@ struct VinsConfig
     int geodf_backend_weight = 0;
     double geodf_backend_min_weight = 0.15;
     double geodf_backend_weight_power = 2.0;
+    // Temporal reliability memory for backend weighting. This turns per-frame
+    // geometry residuals into a persistent dynamic belief per feature track,
+    // damping one-frame false positives while keeping consistently dynamic
+    // tracks weak in the estimator. 0 = original instantaneous weighting.
+    int geodf_backend_temporal = 0;
+    double geodf_backend_temporal_attack = 0.45;
+    double geodf_backend_temporal_recovery = 0.12;
+    double geodf_backend_temporal_prior = 0.0;
 
     std::string geodf_stats_path;
     std::string geodf_feat_path;

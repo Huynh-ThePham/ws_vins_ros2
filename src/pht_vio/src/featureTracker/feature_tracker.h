@@ -103,6 +103,10 @@ public:
     // Feature id -> visual residual weight exported to the estimator. Missing ids
     // use weight 1.0, preserving the baseline/GeoDF-Adaptive path.
     std::map<int, double> geo_feature_weights;
+    // Feature id -> smoothed dynamic belief in [0, 1] for temporal backend
+    // weighting. It is updated only while backend weighting is active and pruned
+    // to the currently tracked ids each image.
+    std::map<int, double> geo_dynamic_belief;
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel

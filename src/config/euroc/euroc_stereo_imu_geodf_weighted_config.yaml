@@ -122,3 +122,7 @@ geodf_imu_max_dyn_frac: 0.5
 geodf_backend_weight: 1
 geodf_backend_min_weight: 0.15
 geodf_backend_weight_power: 2.0
+geodf_backend_temporal: 1
+geodf_backend_temporal_attack: 0.45
+geodf_backend_temporal_recovery: 0.12
+geodf_backend_temporal_prior: 0.0

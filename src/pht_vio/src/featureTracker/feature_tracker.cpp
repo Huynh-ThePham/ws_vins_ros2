@@ -887,6 +887,21 @@ void FeatureTracker::rejectGeoDynamic()
     {
         const double min_weight = std::min(1.0, std::max(0.0, cfg.geodf_backend_min_weight));
         const double power = std::max(0.1, cfg.geodf_backend_weight_power);
+        const bool temporal = cfg.geodf_backend_temporal != 0;
+        const double attack = std::min(1.0, std::max(0.0, cfg.geodf_backend_temporal_attack));
+        const double recovery = std::min(1.0, std::max(0.0, cfg.geodf_backend_temporal_recovery));
+        const double prior = std::min(1.0, std::max(0.0, cfg.geodf_backend_temporal_prior));
+        std::map<int, double> next_belief;
+        if (temporal)
+        {
+            for (int i = 0; i < total; i++)
+            {
+                const int id = ids[i];
+                const auto bit = geo_dynamic_belief.find(id);
+                const double old_belief = (bit != geo_dynamic_belief.end()) ? bit->second : prior;
+                next_belief[id] = std::max(0.0, (1.0 - recovery) * old_belief);
+            }
+        }
         if (frame_active && tau_eff > 1e-12)
         {
             for (int i = 0; i < total; i++)
@@ -895,9 +910,24 @@ void FeatureTracker::rejectGeoDynamic()
                     continue;
                 const double normalized = std::max(0.0, errors[i] / tau_eff - 1.0);
                 const double robust = 1.0 / (1.0 + std::pow(normalized, power));
-                geo_feature_weights[ids[i]] = std::max(min_weight, robust);
+                double weight = robust;
+                if (temporal)
+                {
+                    const int id = ids[i];
+                    const auto bit = geo_dynamic_belief.find(id);
+                    const double old_belief = (bit != geo_dynamic_belief.end()) ? bit->second : prior;
+                    const double instant_dynamic = 1.0 - robust;
+                    const double alpha = instant_dynamic > old_belief ? attack : recovery;
+                    double belief = alpha * instant_dynamic + (1.0 - alpha) * old_belief;
+                    belief = std::min(1.0, std::max(0.0, belief));
+                    next_belief[id] = belief;
+                    weight = 1.0 - belief;
+                }
+                geo_feature_weights[ids[i]] = std::max(min_weight, weight);
             }
         }
+        if (temporal)
+            geo_dynamic_belief.swap(next_belief);
     }
 
     // Track-level temporal voting: only features flagged on >= vote_frames

@@ -191,6 +191,10 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_backend_weight = 0;
     geodf_backend_min_weight = 0.15;
     geodf_backend_weight_power = 2.0;
+    geodf_backend_temporal = 0;
+    geodf_backend_temporal_attack = 0.45;
+    geodf_backend_temporal_recovery = 0.12;
+    geodf_backend_temporal_prior = 0.0;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -283,6 +287,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_backend_min_weight = (double)fsSettings["geodf_backend_min_weight"];
     if (!fsSettings["geodf_backend_weight_power"].empty())
         geodf_backend_weight_power = (double)fsSettings["geodf_backend_weight_power"];
+    if (!fsSettings["geodf_backend_temporal"].empty())
+        geodf_backend_temporal = (int)fsSettings["geodf_backend_temporal"];
+    if (!fsSettings["geodf_backend_temporal_attack"].empty())
+        geodf_backend_temporal_attack = (double)fsSettings["geodf_backend_temporal_attack"];
+    if (!fsSettings["geodf_backend_temporal_recovery"].empty())
+        geodf_backend_temporal_recovery = (double)fsSettings["geodf_backend_temporal_recovery"];
+    if (!fsSettings["geodf_backend_temporal_prior"].empty())
+        geodf_backend_temporal_prior = (double)fsSettings["geodf_backend_temporal_prior"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -334,7 +346,11 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " hybrid_dwell=" << geodf_hybrid_dwell
                         << " backend_weight=" << geodf_backend_weight
                         << " backend_min_weight=" << geodf_backend_min_weight
-                        << " backend_weight_power=" << geodf_backend_weight_power);
+                        << " backend_weight_power=" << geodf_backend_weight_power
+                        << " backend_temporal=" << geodf_backend_temporal
+                        << " backend_temporal_attack=" << geodf_backend_temporal_attack
+                        << " backend_temporal_recovery=" << geodf_backend_temporal_recovery
+                        << " backend_temporal_prior=" << geodf_backend_temporal_prior);
     }
 
     fsSettings.release();

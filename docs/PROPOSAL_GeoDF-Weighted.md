@@ -16,6 +16,7 @@ Selected implementation:
 KLT tracks
   -> active geometry scoring (feature-fit F, IMU F_imu, or derotation)
   -> uncertainty-normalized residual score
+  -> temporal dynamic-belief update per track
   -> per-feature backend weight w in [w_min, 1]
   -> projection residuals scaled by sqrt(w)
   -> VINS backend optimizes all features
@@ -34,12 +35,30 @@ s = max(0, r - 1)
 w = max(w_min, 1 / (1 + s^p))
 ```
 
+The upgraded weighted branch adds a track-level temporal reliability memory:
+
+```text
+p_dyn = 1 - 1 / (1 + s^p)
+b_t = alpha * p_dyn + (1 - alpha) * b_{t-1}
+alpha = attack if p_dyn > b_{t-1}, else recovery
+w = max(w_min, 1 - b_t)
+```
+
+This makes the backend robust to one-frame KLT/epipolar spikes while still
+down-weighting persistently dynamic tracks. It is a stronger paper contribution
+than frame-wise weighting because it explicitly models track reliability over
+time, matching the sliding-window estimator's temporal structure.
+
 Default evaluated config:
 
 ```yaml
 geodf_backend_weight: 1
 geodf_backend_min_weight: 0.15
 geodf_backend_weight_power: 2.0
+geodf_backend_temporal: 1
+geodf_backend_temporal_attack: 0.45
+geodf_backend_temporal_recovery: 0.12
+geodf_backend_temporal_prior: 0.0
 geodf_hard_reject: 0
 ```
 

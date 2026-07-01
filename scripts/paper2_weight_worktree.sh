@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Prepare a clean Paper #2 (GeoDF-Weighted) worktree so Paper #3 or ongoing
-# edits in the main checkout cannot contaminate the rebuild/submission build.
+# Prepare a clean GeoDF-Weighted worktree isolated from other method branches
+# in the shared repository.
 #
-# Default action is safe: create/check a worktree at the Paper #2 branch tip and
+# Default action is safe: create/check a worktree at the weighted branch tip and
 # print its status. Pass --build / --benchmark explicitly for heavier actions.
 #
 # Usage:
@@ -50,11 +50,15 @@ RESOLVED_REF="$(git -C "$ROOT" rev-parse "$PAPER2_REF")"
 
 if [ -e "$WORKTREE" ] && git -C "$WORKTREE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [ -n "$(git -C "$WORKTREE" status --porcelain)" ]; then
-        echo "ERROR: Paper #2 weight worktree is dirty: $WORKTREE" >&2
+        echo "ERROR: GeoDF-Weighted worktree is dirty: $WORKTREE" >&2
         echo "Commit/stash its changes or choose PAPER2_WORKTREE=/path/to/new/worktree." >&2
         exit 1
     fi
-    git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    if git -C "$ROOT" show-ref --verify --quiet "refs/heads/${PAPER2_REF#origin/}"; then
+        git -C "$WORKTREE" checkout "$PAPER2_REF"
+    else
+        git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    fi
 elif [ ! -e "$WORKTREE" ]; then
     mkdir -p "$(dirname "$WORKTREE")"
     git -C "$ROOT" worktree add --detach "$WORKTREE" "$RESOLVED_REF"
@@ -82,10 +86,10 @@ if [ "$DO_BUILD" = "1" ]; then
 fi
 
 if [ -n "$BENCHMARK_N" ]; then
-    echo "[paper2-weight] running Paper #2 VIODE N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
+    echo "[paper2-weight] running GeoDF-Weighted VIODE N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
     (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_weighted_n5.sh "$BENCHMARK_N")
     if [ "$DO_EUROC" = "1" ]; then
-        echo "[paper2-weight] running Paper #2 EuRoC N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
+        echo "[paper2-weight] running GeoDF-Weighted EuRoC N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
         (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_euroc_weighted.sh "$BENCHMARK_N")
     fi
 fi

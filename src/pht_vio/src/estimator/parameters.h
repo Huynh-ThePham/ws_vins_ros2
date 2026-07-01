@@ -106,7 +106,7 @@ struct VinsConfig
     // is high and the noisier right-view pair causes false rejections, so gate it.
     double geodf_stereo_floor_max = 0.0;
 
-    // GeoDF-Inertial (Paper #2): score features against the IMU/VINS-predicted
+    // GeoDF-Inertial (GeoDF-Weighted): score features against the IMU/VINS-predicted
     // rigid-scene epipolar geometry instead of a feature-fit fundamental matrix,
     // so the rigidity reference does not collapse when dynamics dominate.
     int geodf_imu_enable = 0;             // 1: use inertial epipolar scoring when reliable
@@ -130,7 +130,7 @@ struct VinsConfig
     // rejection on this frame and freeze the scene EMA. 0 disables.
     double geodf_imu_max_dyn_frac = 0.5;
 
-    // GeoDF-Hybrid (Paper #2): reliability-gated arbitration between Paper #1
+    // GeoDF-Hybrid (GeoDF-Weighted): reliability-gated arbitration between GeoDF-Adaptive
     // feature-fit geometry and IMU-predicted epipolar geometry. When enabled,
     // P1 is preferred while the hybrid scene signal is below the threshold;
     // inertial/derotation is used once the signal indicates dynamic density.
@@ -145,7 +145,7 @@ struct VinsConfig
     // arbitration tracks the sustained dynamic regime, not single-frame spikes.
     int geodf_hybrid_dwell = 5;
 
-    // GeoDF-Weighted (Paper #2 candidate): keep all scored features in the
+    // GeoDF-Weighted (GeoDF-Weighted candidate): keep all scored features in the
     // estimator, but down-weight visual residuals by the active geometry score.
     int geodf_backend_weight = 0;
     double geodf_backend_min_weight = 0.15;

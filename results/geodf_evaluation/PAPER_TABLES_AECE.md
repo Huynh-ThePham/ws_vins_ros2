@@ -25,16 +25,17 @@ universal dynamic-scene VIO improvement.
 
 ## Reproducibility Freeze
 
-Paper #1 artifacts are tied to the frozen GeoDF-Adaptive commit:
+GeoDF-Adaptive artifacts are tied to the frozen commit on
+`paper/geodf-adaptive-vins-2026-q4`:
 
 ```text
 c64674097ab230465bf73576c60d3728050d3ec2
 Freeze AECE paper #1: figures, runtime, references, and Word export
 ```
 
-Use `bash scripts/paper1_freeze_worktree.sh --build` before rebuilding Paper #1
-binaries or Word artifacts. Do not regenerate Paper #1 submission results from
-the Paper #2 hybrid branch, because it modifies the shared GeoDF front-end path.
+Use `bash scripts/paper1_adaptive_worktree.sh --build` before rebuilding
+GeoDF-Adaptive binaries or Word artifacts. Regenerate AECE submission tables from
+that branch when citing GeoDF-Adaptive results.
 
 ## Table A: VIODE N=5 Trajectory Summary
 
@@ -98,6 +99,6 @@ at all.
 
 ## Final Submission Checks
 
-- Rebuild/check from the frozen Paper #1 worktree before final export.
+- Rebuild/check from the GeoDF-Adaptive worktree before final export.
 - Paste/export into the official AECE `.doc` template.
 - Copyright transfer form.

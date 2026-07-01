@@ -1,4 +1,4 @@
-# Paper #2 Proposed Method — GeoDF-Weighted
+# Proposed Method — GeoDF-Weighted
 
 ## Working title
 
@@ -6,9 +6,9 @@ GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting for Dynamic F
 
 ## Core change
 
-Paper #1 removes suspected dynamic features before state estimation. Paper #2
-keeps the measurements and reduces their visual residual confidence in the
-backend.
+GeoDF-Adaptive removes suspected dynamic features before state estimation.
+GeoDF-Weighted keeps the measurements and reduces their visual residual
+confidence in the backend.
 
 Selected implementation:
 
@@ -69,8 +69,8 @@ Mask-level detection using `weight < 0.999`:
 |---:|---:|---:|---:|
 | 76.4% | 26.7% | 5.35x | 1.37% |
 
-This is the selected Paper #2 direction because it improves the previous
-parking-lot failure case while preserving all feature tracks for the estimator.
+This direction improves the parking-lot failure case seen with hard rejection
+while preserving all feature tracks for the estimator.
 
 ## Next evaluation
 
@@ -99,4 +99,4 @@ python3 scripts/eval_viode_detection.py \
   --weight-threshold 0.999
 ```
 
-**Branch:** `paper/geodf-weighted-vins-2026-q4` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
+**Branch:** `paper/geodf-weighted-vins-2026-q4` · **Worktree:** `../ws_vins_ros2_paper2_weight` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).

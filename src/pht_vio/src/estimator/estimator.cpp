@@ -184,7 +184,7 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
 
     // GeoDF-Inertial: refresh the IMU-predicted epipolar geometry for this image
     // before the front-end tracks/filters it. Under hybrid arbitration, skip
-    // publishing to the front-end while the latch keeps Paper #1 (static scene)
+    // publishing to the front-end while the latch keeps GeoDF-Adaptive (static scene)
     // so the run matches the adaptive config; the estimator still advances its
     // inter-image pose anchor every frame for a clean hand-off when the latch
     // turns on (see hybridNeedImuEpipolar precharge).
@@ -1537,7 +1537,7 @@ void Estimator::predictPtsInNextFrame()
 
 void Estimator::pushImuEpipolarAtImage(double t, bool publish_to_frontend)
 {
-    // GeoDF-Inertial (Paper #2): compute the ACTUAL inter-frame relative camera
+    // GeoDF-Inertial (GeoDF-Weighted): compute the ACTUAL inter-frame relative camera
     // pose between the previous and current tracked image and push it to the
     // front-end, just before trackImage() consumes it. Rotation comes from the
     // gyro-driven IMU propagation (latest_Q), which is far more accurate than a
@@ -1548,7 +1548,7 @@ void Estimator::pushImuEpipolarAtImage(double t, bool publish_to_frontend)
     //
     // publish_to_frontend=false (hybrid static-P1): still advance the image-pair
     // anchor below, but mark imu_epi invalid on the tracker so rejectGeoDynamic
-    // stays on the pure Paper #1 path without IMU side effects.
+    // stays on the pure adaptive path without IMU side effects.
     (void)t;
     if (solver_flag != NON_LINEAR)
     {

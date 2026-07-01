@@ -43,35 +43,34 @@ algorithm-integration contribution.
   - Fig. 3 detection lift: `results/geodf_evaluation/figures/viode_detection_lift_gray.{svg,pdf,png}`
     (Figs. 2-3 from `scripts/make_result_figures.py`; old red/green SVGs kept for reference)
 
-## Paper #1 Frozen Build Protocol
+## GeoDF-Adaptive Frozen Build Protocol
 
-Paper #1 must be rebuilt/submitted from the frozen GeoDF-Adaptive branch, not
-from the current Paper #2 hybrid working tree. The AECE freeze commit is:
+Rebuild AECE submission artifacts from branch `paper/geodf-adaptive-vins-2026-q4`
+(worktree `../ws_vins_ros2_paper1_adaptive`). Reference freeze commit:
 
 ```text
 c64674097ab230465bf73576c60d3728050d3ec2
 Freeze AECE paper #1: figures, runtime, references, and Word export
 ```
 
-Use the isolated worktree helper before any Paper #1 rebuild:
+Use the worktree helper before any adaptive-branch rebuild:
 
 ```bash
-# Safe check only: creates/updates ../ws_vins_ros2_paper1_adaptive at the P1 commit
+# Safe check: sync ../ws_vins_ros2_paper1_adaptive to the adaptive branch tip
 bash scripts/paper1_adaptive_worktree.sh
 
-# Rebuild P1 binaries
+# Rebuild adaptive binaries
 bash scripts/paper1_adaptive_worktree.sh --build
 
-# Optional full rerun from P1 code (long)
+# Optional full rerun (long)
 FORCE=1 bash scripts/paper1_adaptive_worktree.sh --build --benchmark 5
 
-# Rebuild the Word export from P1 manuscript/assets
+# Rebuild the Word export from adaptive manuscript/assets
 bash scripts/paper1_adaptive_worktree.sh --docx
 ```
 
-Do not cite new Paper #1 numbers produced from branch
-`paper/geodf-weighted-vins-2026-q4`; that branch intentionally contains Paper #2
-GeoDF-Weighted changes in the shared front-end path.
+Each manuscript branch owns its configs and evaluation artifacts. Regenerate
+AECE tables from the adaptive branch when citing GeoDF-Adaptive results.
 
 ## Claims To Use
 

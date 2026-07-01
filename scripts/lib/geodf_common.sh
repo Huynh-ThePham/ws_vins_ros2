@@ -64,7 +64,7 @@ geodf_method_to_mode() {
         geodf_dump|alwayson) echo stereo_imu_geodf_dump ;;
         # PROPOSED (Hướng A): scene-aware + auto-ρ_on (B), stereo OFF
         adaptive|proposed|geodf_adaptive) echo stereo_imu_geodf_adaptive ;;
-        # PROPOSED (Paper #2): IMU/geometry residual -> backend visual weight, no hard delete
+        # PROPOSED (GeoDF-Weighted): IMU/geometry residual -> backend visual weight, no hard delete
         weighted|geodf_weighted|soft_weight|proposed2|proposed2_weighted) echo stereo_imu_geodf_weighted ;;
         # Ablation: fixed ρ_on=0.12 (oracle / dataset-tuned)
         adaptive_fixed|adaptive_v1|fixed_rho) echo stereo_imu_geodf_adaptive_fixed ;;

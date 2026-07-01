@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run GeoDF-Weighted (Paper #2 proposed) on EuRoC static-safety sequences.
+# Run GeoDF-Weighted on EuRoC static-safety sequences.
 #
 # Usage: ./scripts/run_geodf_euroc_weighted.sh [N] [SEQUENCES...]
 set -eo pipefail

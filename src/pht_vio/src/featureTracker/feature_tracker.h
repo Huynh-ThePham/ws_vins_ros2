@@ -101,13 +101,13 @@ public:
     std::map<int, int> geo_dyn_streak;
     long long geo_frame_count = 0;
     // Feature id -> visual residual weight exported to the estimator. Missing ids
-    // use weight 1.0, preserving the baseline/Paper #1 path.
+    // use weight 1.0, preserving the baseline/GeoDF-Adaptive path.
     std::map<int, double> geo_feature_weights;
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel
 
-    // GeoDF-Inertial (Paper #2): IMU/VINS-predicted prev->cur relative CAMERA
+    // GeoDF-Inertial (GeoDF-Weighted): IMU/VINS-predicted prev->cur relative CAMERA
     // pose, pushed from the estimator. Used to build the rigid-scene epipolar
     // geometry without fitting a fundamental matrix to the features.
     Eigen::Matrix3d imu_R_rel = Eigen::Matrix3d::Identity();

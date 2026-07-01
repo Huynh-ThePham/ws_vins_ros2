@@ -184,7 +184,7 @@ class Estimator
     Eigen::Vector3d latest_P, latest_V, latest_Ba, latest_Bg, latest_acc_0, latest_gyr_0;
     Eigen::Quaterniond latest_Q;
 
-    // GeoDF-Inertial (Paper #2): IMU-propagated body pose snapshot at the
+    // GeoDF-Inertial (GeoDF-Weighted): IMU-propagated body pose snapshot at the
     // previous tracked image, used to compute the actual inter-frame relative
     // camera pose (gyro-driven rotation) for the inertial epipolar gate.
     Eigen::Matrix3d imu_epi_prev_R = Eigen::Matrix3d::Identity();

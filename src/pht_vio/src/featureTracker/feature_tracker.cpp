@@ -39,7 +39,7 @@ double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2
     return (num * num) / denom;
 }
 
-// GeoDF-Inertial (Paper #2): build the pseudo-pixel fundamental matrix from the
+// GeoDF-Inertial (GeoDF-Weighted): build the pseudo-pixel fundamental matrix from the
 // IMU/VINS-predicted relative camera pose (E = [t]_x R). The convention matches
 // sampsonDistance(F, cur, prev), i.e. prev^T F cur = 0, so the inertial path and
 // the feature-fit path share the same scoring code. Sampson distance is
@@ -477,15 +477,15 @@ void FeatureTracker::rejectGeoDynamic()
         un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
     }
 
-    // ---- GeoDF-Hybrid mode selection (Paper #2) ---------------------------
-    // Two geometry sources scored with the same Paper #1 back-end (scene gate,
+    // ---- GeoDF-Hybrid mode selection (GeoDF-Weighted) ---------------------------
+    // Two geometry sources scored with the same GeoDF-Adaptive back-end (scene gate,
     // voting, ratio guard):
-    //   mode 0: feature-fit F (Paper #1 dual gate)
+    //   mode 0: feature-fit F (GeoDF-Adaptive dual gate)
     //   mode 1: IMU-predicted F_imu + Sampson gate
     //   mode 2: gyro-derotated residual flow (low parallax, dynamic scene)
     //
     // Hybrid arbitration (geodf_hybrid_enable): previous-frame P1-sensed outlier
-    // floor drives a dwell+hysteresis latch. Below floor_on -> forced Paper #1
+    // floor drives a dwell+hysteresis latch. Below floor_on -> forced GeoDF-Adaptive
     // (hybrid_static_p1); above -> inertial/derotation when IMU is reliable.
     const bool imu_pose_ok = cfg.geodf_imu_enable && imu_epi_valid &&
                              imu_t_norm <= cfg.geodf_imu_parallax_max;
@@ -493,7 +493,7 @@ void FeatureTracker::rejectGeoDynamic()
     const bool imu_derot_ok = imu_pose_ok && imu_t_norm < cfg.geodf_imu_parallax_min &&
                               cfg.geodf_imu_derotate;
 
-    // Arbitration signal: the slow, Paper #1-derived epipolar-outlier floor ONLY.
+    // Arbitration signal: the slow, GeoDF-Adaptive-derived epipolar-outlier floor ONLY.
     // Earlier designs max-combined a fast outlier-ratio cue and the activation EMA;
     // both are dominated by single-frame KLT/rotation spikes and pushed the signal
     // over the threshold on static scenes, forcing spurious inertial switches that
@@ -509,7 +509,7 @@ void FeatureTracker::rejectGeoDynamic()
     // frames, so arbitration keys off the SUSTAINED outlier floor (the scene's
     // dynamic regime) rather than single-frame excursions. This is what separates
     // adjacent regimes whose instantaneous floors overlap: e.g. parking_lot 2_mid
-    // (floor median ~0.069, inertial unhelpful) must stay on Paper #1 while 3_high
+    // (floor median ~0.069, inertial unhelpful) must stay on GeoDF-Adaptive while 3_high
     // (median ~0.091, inertial recovers a catastrophic feature-fit failure) must
     // latch inertial -- a per-frame threshold chatters between them, the dwell
     // resolves them by their sustained level. Upper threshold floor_on, lower
@@ -561,7 +561,7 @@ void FeatureTracker::rejectGeoDynamic()
     vector<uchar> f_status;
     cv::Mat H_derot;
 
-    // When the latch keeps the scene on Paper #1, skip IMU/derot geometry entirely
+    // When the latch keeps the scene on GeoDF-Adaptive, skip IMU/derot geometry entirely
     // so the rejection path matches the adaptive config (no inertial F setup).
     if (!hybrid_static_p1)
     {
@@ -599,11 +599,11 @@ void FeatureTracker::rejectGeoDynamic()
             return;
     }
 
-    // Paper #1 feature-fit F and hybrid arbitration sensor F_p1 share ONE RANSAC
-    // when rejection stays on Paper #1 (mode 0, including hybrid_static_p1). A
+    // GeoDF-Adaptive feature-fit F and hybrid arbitration sensor F_p1 share ONE RANSAC
+    // when rejection stays on GeoDF-Adaptive (mode 0, including hybrid_static_p1). A
     // separate estimate was previously taken whenever hybrid_on, even on forced-P1
     // frames; that duplicated the adaptive call pattern, changed RANSAC ordering
-    // relative to the pure-P1 config, and made latch=0% runs diverge from Paper #1
+    // relative to the pure adaptive config, and made latch=0% runs diverge from GeoDF-Adaptive
     // (e.g. city_night extra rejections despite mode0=100%). On dynamic frames the
     // inertial/derot geometry performs rejection; F_p1 is estimated once more here
     // ONLY for the arbitration sensor (outlier ratio), not for deleting features.
@@ -794,12 +794,12 @@ void FeatureTracker::rejectGeoDynamic()
     const double frame_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
 
-    // Hybrid arbitration sensor ratio: the Paper #1 feature-fit RANSAC outlier
+    // Hybrid arbitration sensor ratio: the GeoDF-Adaptive feature-fit RANSAC outlier
     // ratio, measured every frame from F_p1 regardless of the rejection geometry.
     // In mode 0 it already equals frame_outlier_ratio; in inertial/derotation
     // frames it is taken from the separately-estimated F_p1 so the floor and the
     // latch never observe the inertial residual distribution. Outside hybrid it
-    // stays frame_outlier_ratio, preserving Paper #1 and the inertial-only
+    // stays frame_outlier_ratio, preserving GeoDF-Adaptive and the inertial-only
     // ablation byte-for-byte.
     double arb_ratio = frame_outlier_ratio;
     if (hybrid_on && mode != 0 && !f_status_p1.empty())
@@ -826,7 +826,7 @@ void FeatureTracker::rejectGeoDynamic()
         frame_outlier_ratio > cfg.geodf_imu_max_dyn_frac;
 
     // Scene-activation EMA and the static floor both track the P1-sensed ratio
-    // (arb_ratio), so the Paper #1 scene gate and the hybrid latch are driven by
+    // (arb_ratio), so the GeoDF-Adaptive scene gate and the hybrid latch are driven by
     // one consistent dynamic-density signal.
     if (!pose_unreliable)
     {

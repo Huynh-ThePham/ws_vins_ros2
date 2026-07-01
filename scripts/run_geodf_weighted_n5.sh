@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Full Paper #2 benchmark: GeoDF-Weighted N trials on all VIODE conditions.
+# Full GeoDF-Weighted benchmark: N trials on all VIODE conditions.
 #
 # Usage: ./scripts/run_geodf_weighted_n5.sh [N]
 set -eo pipefail

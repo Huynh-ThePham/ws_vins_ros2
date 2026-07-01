@@ -70,7 +70,7 @@ load_previous_pose_graph: 0        # load and reuse previous pose graph; load fr
 pose_graph_save_path: "~/output/pose_graph/" # save and load path
 save_image: 1                   # save image in pose graph for visualization prupose; you can close this function by setting 0 
 
-# GeoDF-Weighted — Paper #2 proposed
+# GeoDF-Weighted — proposed method config
 # IMU/geometry residuals are converted into backend visual weights. No feature is
 # hard-deleted in the front-end; dynamic candidates keep entering VINS with lower
 # residual confidence for the projection factors.

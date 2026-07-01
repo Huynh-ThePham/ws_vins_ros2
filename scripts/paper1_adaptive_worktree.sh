@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Prepare a clean Paper #1 (GeoDF-Adaptive / AECE) worktree so Paper #2
-# edits in the main checkout cannot contaminate the rebuild/submission build.
+# Prepare a clean GeoDF-Adaptive (AECE) worktree isolated from other method
+# branches in the shared repository.
 #
-# Default action is safe: create/check a worktree at the Paper #1 branch tip and
+# Default action is safe: create/check a worktree at the adaptive branch tip and
 # print its status. Pass --build / --benchmark / --docx explicitly for heavier
 # actions.
 #
@@ -51,11 +51,15 @@ RESOLVED_REF="$(git -C "$ROOT" rev-parse "$PAPER1_REF")"
 
 if [ -e "$WORKTREE" ] && git -C "$WORKTREE" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [ -n "$(git -C "$WORKTREE" status --porcelain)" ]; then
-        echo "ERROR: Paper #1 adaptive worktree is dirty: $WORKTREE" >&2
+        echo "ERROR: GeoDF-Adaptive worktree is dirty: $WORKTREE" >&2
         echo "Commit/stash its changes or choose PAPER1_WORKTREE=/path/to/new/worktree." >&2
         exit 1
     fi
-    git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    if git -C "$ROOT" show-ref --verify --quiet "refs/heads/${PAPER1_REF#origin/}"; then
+        git -C "$WORKTREE" checkout "$PAPER1_REF"
+    else
+        git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    fi
 elif [ ! -e "$WORKTREE" ]; then
     mkdir -p "$(dirname "$WORKTREE")"
     git -C "$ROOT" worktree add --detach "$WORKTREE" "$RESOLVED_REF"
@@ -83,7 +87,7 @@ if [ "$DO_BUILD" = "1" ]; then
 fi
 
 if [ -n "$BENCHMARK_N" ]; then
-    echo "[paper1-adaptive] running Paper #1 N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
+    echo "[paper1-adaptive] running GeoDF-Adaptive N=$BENCHMARK_N benchmark (FORCE=${FORCE:-0})"
     (cd "$WORKTREE" && FORCE="${FORCE:-0}" bash scripts/run_geodf_n5_final.sh "$BENCHMARK_N")
 fi
 

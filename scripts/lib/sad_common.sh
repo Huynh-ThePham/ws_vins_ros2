@@ -59,9 +59,33 @@ sad_method_to_mode() {
     case "$1" in
         baseline) echo stereo_imu ;;
         sad_sem|semantic|sad) echo stereo_imu_sem ;;
+        geodf|geo) echo stereo_imu_geodf ;;
+        geodf_adaptive|adaptive) echo stereo_imu_geodf_adaptive ;;
+        sgta|sgta_soft|sgta_softonly|sgta_softimu|sem_geodf|hybrid) echo stereo_imu_sgta ;;
         *)
-            echo "Unknown SAD method: $1 (baseline|sad_sem)" >&2
+            echo "Unknown SAD method: $1 (baseline|sad_sem|geodf|geodf_adaptive|sgta|sgta_softimu)" >&2
             return 1
+            ;;
+    esac
+}
+
+sad_method_uses_yolo() {
+    case "$1" in
+        sad_sem|semantic|sad|sgta|sgta_soft|sgta_softonly|sgta_softimu|sem_geodf|hybrid) echo 1 ;;
+        *) echo 0 ;;
+    esac
+}
+
+apply_sgta_method_overrides() {
+    local method="$1" cfg="$2"
+    case "$method" in
+        sgta_softimu)
+            sed -i 's/^sgta_soft_weight_enable:.*/sgta_soft_weight_enable: 1/' "$cfg"
+            sed -i 's/^sgta_imu_gate_enable:.*/sgta_imu_gate_enable: 1/' "$cfg"
+            ;;
+        sgta_soft|sgta_softonly|sgta|sem_geodf|hybrid)
+            sed -i 's/^sgta_soft_weight_enable:.*/sgta_soft_weight_enable: 1/' "$cfg"
+            sed -i 's/^sgta_imu_gate_enable:.*/sgta_imu_gate_enable: 0/' "$cfg"
             ;;
     esac
 }
@@ -103,7 +127,7 @@ source_ros2_ws() {
 
 run_sad_vio_benchmark() {
     local cfg="$1" out="$2" bag="$3" start="${4:-0}" rate="${5:-1.0}" use_yolo="${6:-0}"
-    local image_topic yolo_device="${YOLO_DEVICE:-cuda}"
+    local image_topic yolo_device="${YOLO_DEVICE:-cuda}" yolo_every="${YOLO_PROCESS_EVERY_N:-1}"
     image_topic="$(yaml_image0_topic "$cfg")"
 
     if [ -n "${SAD_BAG_RATE:-}" ]; then
@@ -114,7 +138,8 @@ run_sad_vio_benchmark() {
     fi
 
     mkdir -p "$out"
-    rm -f "${out}/vio.csv" "${out}/sem_stats.csv" \
+    rm -f "${out}/vio.csv" "${out}/sem_stats.csv" "${out}/geo_df_stats.csv" \
+          "${out}/geo_df_features.csv" \
           "${out}/pht_vio_node.log" "${out}/yolo_mask_node.log"
 
     local yolo_pid=""
@@ -124,6 +149,7 @@ run_sad_vio_benchmark() {
             -p image_topic:="${image_topic}" \
             -p mask_topic:=/dynamic_mask \
             -p device:="${yolo_device}" \
+            -p process_every_n:="${yolo_every}" \
             > "${out}/yolo_mask_node.log" 2>&1 &
         yolo_pid=$!
         sleep 15

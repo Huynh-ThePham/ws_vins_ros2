@@ -8,6 +8,8 @@
  *******************************************************/
 
 #include "estimator.h"
+#include <algorithm>
+#include <cmath>
 
 void Estimator::setPropagatedStateCallback(PropagatedStateCallback cb)
 {
@@ -176,16 +178,17 @@ void Estimator::changeSensorType(int use_imu, int use_stereo)
     }
 }
 
-void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask)
+void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1,
+                           const cv::Mat &_sem_mask, double sem_mask_lag_ms)
 {
     inputImageCnt++;
     map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
     TicToc featureTrackerTime;
 
     if(_img1.empty())
-        featureFrame = featureTracker.trackImage(t, _img, cv::Mat(), _sem_mask);
+        featureFrame = featureTracker.trackImage(t, _img, cv::Mat(), _sem_mask, sem_mask_lag_ms);
     else
-        featureFrame = featureTracker.trackImage(t, _img, _img1, _sem_mask);
+        featureFrame = featureTracker.trackImage(t, _img, _img1, _sem_mask, sem_mask_lag_ms);
     //printf("featureTracker time: %f\n", featureTrackerTime.toc());
 
     if (vinsConfig().show_track && track_image_cb_)
@@ -217,6 +220,9 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1, 
 
 void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity)
 {
+    if (vinsConfig().sgta_imu_gate_enable && !vinsConfig().ric.empty())
+        featureTracker.setLatestCameraGyro(t, vinsConfig().ric[0].transpose() * angularVelocity);
+
     mBuf.lock();
     accBuf.push(make_pair(t, linearAcceleration));
     gyrBuf.push(make_pair(t, angularVelocity));
@@ -1076,6 +1082,14 @@ void Estimator::optimization()
 
     int f_m_cnt = 0;
     int feature_index = -1;
+    auto dynamicVisualWeight = [](double p0, double p1) {
+        const auto &cfg = vinsConfig();
+        if (!cfg.sgta_soft_weight_enable)
+            return 1.0;
+        const double p = std::min(1.0, std::max(0.0, std::max(p0, p1)));
+        const double base = std::pow(std::max(0.0, 1.0 - p), std::max(0.0, cfg.sgta_soft_weight_power));
+        return std::max(cfg.sgta_soft_weight_min, base);
+    };
     for (auto &it_per_id : f_manager.feature)
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();
@@ -1087,6 +1101,7 @@ void Estimator::optimization()
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
         
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
+        const double p_dyn_i = it_per_id.feature_per_frame[0].dynamic_prob;
 
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
@@ -1096,6 +1111,7 @@ void Estimator::optimization()
                 Vector3d pts_j = it_per_frame.point;
                 ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                f_td->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                 problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
             }
 
@@ -1106,12 +1122,14 @@ void Estimator::optimization()
                 {
                     ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                    f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                     problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                 else
                 {
                     ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                    f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                
@@ -1199,6 +1217,7 @@ void Estimator::optimization()
                     continue;
 
                 Vector3d pts_i = it_per_id.feature_per_frame[0].point;
+                const double p_dyn_i = it_per_id.feature_per_frame[0].dynamic_prob;
 
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
@@ -1208,6 +1227,7 @@ void Estimator::optimization()
                         Vector3d pts_j = it_per_frame.point;
                         ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                        f_td->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
                                                                                         vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
                                                                                         vector<int>{0, 3});
@@ -1220,6 +1240,7 @@ void Estimator::optimization()
                         {
                             ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                            f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{0, 4});
@@ -1229,6 +1250,7 @@ void Estimator::optimization()
                         {
                             ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
+                            f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{2});

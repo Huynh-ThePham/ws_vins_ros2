@@ -63,6 +63,9 @@ bool FeatureManager::addFeatureCheckParallax(int frame_count, const map<int, vec
     {
         FeaturePerFrame f_per_fra(id_pts.second[0].second, td);
         assert(id_pts.second[0].first == 0);
+        auto dyn_it = vinsConfig().feature_dynamic_prob.find(id_pts.first);
+        if (dyn_it != vinsConfig().feature_dynamic_prob.end())
+            f_per_fra.dynamic_prob = dyn_it->second;
         if(id_pts.second.size() == 2)
         {
             f_per_fra.rightObservation(id_pts.second[1].second);

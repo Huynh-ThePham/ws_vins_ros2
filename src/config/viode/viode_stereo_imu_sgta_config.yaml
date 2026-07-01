@@ -1,0 +1,113 @@
+%YAML:1.0
+
+# SGTA-VINS on VIODE city_day: semantic + geometry + temporal adaptive gating.
+
+imu: 1
+num_of_cam: 2
+
+imu_topic: "/imu0"
+image0_topic: "/cam0/image_raw"
+image1_topic: "/cam1/image_raw"
+output_path: "~/output/"
+
+cam0_calib: "cam0_pinhole.yaml"
+cam1_calib: "cam1_pinhole.yaml"
+image_width: 752
+image_height: 480
+
+estimate_extrinsic: 0
+
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0, 0.0, 1.0, 0.0,
+          1.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0, 0.0, 1.0, 0.0,
+          1.0, 0.0, 0.0, 0.05,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 0.0, 1.0]
+
+multiple_thread: 1
+
+max_cnt: 120
+min_dist: 30
+freq: 10
+F_threshold: 1.0
+show_track: 1
+flow_back: 1
+
+sem_enable: 1
+sem_mask_topic: "/dynamic_mask"
+sem_static_value: 255
+sem_mask_max_age_ms: 150.0
+sem_use_latest_mask: 1
+sem_block_on_mask: 0
+sem_mask_gated: 1
+
+geodf_enable: 1
+geodf_hard_reject: 1
+geodf_ransac_th_px: 1.0
+geodf_sampson_th: 3.0
+geodf_min_track_cnt: 2
+geodf_min_feature_num: 40
+geodf_reject_ratio_max: 0.40
+geodf_ratio_guard: 1
+geodf_debug: 1
+geodf_dump_features: 0
+geodf_adaptive: 1
+geodf_activate_ratio: 0.12
+geodf_activate_ema: 0.15
+geodf_deactivate_frac: 0.60
+geodf_auto_rho: 1
+geodf_auto_mult: 1.8
+geodf_auto_margin: 0.05
+geodf_activate_ratio_min: 0.08
+geodf_activate_ratio_max: 0.40
+geodf_auto_floor_down: 0.02
+geodf_auto_floor_up: 0.004
+geodf_vote_frames: 2
+geodf_warmup_frames: 30
+geodf_temporal_alpha: 0.45
+geodf_dynamic_prob_th: 0.55
+sgta_policy_enable: 1
+sgta_policy_ema_alpha: 0.15
+sgta_policy_decay_alpha: 0.03
+# sqrt(dynamic_pixel * scene_observation): 3_high ~0.032 raw, 0_none ~0.014 raw
+sgta_aggressive_sem_on: 0.012
+sgta_aggressive_sem_off: 0.008
+sgta_aggressive_hold_frames: 45
+sgta_aggressive_activate_ratio: 0.050
+sgta_aggressive_dynamic_prob_th: 0.45
+sgta_aggressive_vote_frames: 1
+sgta_aggressive_warmup_frames: 0
+sgta_soft_weight_enable: 1
+sgta_soft_weight_min: 0.25
+sgta_soft_weight_power: 1.0
+sgta_imu_gate_enable: 0
+sgta_imu_flow_th_px: 12.0
+sgta_imu_dynamic_obs: 0.75
+
+max_solver_time: 0.04
+max_num_iterations: 8
+keyframe_parallax: 10.0
+
+acc_n: 0.2
+gyr_n: 0.05
+acc_w: 0.02
+gyr_w: 4.0e-5
+g_norm: 9.81007
+
+estimate_td: 0
+td: 0.0
+
+load_previous_pose_graph: 0
+pose_graph_save_path: "~/output/pose_graph/"
+save_image: 1

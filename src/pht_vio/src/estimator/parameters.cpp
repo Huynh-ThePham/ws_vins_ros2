@@ -13,6 +13,27 @@ VinsConfig &vinsConfig()
     return g_vins_config;
 }
 
+static void readOptionalInt(const cv::FileStorage &fs, const std::string &key, int &value)
+{
+    cv::FileNode node = fs[key];
+    if (!node.empty())
+        value = static_cast<int>(node);
+}
+
+static void readOptionalDouble(const cv::FileStorage &fs, const std::string &key, double &value)
+{
+    cv::FileNode node = fs[key];
+    if (!node.empty())
+        value = static_cast<double>(node);
+}
+
+static void readOptionalString(const cv::FileStorage &fs, const std::string &key, std::string &value)
+{
+    cv::FileNode node = fs[key];
+    if (!node.empty())
+        value = static_cast<std::string>(node);
+}
+
 void VinsConfig::reset()
 {
     *this = VinsConfig{};
@@ -43,15 +64,55 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     show_track = fsSettings["show_track"];
     flow_back = fsSettings["flow_back"];
 
-    cv::FileNode sem_enable_node = fsSettings["sem_enable"];
-    if (!sem_enable_node.empty())
-        sem_enable = static_cast<int>(sem_enable_node);
-    cv::FileNode sem_mask_topic_node = fsSettings["sem_mask_topic"];
-    if (!sem_mask_topic_node.empty())
-        sem_mask_topic = static_cast<std::string>(sem_mask_topic_node);
-    cv::FileNode sem_static_value_node = fsSettings["sem_static_value"];
-    if (!sem_static_value_node.empty())
-        sem_static_value = static_cast<int>(sem_static_value_node);
+    readOptionalInt(fsSettings, "sem_enable", sem_enable);
+    readOptionalString(fsSettings, "sem_mask_topic", sem_mask_topic);
+    readOptionalInt(fsSettings, "sem_static_value", sem_static_value);
+    readOptionalDouble(fsSettings, "sem_mask_max_age_ms", sem_mask_max_age_ms);
+    readOptionalInt(fsSettings, "sem_use_latest_mask", sem_use_latest_mask);
+    readOptionalInt(fsSettings, "sem_block_on_mask", sem_block_on_mask);
+    readOptionalInt(fsSettings, "sem_mask_gated", sem_mask_gated);
+
+    readOptionalInt(fsSettings, "geodf_enable", geodf_enable);
+    readOptionalInt(fsSettings, "geodf_hard_reject", geodf_hard_reject);
+    readOptionalDouble(fsSettings, "geodf_ransac_th_px", geodf_ransac_th_px);
+    readOptionalDouble(fsSettings, "geodf_sampson_th", geodf_sampson_th);
+    readOptionalInt(fsSettings, "geodf_min_track_cnt", geodf_min_track_cnt);
+    readOptionalInt(fsSettings, "geodf_min_feature_num", geodf_min_feature_num);
+    readOptionalDouble(fsSettings, "geodf_reject_ratio_max", geodf_reject_ratio_max);
+    readOptionalInt(fsSettings, "geodf_ratio_guard", geodf_ratio_guard);
+    readOptionalInt(fsSettings, "geodf_debug", geodf_debug);
+    readOptionalInt(fsSettings, "geodf_dump_features", geodf_dump_features);
+    readOptionalInt(fsSettings, "geodf_adaptive", geodf_adaptive);
+    readOptionalDouble(fsSettings, "geodf_activate_ratio", geodf_activate_ratio);
+    readOptionalDouble(fsSettings, "geodf_activate_ema", geodf_activate_ema);
+    readOptionalDouble(fsSettings, "geodf_deactivate_frac", geodf_deactivate_frac);
+    readOptionalInt(fsSettings, "geodf_auto_rho", geodf_auto_rho);
+    readOptionalDouble(fsSettings, "geodf_auto_mult", geodf_auto_mult);
+    readOptionalDouble(fsSettings, "geodf_auto_margin", geodf_auto_margin);
+    readOptionalDouble(fsSettings, "geodf_activate_ratio_min", geodf_activate_ratio_min);
+    readOptionalDouble(fsSettings, "geodf_activate_ratio_max", geodf_activate_ratio_max);
+    readOptionalDouble(fsSettings, "geodf_auto_floor_down", geodf_auto_floor_down);
+    readOptionalDouble(fsSettings, "geodf_auto_floor_up", geodf_auto_floor_up);
+    readOptionalInt(fsSettings, "geodf_vote_frames", geodf_vote_frames);
+    readOptionalInt(fsSettings, "geodf_warmup_frames", geodf_warmup_frames);
+    readOptionalDouble(fsSettings, "geodf_temporal_alpha", geodf_temporal_alpha);
+    readOptionalDouble(fsSettings, "geodf_dynamic_prob_th", geodf_dynamic_prob_th);
+    readOptionalInt(fsSettings, "sgta_policy_enable", sgta_policy_enable);
+    readOptionalDouble(fsSettings, "sgta_policy_ema_alpha", sgta_policy_ema_alpha);
+    readOptionalDouble(fsSettings, "sgta_policy_decay_alpha", sgta_policy_decay_alpha);
+    readOptionalDouble(fsSettings, "sgta_aggressive_sem_on", sgta_aggressive_sem_on);
+    readOptionalDouble(fsSettings, "sgta_aggressive_sem_off", sgta_aggressive_sem_off);
+    readOptionalInt(fsSettings, "sgta_aggressive_hold_frames", sgta_aggressive_hold_frames);
+    readOptionalDouble(fsSettings, "sgta_aggressive_activate_ratio", sgta_aggressive_activate_ratio);
+    readOptionalDouble(fsSettings, "sgta_aggressive_dynamic_prob_th", sgta_aggressive_dynamic_prob_th);
+    readOptionalInt(fsSettings, "sgta_aggressive_vote_frames", sgta_aggressive_vote_frames);
+    readOptionalInt(fsSettings, "sgta_aggressive_warmup_frames", sgta_aggressive_warmup_frames);
+    readOptionalInt(fsSettings, "sgta_soft_weight_enable", sgta_soft_weight_enable);
+    readOptionalDouble(fsSettings, "sgta_soft_weight_min", sgta_soft_weight_min);
+    readOptionalDouble(fsSettings, "sgta_soft_weight_power", sgta_soft_weight_power);
+    readOptionalInt(fsSettings, "sgta_imu_gate_enable", sgta_imu_gate_enable);
+    readOptionalDouble(fsSettings, "sgta_imu_flow_th_px", sgta_imu_flow_th_px);
+    readOptionalDouble(fsSettings, "sgta_imu_dynamic_obs", sgta_imu_dynamic_obs);
 
     multiple_thread = fsSettings["multiple_thread"];
 
@@ -87,9 +148,35 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         sem_stats_path = output_folder + "/sem_stats.csv";
         std::ofstream sem_stats(sem_stats_path, std::ios::out);
         sem_stats << "timestamp_ns,tracks_before,rejected,reject_ratio,tracks_after,"
-                     "mask_available,dynamic_pixel_ratio\n";
+                     "mask_available,dynamic_pixel_ratio,sem_candidates,sem_confirmed,"
+                     "mask_trusted,mask_lag_ms\n";
         sem_stats.close();
         ROS_INFO("SAD-VINS semantic mask enabled, topic: %s", sem_mask_topic.c_str());
+    }
+    if (geodf_enable) {
+        geodf_stats_path = output_folder + "/geo_df_stats.csv";
+        std::ofstream geodf_stats(geodf_stats_path, std::ios::out);
+        geodf_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,"
+                       "sampson_above_th,candidates,rejected,reject_ratio,"
+                       "tracks_after,mean_sampson,median_sampson,max_sampson,"
+                       "guard_triggered,guard_capped,activation_signal,frame_active,geo_ms,"
+                       "rho_on,outlier_floor,sem_candidates,sem_confirmed,imu_outliers,"
+                       "mask_available,mask_trusted,mask_lag_ms,sgta_policy_signal,"
+                       "sgta_aggressive\n";
+        geodf_stats.close();
+
+        if (geodf_dump_features) {
+            geodf_features_path = output_folder + "/geo_df_features.csv";
+            std::ofstream geodf_features(geodf_features_path, std::ios::out);
+            geodf_features << "timestamp_ns,feature_id,track_cnt,semantic_dynamic,"
+                              "ransac_outlier,sampson,p_dyn,rejected\n";
+            geodf_features.close();
+        }
+
+        ROS_INFO("GeoDF/SGTA dynamic gating enabled: adaptive=%d sampson_th=%.3f reject_cap=%.2f auto_rho=%d vote=%d warmup=%d policy=%d soft_weight=%d imu_gate=%d",
+                 geodf_adaptive, geodf_sampson_th, geodf_reject_ratio_max,
+                 geodf_auto_rho, geodf_vote_frames, geodf_warmup_frames,
+                 sgta_policy_enable, sgta_soft_weight_enable, sgta_imu_gate_enable);
     }
 
     estimate_extrinsic = fsSettings["estimate_extrinsic"];

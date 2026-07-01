@@ -37,10 +37,17 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat());
+    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(
+        double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(),
+        const cv::Mat &_sem_mask = cv::Mat(), double _sem_mask_lag_ms = -1.0);
     void setMask();
     void rejectSemanticDynamic();
+    void rejectSemanticGeometricDynamic();
     bool isSemanticStatic(const cv::Point2f &pt) const;
+    bool semanticMaskTrusted() const;
+    bool applySemanticSoftMask() const;
+    double computeDynamicPixelRatio(int &mask_available) const;
+    void setLatestCameraGyro(double t, const Eigen::Vector3d &gyro);
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
     void rejectWithF();
@@ -84,4 +91,17 @@ public:
     bool stereo_cam;
     int n_id;
     bool hasPrediction;
+    double dynamic_scene_ema = -1.0;
+    bool dynamic_scene_active = false;
+    double dynamic_outlier_floor = -1.0;
+    long long dynamic_frame_count = 0;
+    double sgta_policy_signal_ema = -1.0;
+    bool sgta_aggressive_active = false;
+    int sgta_aggressive_hold = 0;
+    double sem_mask_lag_ms = -1.0;
+    bool sem_mask_trusted = false;
+    double latest_gyro_time = -1.0;
+    Eigen::Vector3d latest_cam_gyro = Eigen::Vector3d::Zero();
+    map<int, double> dynamic_prob;
+    map<int, int> dynamic_streak;
 };

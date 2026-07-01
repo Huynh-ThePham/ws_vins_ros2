@@ -77,7 +77,7 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
     residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
 #endif
 
-    residual = sqrt_info * residual;
+    residual = sqrt_dynamic_weight * sqrt_info * residual;
 
     if (jacobians)
     {
@@ -101,7 +101,7 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         reduce << 1. / dep_j, 0, -pts_camera_j(0) / (dep_j * dep_j),
             0, 1. / dep_j, -pts_camera_j(1) / (dep_j * dep_j);
 #endif
-        reduce = sqrt_info * reduce;
+        reduce = sqrt_dynamic_weight * sqrt_info * reduce;
 
         if (jacobians[0])
         {
@@ -157,7 +157,7 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         {
             Eigen::Map<Eigen::Vector2d> jacobian_td(jacobians[5]);
             jacobian_td = reduce * ric2.transpose() * Rj.transpose() * Ri * ric * velocity_i / inv_dep_i * -1.0  +
-                          sqrt_info * velocity_j.head(2);
+                          sqrt_dynamic_weight * sqrt_info * velocity_j.head(2);
         }
     }
     sum_t += tic_toc.toc();

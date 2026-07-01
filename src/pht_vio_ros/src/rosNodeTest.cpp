@@ -14,6 +14,7 @@
 #include <map>
 #include <thread>
 #include <mutex>
+#include <cmath>
 #include <rclcpp/rclcpp.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
@@ -82,6 +83,39 @@ cv::Mat getMaskFromMsg(const sensor_msgs::msg::Image::SharedPtr &mask_msg)
     return ptr->image.clone();
 }
 
+bool tryAttachSemMask(double image_time, cv::Mat &sem_mask, double &mask_lag_ms)
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable)
+        return false;
+
+    const double sync_tol = 0.003;
+    const double max_age_s = cfg.sem_mask_max_age_ms / 1000.0;
+    mask_lag_ms = -1.0;
+
+    while (!sem_mask_buf.empty())
+    {
+        const double mask_time = rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
+        if (image_time - mask_time > max_age_s)
+            sem_mask_buf.pop();
+        else
+            break;
+    }
+    if (sem_mask_buf.empty())
+        return false;
+
+    const double mask_time = rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
+    if (std::fabs(image_time - mask_time) <= sync_tol ||
+        (cfg.sem_use_latest_mask && image_time >= mask_time && image_time - mask_time <= max_age_s))
+    {
+        sem_mask = getMaskFromMsg(sem_mask_buf.front());
+        sem_mask_buf.pop();
+        mask_lag_ms = (image_time - mask_time) * 1000.0;
+        return true;
+    }
+    return false;
+}
+
 // extract images with same timestamp from two topics
 void sync_process()
 {
@@ -92,6 +126,7 @@ void sync_process()
             cv::Mat image0, image1, sem_mask;
             std_msgs::msg::Header header;
             double time = 0;
+            double mask_lag_ms = -1.0;
             m_buf.lock();
             if (!img0_buf.empty() && !img1_buf.empty())
             {
@@ -110,20 +145,27 @@ void sync_process()
                 }
                 else
                 {
-                    bool mask_ready = true;
-                    if (vinsConfig().sem_enable)
+                    bool accept_frame = true;
+                    if (vinsConfig().sem_enable && vinsConfig().sem_block_on_mask)
                     {
-                        mask_ready = false;
-                        if (!sem_mask_buf.empty())
+                        accept_frame = tryAttachSemMask(time0, sem_mask, mask_lag_ms);
+                        if (!accept_frame && !sem_mask_buf.empty())
                         {
-                            double timeM = rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
-                            if (timeM < time0 - 0.003)
-                                sem_mask_buf.pop();
-                            else if (timeM <= time0 + 0.003)
-                                mask_ready = true;
+                            const double mask_time =
+                                rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
+                            if (time0 < mask_time - 0.003)
+                            {
+                                img0_buf.pop();
+                                img1_buf.pop();
+                            }
                         }
                     }
-                    if (mask_ready)
+                    else if (vinsConfig().sem_enable)
+                    {
+                        tryAttachSemMask(time0, sem_mask, mask_lag_ms);
+                    }
+
+                    if (accept_frame)
                     {
                         time = time0;
                         header = img0_buf.front()->header;
@@ -131,55 +173,51 @@ void sync_process()
                         img0_buf.pop();
                         image1 = getImageFromMsg(img1_buf.front());
                         img1_buf.pop();
-                        if (vinsConfig().sem_enable && !sem_mask_buf.empty())
-                        {
-                            sem_mask = getMaskFromMsg(sem_mask_buf.front());
-                            sem_mask_buf.pop();
-                        }
                     }
                 }
             }
             m_buf.unlock();
             if(!image0.empty())
-                estimator.inputImage(time, image0, image1, sem_mask);
+                estimator.inputImage(time, image0, image1, sem_mask, mask_lag_ms);
         }
         else
         {
             cv::Mat image, sem_mask;
             std_msgs::msg::Header header;
             double time = 0;
+            double mask_lag_ms = -1.0;
             m_buf.lock();
-            if (vinsConfig().sem_enable)
+            if (!img0_buf.empty())
             {
-                if (!img0_buf.empty() && !sem_mask_buf.empty())
+                double time0 = rclcpp::Time(img0_buf.front()->header.stamp).seconds();
+                bool accept_frame = true;
+                if (vinsConfig().sem_enable && vinsConfig().sem_block_on_mask)
                 {
-                    double time0 = rclcpp::Time(img0_buf.front()->header.stamp).seconds();
-                    double timeM = rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
-                    if (time0 < timeM - 0.003)
-                        img0_buf.pop();
-                    else if (time0 > timeM + 0.003)
-                        sem_mask_buf.pop();
-                    else
+                    accept_frame = tryAttachSemMask(time0, sem_mask, mask_lag_ms);
+                    if (!accept_frame && !sem_mask_buf.empty())
                     {
-                        time = time0;
-                        header = img0_buf.front()->header;
-                        image = getImageFromMsg(img0_buf.front());
-                        sem_mask = getMaskFromMsg(sem_mask_buf.front());
-                        img0_buf.pop();
-                        sem_mask_buf.pop();
+                        const double mask_time =
+                            rclcpp::Time(sem_mask_buf.front()->header.stamp).seconds();
+                        if (time0 < mask_time - 0.003)
+                            img0_buf.pop();
                     }
                 }
-            }
-            else if(!img0_buf.empty())
-            {
-                time = rclcpp::Time(img0_buf.front()->header.stamp).seconds();
-                header = img0_buf.front()->header;
-                image = getImageFromMsg(img0_buf.front());
-                img0_buf.pop();
+                else if (vinsConfig().sem_enable)
+                {
+                    tryAttachSemMask(time0, sem_mask, mask_lag_ms);
+                }
+
+                if (accept_frame)
+                {
+                    time = time0;
+                    header = img0_buf.front()->header;
+                    image = getImageFromMsg(img0_buf.front());
+                    img0_buf.pop();
+                }
             }
             m_buf.unlock();
             if(!image.empty())
-                estimator.inputImage(time, image, cv::Mat(), sem_mask);
+                estimator.inputImage(time, image, cv::Mat(), sem_mask, mask_lag_ms);
         }
 
         std::chrono::milliseconds dura(2);

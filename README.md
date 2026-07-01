@@ -27,7 +27,23 @@ Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** ·
 |--------|------|
 | **`main`** | Stable integration (start here) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen stereo **Visual-Inertial SLAM** reference (EuRoC verified) |
-| [`paper/geodf-adaptive-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026-q4) | GeoDF-VINS-Hard + adaptive self-gating (Q4 paper) |
+| [`paper/geodf-adaptive-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026-q4) | GeoDF-VINS-Hard + adaptive self-gating (separate branch) |
+| **`paper/sad-vins-2026-q1`** | **SGTA-VINS** (main) + SAD-VINS ablation — see [docs/SGTA-VINS-FREEZE.md](docs/SGTA-VINS-FREEZE.md) |
+
+### SGTA-VINS (current paper branch)
+
+Uncertainty-aware semantic–geometric–temporal VIO on ROS 2 with async YOLO (`mask_node`) and Policy-2 scene switching.
+
+```bash
+git checkout paper/sad-vins-2026-q1
+pip install -r requirements-yolo.txt
+colcon build --symlink-install --packages-select pht_vio pht_vio_ros yolo_dynamic_mask
+source install/setup.bash
+./scripts/run_sad_viode.sh "0_none 1_low 2_mid 3_high" "baseline sad_sem sgta"
+./scripts/run_realtime_benchmark.sh
+```
+
+Docs: [PROPOSAL_SGTA-VINS.md](docs/PROPOSAL_SGTA-VINS.md) · [REALTIME_BENCHMARK.md](docs/REALTIME_BENCHMARK.md) · [SAD-VINS ablation](docs/SAD-VINS-FREEZE.md)
 
 New paper branch:
 

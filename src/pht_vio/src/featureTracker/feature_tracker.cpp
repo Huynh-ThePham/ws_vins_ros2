@@ -10,6 +10,10 @@
  *******************************************************/
 
 #include "feature_tracker.h"
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <set>
 #include <opencv2/imgproc/imgproc_c.h>
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
@@ -51,17 +55,73 @@ FeatureTracker::FeatureTracker()
     stereo_cam = 0;
     n_id = 0;
     hasPrediction = false;
+    dynamic_scene_ema = -1.0;
+    dynamic_scene_active = false;
+    dynamic_outlier_floor = -1.0;
+    dynamic_frame_count = 0;
+    sgta_policy_signal_ema = -1.0;
+    sgta_aggressive_active = false;
+    sgta_aggressive_hold = 0;
+    sem_mask_lag_ms = -1.0;
+    sem_mask_trusted = false;
+    latest_gyro_time = -1.0;
+    latest_cam_gyro.setZero();
+}
+
+void FeatureTracker::setLatestCameraGyro(double t, const Eigen::Vector3d &gyro)
+{
+    latest_gyro_time = t;
+    latest_cam_gyro = gyro;
 }
 
 bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
 {
-    if (!vinsConfig().sem_enable || sem_mask.empty())
+    if (!vinsConfig().sem_enable || sem_mask.empty() || !sem_mask_trusted)
         return true;
     const int x = cvRound(pt.x);
     const int y = cvRound(pt.y);
     if (x < 0 || y < 0 || x >= sem_mask.cols || y >= sem_mask.rows)
         return false;
     return sem_mask.at<uchar>(y, x) >= static_cast<uchar>(vinsConfig().sem_static_value);
+}
+
+bool FeatureTracker::semanticMaskTrusted() const
+{
+    return vinsConfig().sem_enable && !sem_mask.empty() && sem_mask_trusted;
+}
+
+bool FeatureTracker::applySemanticSoftMask() const
+{
+    const auto &cfg = vinsConfig();
+    if (!semanticMaskTrusted())
+        return false;
+    if (!cfg.geodf_enable)
+        return true;
+    if (cfg.sgta_policy_enable && sgta_aggressive_active)
+        return true;
+    return !cfg.sem_mask_gated || dynamic_scene_active;
+}
+
+double FeatureTracker::computeDynamicPixelRatio(int &mask_available) const
+{
+    mask_available = semanticMaskTrusted() ? 1 : 0;
+    if (!mask_available)
+        return 0.0;
+
+    cv::Mat sized;
+    if (sem_mask.size() != cv::Size(col, row))
+        cv::resize(sem_mask, sized, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
+    else
+        sized = sem_mask;
+
+    int dynamic_pixels = 0;
+    for (int y = 0; y < sized.rows; y++)
+    {
+        const uchar *row_ptr = sized.ptr<uchar>(y);
+        for (int x = 0; x < sized.cols; x++)
+            dynamic_pixels += row_ptr[x] < static_cast<uchar>(vinsConfig().sem_static_value);
+    }
+    return static_cast<double>(dynamic_pixels) / static_cast<double>(sized.total());
 }
 
 void FeatureTracker::rejectSemanticDynamic()
@@ -71,27 +131,11 @@ void FeatureTracker::rejectSemanticDynamic()
         return;
 
     const int total = static_cast<int>(cur_pts.size());
-    const int mask_available = sem_mask.empty() ? 0 : 1;
-    double dynamic_pixel_ratio = 0.0;
-    if (mask_available)
-    {
-        if (sem_mask.size() != cv::Size(col, row))
-            cv::resize(sem_mask, sem_mask, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
-        int dynamic_pixels = 0;
-        for (int y = 0; y < sem_mask.rows; y++)
-        {
-            const uchar *row_ptr = sem_mask.ptr<uchar>(y);
-            for (int x = 0; x < sem_mask.cols; x++)
-            {
-                if (row_ptr[x] < static_cast<uchar>(cfg.sem_static_value))
-                    dynamic_pixels++;
-            }
-        }
-        dynamic_pixel_ratio =
-            static_cast<double>(dynamic_pixels) / static_cast<double>(sem_mask.total());
-    }
+    int mask_available = 0;
+    const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
 
     int rejected = 0;
+    int sem_candidates = 0;
     if (mask_available)
     {
         vector<uchar> status(cur_pts.size(), 1);
@@ -100,6 +144,7 @@ void FeatureTracker::rejectSemanticDynamic()
             if (!isSemanticStatic(cur_pts[i]))
             {
                 status[i] = 0;
+                sem_candidates++;
                 rejected++;
             }
         }
@@ -119,14 +164,430 @@ void FeatureTracker::rejectSemanticDynamic()
         sem_stats << static_cast<long long>(cur_time * 1e9) << ","
                   << total << "," << rejected << "," << ratio << ","
                   << static_cast<int>(cur_pts.size()) << ","
-                  << mask_available << "," << dynamic_pixel_ratio << "\n";
+                  << mask_available << "," << dynamic_pixel_ratio << ","
+                  << sem_candidates << "," << sem_candidates << ","
+                  << (sem_mask_trusted ? 1 : 0) << "," << sem_mask_lag_ms << "\n";
+    }
+}
+
+void FeatureTracker::rejectSemanticGeometricDynamic()
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.geodf_enable || cur_pts.empty())
+        return;
+
+    TicToc t_geo;
+    dynamic_frame_count++;
+    const int total = static_cast<int>(cur_pts.size());
+    const vector<int> original_ids = ids;
+    const vector<int> original_track_cnt = track_cnt;
+    int mask_available = 0;
+    const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
+
+    vector<uchar> semantic_dynamic(total, 0);
+    int semantic_candidates = 0;
+    for (int i = 0; i < total; i++)
+    {
+        if (mask_available && !isSemanticStatic(cur_pts[i]))
+        {
+            semantic_dynamic[i] = 1;
+            semantic_candidates++;
+        }
+    }
+
+    vector<double> sampson(total, 0.0);
+    vector<uchar> ransac_outlier(total, 0);
+    vector<uchar> sampson_outlier(total, 0);
+    vector<uchar> imu_dynamic(total, 0);
+    vector<int> scored_indices;
+    scored_indices.reserve(total);
+
+    for (int i = 0; i < total; i++)
+    {
+        if (track_cnt[i] >= cfg.geodf_min_track_cnt)
+            scored_indices.push_back(i);
+    }
+
+    int ransac_outliers = 0;
+    int sampson_above = 0;
+    vector<double> scored_sampson;
+    scored_sampson.reserve(scored_indices.size());
+
+    if (static_cast<int>(scored_indices.size()) >= std::max(8, cfg.geodf_min_feature_num))
+    {
+        vector<cv::Point2f> prev_norm, cur_norm;
+        prev_norm.reserve(scored_indices.size());
+        cur_norm.reserve(scored_indices.size());
+        for (int idx : scored_indices)
+        {
+            Eigen::Vector3d tmp_p;
+            m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[idx].x, prev_pts[idx].y), tmp_p);
+            prev_norm.emplace_back(
+                FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
+                FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
+
+            m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[idx].x, cur_pts[idx].y), tmp_p);
+            cur_norm.emplace_back(
+                FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
+                FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
+        }
+
+        vector<uchar> inlier_status;
+        cv::Mat F = cv::findFundamentalMat(prev_norm, cur_norm, cv::FM_RANSAC,
+                                           cfg.geodf_ransac_th_px, 0.99, inlier_status);
+        if (!F.empty() && F.rows == 3 && F.cols == 3 &&
+            inlier_status.size() == scored_indices.size())
+        {
+            cv::Matx33d f;
+            F.convertTo(F, CV_64F);
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    f(r, c) = F.at<double>(r, c);
+
+            for (size_t k = 0; k < scored_indices.size(); k++)
+            {
+                const int idx = scored_indices[k];
+                const cv::Vec3d x1(prev_norm[k].x, prev_norm[k].y, 1.0);
+                const cv::Vec3d x2(cur_norm[k].x, cur_norm[k].y, 1.0);
+                const cv::Vec3d fx1 = f * x1;
+                const cv::Vec3d ftx2 = f.t() * x2;
+                const double err = x2.dot(fx1);
+                const double denom = fx1[0] * fx1[0] + fx1[1] * fx1[1] +
+                                     ftx2[0] * ftx2[0] + ftx2[1] * ftx2[1] + 1e-12;
+                sampson[idx] = (err * err) / denom;
+                scored_sampson.push_back(sampson[idx]);
+
+                if (!inlier_status[k])
+                {
+                    ransac_outlier[idx] = 1;
+                    ransac_outliers++;
+                }
+                if (sampson[idx] > cfg.geodf_sampson_th)
+                {
+                    sampson_outlier[idx] = 1;
+                    sampson_above++;
+                }
+            }
+        }
+    }
+
+    int imu_outliers = 0;
+    if (cfg.sgta_imu_gate_enable && prev_time > 0 && cur_time > prev_time &&
+        m_camera.size() > 0 && latest_gyro_time > 0)
+    {
+        const double dt = cur_time - prev_time;
+        const Eigen::Quaterniond dq = Utility::deltaQ(latest_cam_gyro * dt);
+        for (int i = 0; i < total; i++)
+        {
+            Eigen::Vector3d prev_ray;
+            m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[i].x, prev_pts[i].y), prev_ray);
+            Eigen::Vector3d pred_ray = dq * prev_ray;
+            Eigen::Vector2d pred_px;
+            m_camera[0]->spaceToPlane(pred_ray, pred_px);
+            const double flow_residual =
+                std::hypot(cur_pts[i].x - pred_px.x(), cur_pts[i].y - pred_px.y());
+            if (flow_residual > cfg.sgta_imu_flow_th_px)
+            {
+                imu_dynamic[i] = 1;
+                imu_outliers++;
+            }
+        }
+    }
+
+    const double geo_ratio = scored_indices.empty()
+                                 ? 0.0
+                                 : static_cast<double>(std::max(ransac_outliers, sampson_above)) /
+                                       static_cast<double>(scored_indices.size());
+    const double semantic_ratio = total > 0 ? static_cast<double>(semantic_candidates) / total : 0.0;
+    const double imu_ratio = total > 0 ? static_cast<double>(imu_outliers) / total : 0.0;
+    const double scene_observation = std::max({geo_ratio, 0.7 * semantic_ratio, 0.5 * imu_ratio});
+    const double alpha = std::clamp(cfg.geodf_activate_ema, 0.0, 1.0);
+    if (dynamic_scene_ema < 0.0)
+        dynamic_scene_ema = scene_observation;
+    else
+        dynamic_scene_ema = alpha * scene_observation + (1.0 - alpha) * dynamic_scene_ema;
+
+    if (dynamic_outlier_floor < 0.0)
+        dynamic_outlier_floor = geo_ratio;
+    else if (geo_ratio < dynamic_outlier_floor)
+        dynamic_outlier_floor = (1.0 - cfg.geodf_auto_floor_down) * dynamic_outlier_floor +
+                                cfg.geodf_auto_floor_down * geo_ratio;
+    else
+        dynamic_outlier_floor = (1.0 - cfg.geodf_auto_floor_up) * dynamic_outlier_floor +
+                                cfg.geodf_auto_floor_up * geo_ratio;
+
+    const double policy_alpha = std::clamp(cfg.sgta_policy_ema_alpha, 0.0, 1.0);
+    const double policy_decay_alpha = std::clamp(cfg.sgta_policy_decay_alpha, 0.0, 1.0);
+    const double policy_observation = mask_available
+                                          ? std::sqrt(std::max(0.0, dynamic_pixel_ratio * scene_observation))
+                                          : 0.5 * scene_observation;
+    if (sgta_policy_signal_ema < 0.0)
+        sgta_policy_signal_ema = policy_observation;
+    else
+    {
+        const double update_alpha =
+            policy_observation >= sgta_policy_signal_ema ? policy_alpha : policy_decay_alpha;
+        sgta_policy_signal_ema = update_alpha * policy_observation +
+                                 (1.0 - update_alpha) * sgta_policy_signal_ema;
+    }
+
+    if (!cfg.sgta_policy_enable)
+    {
+        sgta_aggressive_active = false;
+        sgta_aggressive_hold = 0;
+    }
+    else if (sgta_policy_signal_ema >= cfg.sgta_aggressive_sem_on)
+    {
+        sgta_aggressive_active = true;
+        sgta_aggressive_hold = std::max(0, cfg.sgta_aggressive_hold_frames);
+    }
+    else if (sgta_aggressive_active &&
+             (sgta_policy_signal_ema >= cfg.sgta_aggressive_sem_off ||
+              sgta_aggressive_hold > 0))
+    {
+        if (sgta_aggressive_hold > 0)
+            sgta_aggressive_hold--;
+        sgta_aggressive_active = true;
+    }
+    else
+    {
+        sgta_aggressive_active = false;
+        sgta_aggressive_hold = 0;
+    }
+
+    double rho_on = cfg.geodf_activate_ratio;
+    const bool use_aggressive = cfg.sgta_policy_enable && sgta_aggressive_active;
+    if (use_aggressive)
+    {
+        rho_on = cfg.sgta_aggressive_activate_ratio;
+    }
+    else if (cfg.geodf_auto_rho)
+    {
+        rho_on = dynamic_outlier_floor * cfg.geodf_auto_mult + cfg.geodf_auto_margin;
+        rho_on = std::clamp(rho_on, cfg.geodf_activate_ratio_min, cfg.geodf_activate_ratio_max);
+    }
+
+    if (!cfg.geodf_adaptive)
+    {
+        dynamic_scene_active = true;
+    }
+    else if (dynamic_scene_active)
+    {
+        dynamic_scene_active = dynamic_scene_ema >= rho_on * cfg.geodf_deactivate_frac;
+    }
+    else
+    {
+        dynamic_scene_active = dynamic_scene_ema >= rho_on;
+    }
+
+    vector<double> p_dyn(total, 0.0);
+    vector<uchar> reject_status(total, 0);
+    vector<uchar> raw_candidate(total, 0);
+    vector<pair<double, int>> reject_rank;
+    reject_rank.reserve(total);
+
+    const double p_alpha = std::clamp(cfg.geodf_temporal_alpha, 0.0, 1.0);
+    int raw_candidates = 0;
+    for (int i = 0; i < total; i++)
+    {
+        const bool geo_dynamic = ransac_outlier[i] || sampson_outlier[i];
+        double observation = 0.0;
+        if (semantic_dynamic[i] && geo_dynamic)
+            observation = 1.0;
+        else if (semantic_dynamic[i])
+            observation = 0.65;
+        else if (geo_dynamic)
+            observation = 0.55;
+        if (imu_dynamic[i])
+            observation = std::max(observation, cfg.sgta_imu_dynamic_obs);
+
+        const auto old_it = dynamic_prob.find(ids[i]);
+        const double old_prob = old_it == dynamic_prob.end() ? 0.0 : old_it->second;
+        p_dyn[i] = p_alpha * observation + (1.0 - p_alpha) * old_prob;
+        dynamic_prob[ids[i]] = p_dyn[i];
+        cfg.feature_dynamic_prob[ids[i]] = p_dyn[i];
+
+        const double dynamic_prob_th = use_aggressive
+                                           ? cfg.sgta_aggressive_dynamic_prob_th
+                                           : cfg.geodf_dynamic_prob_th;
+        const bool persistent_dynamic = p_dyn[i] >= dynamic_prob_th;
+        const bool instant_agreement = semantic_dynamic[i] && geo_dynamic;
+        const bool geometry_only = !mask_available && (geo_dynamic || imu_dynamic[i]);
+        if (persistent_dynamic || instant_agreement || geometry_only)
+        {
+            raw_candidate[i] = 1;
+            raw_candidates++;
+        }
+    }
+
+    std::map<int, int> next_streak;
+    for (int i = 0; i < total; i++)
+    {
+        if (!raw_candidate[i])
+            continue;
+        const auto old_it = dynamic_streak.find(ids[i]);
+        next_streak[ids[i]] = (old_it == dynamic_streak.end() ? 0 : old_it->second) + 1;
+    }
+    dynamic_streak.swap(next_streak);
+
+    int confirmed_candidates = 0;
+    int semantic_confirmed = 0;
+    const int vote_frames = std::max(1, use_aggressive
+                                            ? cfg.sgta_aggressive_vote_frames
+                                            : cfg.geodf_vote_frames);
+    const int warmup_frames = use_aggressive
+                                  ? cfg.sgta_aggressive_warmup_frames
+                                  : cfg.geodf_warmup_frames;
+    const bool warmup = warmup_frames > 0 && dynamic_frame_count <= warmup_frames;
+    if (cfg.geodf_hard_reject && dynamic_scene_active && !warmup)
+    {
+        for (int i = 0; i < total; i++)
+        {
+            if (!raw_candidate[i])
+                continue;
+            const bool instant_agreement =
+                semantic_dynamic[i] && (ransac_outlier[i] || sampson_outlier[i]);
+            const auto streak_it = dynamic_streak.find(ids[i]);
+            const int streak = streak_it == dynamic_streak.end() ? 0 : streak_it->second;
+            if (instant_agreement || streak >= vote_frames)
+            {
+                reject_status[i] = 1;
+                confirmed_candidates++;
+                semantic_confirmed += semantic_dynamic[i] ? 1 : 0;
+                const double sampson_score = cfg.geodf_sampson_th > 1e-9
+                                                 ? std::min(1.0, sampson[i] / cfg.geodf_sampson_th)
+                                                 : 0.0;
+                reject_rank.emplace_back(p_dyn[i] + sampson_score, i);
+            }
+        }
+    }
+
+    bool guard_triggered = false;
+    bool guard_capped = false;
+    int rejected = static_cast<int>(reject_rank.size());
+    const int reject_cap = static_cast<int>(std::floor(cfg.geodf_reject_ratio_max * total));
+    if (cfg.geodf_ratio_guard && rejected > reject_cap)
+    {
+        guard_triggered = true;
+        guard_capped = true;
+        std::sort(reject_rank.begin(), reject_rank.end(),
+                  [](const auto &a, const auto &b) { return a.first > b.first; });
+        std::fill(reject_status.begin(), reject_status.end(), 0);
+        for (int i = 0; i < reject_cap && i < static_cast<int>(reject_rank.size()); i++)
+            reject_status[reject_rank[i].second] = 1;
+        rejected = reject_cap;
+    }
+
+    if (rejected > 0)
+    {
+        vector<uchar> keep_status(total, 1);
+        for (int i = 0; i < total; i++)
+            keep_status[i] = reject_status[i] ? 0 : 1;
+        reduceVector(prev_pts, keep_status);
+        reduceVector(cur_pts, keep_status);
+        reduceVector(ids, keep_status);
+        reduceVector(track_cnt, keep_status);
+    }
+
+    if (dynamic_prob.size() > 2 * static_cast<size_t>(std::max(1, cfg.max_cnt)))
+    {
+        std::set<int> live_ids(ids.begin(), ids.end());
+        for (auto it = dynamic_prob.begin(); it != dynamic_prob.end();)
+        {
+            if (live_ids.count(it->first) == 0)
+                it = dynamic_prob.erase(it);
+            else
+                ++it;
+        }
+        for (auto it = dynamic_streak.begin(); it != dynamic_streak.end();)
+        {
+            if (live_ids.count(it->first) == 0)
+                it = dynamic_streak.erase(it);
+            else
+                ++it;
+        }
+        for (auto it = cfg.feature_dynamic_prob.begin(); it != cfg.feature_dynamic_prob.end();)
+        {
+            if (live_ids.count(it->first) == 0)
+                it = cfg.feature_dynamic_prob.erase(it);
+            else
+                ++it;
+        }
+    }
+
+    double mean_sampson = 0.0;
+    double median_sampson = 0.0;
+    double max_sampson = 0.0;
+    if (!scored_sampson.empty())
+    {
+        mean_sampson = std::accumulate(scored_sampson.begin(), scored_sampson.end(), 0.0) /
+                       static_cast<double>(scored_sampson.size());
+        std::sort(scored_sampson.begin(), scored_sampson.end());
+        median_sampson = scored_sampson[scored_sampson.size() / 2];
+        max_sampson = scored_sampson.back();
+    }
+
+    if (!cfg.geodf_stats_path.empty())
+    {
+        std::ofstream geodf_stats(cfg.geodf_stats_path, std::ios::app);
+        geodf_stats << static_cast<long long>(cur_time * 1e9) << ","
+                    << total << "," << scored_indices.size() << "," << ransac_outliers << ","
+                    << sampson_above << "," << raw_candidates << "," << rejected << ","
+                    << (total > 0 ? static_cast<double>(rejected) / total : 0.0) << ","
+                    << static_cast<int>(cur_pts.size()) << "," << mean_sampson << ","
+                    << median_sampson << "," << max_sampson << ","
+                    << (guard_triggered ? 1 : 0) << "," << (guard_capped ? 1 : 0) << ","
+                    << dynamic_scene_ema << "," << (dynamic_scene_active ? 1 : 0) << ","
+                    << t_geo.toc() << "," << rho_on << "," << dynamic_outlier_floor << ","
+                    << semantic_candidates << "," << semantic_confirmed << ","
+                    << imu_outliers << "," << mask_available << ","
+                    << (sem_mask_trusted ? 1 : 0) << "," << sem_mask_lag_ms << ","
+                    << sgta_policy_signal_ema << "," << (use_aggressive ? 1 : 0) << "\n";
+    }
+
+    if (!cfg.sem_stats_path.empty())
+    {
+        std::ofstream sem_stats(cfg.sem_stats_path, std::ios::app);
+        sem_stats << static_cast<long long>(cur_time * 1e9) << ","
+                  << total << "," << rejected << ","
+                  << (total > 0 ? static_cast<double>(rejected) / total : 0.0) << ","
+                  << static_cast<int>(cur_pts.size()) << ","
+                  << mask_available << "," << dynamic_pixel_ratio << ","
+                  << semantic_candidates << "," << semantic_confirmed << ","
+                  << (sem_mask_trusted ? 1 : 0) << "," << sem_mask_lag_ms << "\n";
+    }
+
+    if (!cfg.geodf_features_path.empty())
+    {
+        std::ofstream geodf_features(cfg.geodf_features_path, std::ios::app);
+        for (int i = 0; i < total; i++)
+        {
+            geodf_features << static_cast<long long>(cur_time * 1e9) << ","
+                           << original_ids[i] << "," << original_track_cnt[i] << ","
+                           << static_cast<int>(semantic_dynamic[i]) << ","
+                           << static_cast<int>(ransac_outlier[i]) << ","
+                           << sampson[i] << "," << p_dyn[i] << ","
+                           << static_cast<int>(reject_status[i]) << "\n";
+        }
+    }
+
+    if (cfg.geodf_debug)
+    {
+        ROS_INFO("GeoDF/SGTA: reject %d/%d raw=%d confirmed=%d scored=%zu scene=%.3f rho=%.3f active=%d mode=%s policy=%.3f sem=%d geo=%d imu=%d %.2fms",
+                 rejected, total, raw_candidates, confirmed_candidates,
+                 scored_indices.size(), dynamic_scene_ema, rho_on,
+                 dynamic_scene_active ? 1 : 0,
+                 use_aggressive ? "aggressive" : "static",
+                 sgta_policy_signal_ema, semantic_candidates,
+                 std::max(ransac_outliers, sampson_above), imu_outliers, t_geo.toc());
     }
 }
 
 void FeatureTracker::setMask()
 {
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
-    if (vinsConfig().sem_enable && !sem_mask.empty())
+    const bool use_sem_mask = applySemanticSoftMask();
+    if (use_sem_mask)
     {
         if (sem_mask.size() != mask.size())
             cv::resize(sem_mask, sem_mask, mask.size(), 0, 0, cv::INTER_NEAREST);
@@ -150,7 +611,7 @@ void FeatureTracker::setMask()
 
     for (auto &it : cnt_pts_id)
     {
-        if (mask.at<uchar>(it.second.first) == 255 && isSemanticStatic(it.second.first))
+        if (mask.at<uchar>(it.second.first) == 255 && (!use_sem_mask || isSemanticStatic(it.second.first)))
         {
             cur_pts.push_back(it.second.first);
             ids.push_back(it.second.second);
@@ -168,7 +629,9 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask)
+map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(
+    double _cur_time, const cv::Mat &_img, const cv::Mat &_img1,
+    const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
 {
     TicToc t_r;
     cur_time = _cur_time;
@@ -176,8 +639,15 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     row = cur_img.rows;
     col = cur_img.cols;
     sem_mask = _sem_mask;
-    if (vinsConfig().sem_enable && !sem_mask.empty() && sem_mask.size() != cur_img.size())
-        cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
+    sem_mask_lag_ms = _sem_mask_lag_ms;
+    sem_mask_trusted = false;
+    if (vinsConfig().sem_enable && !sem_mask.empty())
+    {
+        if (sem_mask.size() != cur_img.size())
+            cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
+        sem_mask_trusted = sem_mask_lag_ms < 0.0 ||
+                           sem_mask_lag_ms <= vinsConfig().sem_mask_max_age_ms;
+    }
     cv::Mat rightImg = _img1;
     /*
     {
@@ -241,7 +711,10 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //printf("track cnt %d\n", (int)ids.size());
     }
 
-    rejectSemanticDynamic();
+    if (vinsConfig().geodf_enable)
+        rejectSemanticGeometricDynamic();
+    else
+        rejectSemanticDynamic();
 
     for (auto &n : track_cnt)
         n++;
@@ -343,6 +816,8 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     for (size_t i = 0; i < ids.size(); i++)
     {
         int feature_id = ids[i];
+        if (vinsConfig().feature_dynamic_prob.find(feature_id) == vinsConfig().feature_dynamic_prob.end())
+            vinsConfig().feature_dynamic_prob[feature_id] = 0.0;
         double x, y ,z;
         x = cur_un_pts[i].x;
         y = cur_un_pts[i].y;

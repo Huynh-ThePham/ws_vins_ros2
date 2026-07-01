@@ -73,7 +73,7 @@ paper/<method-slug>-<year>-<venue>
 
 ```text
 paper/geodf-adaptive-vins-2026-q4      # GeoDF-VINS-Hard + scene-aware gating
-paper/sad-vins-2026-q1                 # SAD-VINS (semantic-adaptive dynamic)
+paper/sgta-vins-2026-q2                 # alias: same branch as sad-vins-2026-q1 after SGTA freeze
 paper/dyn-robust-vio-2027-icra2027     # future conference paper
 ```
 
@@ -82,7 +82,7 @@ paper/dyn-robust-vio-2027-icra2027     # future conference paper
 | Branch | Method | Sensor | Primary config |
 |--------|--------|--------|----------------|
 | `paper/geodf-adaptive-vins-2026-q4` | Geometry-only dynamic filter | stereo + IMU | `euroc_stereo_imu_geodf_*.yaml` |
-| `paper/sad-vins-2026-q1` | YOLO semantic dynamic mask | stereo + IMU | `euroc_stereo_imu_sem_config.yaml` |
+| `paper/sad-vins-2026-q1` | **SGTA-VINS** (main) + SAD-VINS ablation (`sad_sem`) | stereo + IMU | `euroc_stereo_imu_sgta_config.yaml` |
 
 Paper branches must **not** downgrade to mono-only unless the manuscript explicitly targets mono VIO.
 
@@ -117,7 +117,7 @@ Examples: `exp/imu-gated-geodf`, `exp/soft-weight-backend`.
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1     [frozen]
        ├── paper/geodf-adaptive-vins-2026-q4
-       ├── paper/sad-vins-2026-q1
+       ├── paper/sad-vins-2026-q1              # SGTA-VINS (+ SAD ablation)
        └── exp/<scratch>
 ```
 

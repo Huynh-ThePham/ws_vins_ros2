@@ -11,7 +11,9 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <ceres/ceres.h>
 #include <Eigen/Dense>
 #include <pht_slam_common/utility.hpp>
@@ -26,10 +28,12 @@ class ProjectionOneFrameTwoCamFactor : public ceres::SizedCostFunction<2, 7, 7, 
     	   			   			   const double _td_i, const double _td_j);
     virtual bool Evaluate(double const *const *parameters, double *residuals, double **jacobians) const;
     void check(double **parameters);
+    void setDynamicWeight(double weight) { sqrt_dynamic_weight = std::sqrt(std::max(1e-6, weight)); }
 
     Eigen::Vector3d pts_i, pts_j;
     Eigen::Vector3d velocity_i, velocity_j;
     double td_i, td_j;
+    double sqrt_dynamic_weight = 1.0;
     Eigen::Matrix<double, 2, 3> tangent_base;
     static Eigen::Matrix2d sqrt_info;
     static double sum_t;

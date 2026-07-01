@@ -1,5 +1,7 @@
 # SAD-VINS: Semantic-Adaptive Dynamic Visual-Inertial Navigation
 
+**Role:** frozen **ablation baseline** (`sad_sem`). Main contribution on this branch is **SGTA-VINS** — see [SGTA-VINS-FREEZE.md](SGTA-VINS-FREEZE.md).
+
 **Branch:** `paper/sad-vins-2026-q1`  
 **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` (frozen EuRoC reference)  
 **Sensor setup:** **stereo camera + IMU** (same as baseline; not mono-only)
@@ -102,8 +104,11 @@ ros2 launch pht_vio_ros euroc_stereo_imu_sem.launch.py enable_yolo:=false
 |--------|--------|--------|
 | **SAD-VINS** | Semantic segmentation (YOLO) | `paper/sad-vins-2026-q1` |
 | **GeoDF-Adaptive** | Epipolar geometry (Sampson) | `paper/geodf-adaptive-vins-2026-q4` |
+| **SGTA-VINS** | Semantic + geometry + temporal adaptive gating | this worktree |
 
-These are **orthogonal** and can be combined in a future hybrid branch if needed.
+SAD-VINS is the semantic-only reference. SGTA-VINS is the upgraded hybrid method
+for novelty: YOLO is treated as an uncertain prior, geometric residuals confirm
+motion inconsistency, and a temporal scene gate decides when rejection is active.
 
 ## Evaluation (2026-06-23, stereo + IMU)
 

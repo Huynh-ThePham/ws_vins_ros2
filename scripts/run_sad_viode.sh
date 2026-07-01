@@ -3,7 +3,7 @@
 #
 # Usage: ./scripts/run_sad_viode.sh [LEVELS] [METHODS]
 #   LEVELS  : "0_none 1_low 2_mid 3_high" (default)
-#   METHODS : "baseline sad_sem" (default)
+#   METHODS : "baseline sad_sem" (default); also geodf, geodf_adaptive, sgta
 #
 # Env: VIODE_ROOT, VIODE_ENV=city_day, YOLO_DEVICE=cuda|cpu|auto, FORCE=1
 set -eo pipefail
@@ -51,9 +51,9 @@ for level in $LEVELS; do
         cp "${VIODE_CFG}/viode_${mode}_config.yaml" "$RUN_CFG"
         sed -i "s|output_path: \"~/output/\"|output_path: \"${out}/\"|" "$RUN_CFG"
         sed -i "s|pose_graph_save_path: \"~/output/pose_graph/\"|pose_graph_save_path: \"${out}/pose_graph/\"|" "$RUN_CFG"
+        apply_sgta_method_overrides "$method" "$RUN_CFG"
 
-        USE_YOLO=0
-        [ "$method" != "baseline" ] && USE_YOLO=1
+        USE_YOLO="$(sad_method_uses_yolo "$method")"
 
         echo "=== VIODE $run (mode=$mode yolo=$USE_YOLO) ==="
         killall -9 pht_vio_node mask_node 2>/dev/null || true

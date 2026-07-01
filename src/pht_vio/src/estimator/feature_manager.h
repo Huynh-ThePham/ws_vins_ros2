@@ -51,6 +51,7 @@ class FeaturePerFrame
         is_stereo = true;
     }
     double cur_td;
+    double dynamic_prob = 0.0;
     Vector3d point, pointRight;
     Vector2d uv, uvRight;
     Vector2d velocity, velocityRight;

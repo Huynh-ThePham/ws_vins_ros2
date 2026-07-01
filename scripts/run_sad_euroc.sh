@@ -6,6 +6,7 @@
 # METHOD:
 #   baseline  -> euroc_stereo_imu_config.yaml (no semantic filter)
 #   sad_sem   -> euroc_stereo_imu_sem_config.yaml (+ YOLO mask node)
+#   sgta      -> euroc_stereo_imu_sgta_config.yaml (+ YOLO + geometric/temporal gate)
 set -eo pipefail
 
 EVAL=0
@@ -54,9 +55,9 @@ mkdir -p "$OUT"
 cp "${EUROC_CFG}/euroc_${MODE}_config.yaml" "$RUN_CFG"
 sed -i "s|output_path: \"~/output/\"|output_path: \"${OUT}/\"|" "$RUN_CFG"
 sed -i "s|pose_graph_save_path: \"~/output/pose_graph/\"|pose_graph_save_path: \"${OUT}/pose_graph/\"|" "$RUN_CFG"
+apply_sgta_method_overrides "$METHOD" "$RUN_CFG"
 
-USE_YOLO=0
-[ "$METHOD" != "baseline" ] && USE_YOLO=1
+USE_YOLO="$(sad_method_uses_yolo "$METHOD")"
 
 echo "[sad] seq=$SEQ method=$METHOD mode=$MODE yolo=$USE_YOLO start=${START}s out=$OUT"
 run_sad_vio_benchmark "$RUN_CFG" "$OUT" "$BAG" "$START" 1.0 "$USE_YOLO"

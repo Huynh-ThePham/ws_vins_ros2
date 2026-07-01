@@ -10,7 +10,7 @@ Semantic-only dynamic masking: YOLOv11-seg hard reject on cam0 + VINS-Fusion ste
 ## Reproduce SAD-VINS only
 
 ```bash
-git checkout paper/sad-vins-2026-q1
+git checkout paper/sad-vins-2026
 colcon build --symlink-install --packages-select pht_vio pht_vio_ros yolo_dynamic_mask
 source install/setup.bash
 ./scripts/run_sad_euroc.sh MH_01_easy sad_sem --eval

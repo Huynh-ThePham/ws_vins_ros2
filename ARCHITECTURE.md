@@ -136,13 +136,15 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)**.
 |--------|---------|
 | `main` | Stable ROS 2 integration (default for contributors) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **stereo Visual-Inertial SLAM** reference (EuRoC verified). **No algorithm experiments.** |
-| `paper/<method>-<year>-<venue>` | One branch per manuscript |
+| `paper/<method>-<year>` | One branch per manuscript |
 | `exp/<topic>` | Exploratory work |
 
 ```text
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1
-       ├── paper/geodf-adaptive-vins-2026-q4
+       ├── paper/geodf-adaptive-vins-2026
+       ├── paper/geodf-weighted-vins-2026
+       ├── paper/sad-vins-2026
        └── paper/<future-paper>
 ```
 

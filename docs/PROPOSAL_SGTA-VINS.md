@@ -1,6 +1,6 @@
 # SGTA-VINS: Semantic–Geometric–Temporal Adaptive VIO
 
-**Branch:** `paper/sad-vins-2026-q1` (freeze: [SGTA-VINS-FREEZE.md](SGTA-VINS-FREEZE.md))  
+**Branch:** `paper/sad-vins-2026` (freeze: [SGTA-VINS-FREEZE.md](SGTA-VINS-FREEZE.md))  
 **Baseline:** SAD-VINS semantic hard-mask (`sad_sem`) + GeoDF-Adaptive geometry (`geodf_adaptive`)
 
 ## Goal

@@ -1,4 +1,4 @@
-# SGTA-VINS freeze (`paper/sad-vins-2026-q1`)
+# SGTA-VINS freeze (`paper/sad-vins-2026`)
 
 Frozen reference for **SGTA-VINS**: Semantic–Geometric–Temporal Adaptive stereo-inertial VIO with uncertainty-aware gating, Policy-2 scene switching, and modular ROS 2 async semantic inference.
 
@@ -21,7 +21,7 @@ Not in this freeze: TISA, GeoDF-Hybrid IMU, sem-geodf fusion worktree (`exp/sem-
 
 ```bash
 cd /home/theph/ws_vins_ros2_sadvins
-git checkout paper/sad-vins-2026-q1
+git checkout paper/sad-vins-2026
 pip install -r requirements-yolo.txt
 # YOLO weights: yolo11n-seg.pt in workspace root (or symlink)
 colcon build --symlink-install --packages-select pht_vio pht_vio_ros yolo_dynamic_mask

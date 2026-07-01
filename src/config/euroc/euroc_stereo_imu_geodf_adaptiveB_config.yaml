@@ -78,6 +78,7 @@ geodf_min_track_cnt: 2
 geodf_min_feature_num: 40
 geodf_reject_ratio_max: 0.40
 geodf_ratio_guard: 1
+geodf_max_reject_per_frame: 3
 geodf_debug: 1
 geodf_dump_features: 0
 # --- scene-aware activation (v2: auto rho_on + stereo cross-check) ---
@@ -93,6 +94,13 @@ geodf_activate_ratio_min: 0.10
 geodf_activate_ratio_max: 0.40
 geodf_auto_floor_down: 0.02
 geodf_auto_floor_up: 0.004
+# Quality-aware activation: arm only when dynamic candidates are frequent and
+# their Sampson residuals separate from the static background.
+geodf_quality_gate: 1
+geodf_quality_ema: 0.15
+geodf_quality_min: 0.50
+geodf_min_candidate_ratio: 0.01
+geodf_min_residual_lift: 2.0
 # (B)-only ablation: auto rho_on ON, stereo cross-check OFF.
 geodf_stereo_check: 0
 geodf_stereo_sampson_th: 6.0

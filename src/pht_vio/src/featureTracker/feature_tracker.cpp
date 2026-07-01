@@ -11,6 +11,7 @@
 
 #include "feature_tracker.h"
 #include <opencv2/imgproc/imgproc_c.h>
+#include <algorithm>
 #include <fstream>
 #include <cmath>
 
@@ -37,6 +38,25 @@ double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2
     if (denom < 1e-12)
         return 0.0;
     return (num * num) / denom;
+}
+
+double medianValue(std::vector<double> values)
+{
+    if (values.empty())
+        return 0.0;
+    std::sort(values.begin(), values.end());
+    const size_t n = values.size();
+    return (n % 2 == 0) ? 0.5 * (values[n / 2 - 1] + values[n / 2])
+                        : values[n / 2];
+}
+
+double clamp01(double v)
+{
+    if (v < 0.0)
+        return 0.0;
+    if (v > 1.0)
+        return 1.0;
+    return v;
 }
 
 }  // namespace
@@ -506,6 +526,7 @@ void FeatureTracker::rejectGeoDynamic()
          geo_outlier_floor <= cfg.geodf_stereo_floor_max);
     vector<int> candidates;
     candidates.reserve(total);
+    vector<uchar> candidate_mask(total, 0);
     int stereo_added = 0;
     for (int i = 0; i < total; i++)
     {
@@ -517,12 +538,27 @@ void FeatureTracker::rejectGeoDynamic()
         if (left_cand || right_cand)
         {
             candidates.push_back(i);
+            candidate_mask[i] = 1;
             if (!left_cand)
                 stereo_added++;
         }
     }
 
     double mean_sampson = 0.0, median_sampson = 0.0, max_sampson = 0.0;
+    vector<double> candidate_sampson;
+    vector<double> background_sampson;
+    candidate_sampson.reserve(candidates.size());
+    background_sampson.reserve(scored_errors.size());
+    for (int i = 0; i < total; i++)
+    {
+        if (track_cnt[i] < cfg.geodf_min_track_cnt)
+            continue;
+        const double evidence_error = std::max(errors[i], right_valid[i] ? right_err[i] : 0.0);
+        if (candidate_mask[i])
+            candidate_sampson.push_back(evidence_error);
+        else
+            background_sampson.push_back(errors[i]);
+    }
     if (!scored_errors.empty())
     {
         double sum = 0.0;
@@ -539,6 +575,32 @@ void FeatureTracker::rejectGeoDynamic()
 
     const double frame_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
+    const size_t candidates_raw = candidates.size();
+    const double frame_candidate_ratio =
+        scored > 0 ? static_cast<double>(candidates_raw) / scored : 0.0;
+    const double median_candidate_sampson = medianValue(candidate_sampson);
+    const double median_background_sampson = medianValue(background_sampson);
+    const double residual_lift =
+        median_candidate_sampson > 0.0
+            ? median_candidate_sampson / std::max(1e-6, median_background_sampson)
+            : 0.0;
+    const double ratio_quality =
+        cfg.geodf_min_candidate_ratio > 0.0
+            ? clamp01(frame_candidate_ratio / cfg.geodf_min_candidate_ratio)
+            : 1.0;
+    const double lift_quality =
+        cfg.geodf_min_residual_lift > 0.0
+            ? clamp01(residual_lift / cfg.geodf_min_residual_lift)
+            : 1.0;
+    const double quality_score = candidate_sampson.empty()
+                                     ? 0.0
+                                     : ratio_quality * lift_quality;
+    if (geo_quality_ema < 0.0)
+        geo_quality_ema = quality_score;
+    else
+        geo_quality_ema = cfg.geodf_quality_ema * quality_score +
+                          (1.0 - cfg.geodf_quality_ema) * geo_quality_ema;
+
     if (geo_activation_ema < 0.0)
         geo_activation_ema = frame_outlier_ratio;
     else
@@ -571,13 +633,21 @@ void FeatureTracker::rejectGeoDynamic()
     }
     const double rho_off = rho_on * cfg.geodf_deactivate_frac;
 
-    const size_t candidates_raw = candidates.size();
     int frame_active = 1;
     if (cfg.geodf_adaptive)
     {
-        geo_activation_active = geo_activation_active
-                                    ? (geo_activation_ema >= rho_off)
-                                    : (geo_activation_ema >= rho_on);
+        const bool ratio_active = geo_activation_active
+                                      ? (geo_activation_ema >= rho_off)
+                                      : (geo_activation_ema >= rho_on);
+        bool quality_active = true;
+        if (cfg.geodf_quality_gate)
+        {
+            const double quality_off = cfg.geodf_quality_min * cfg.geodf_deactivate_frac;
+            quality_active = geo_activation_active
+                                 ? (geo_quality_ema >= quality_off)
+                                 : (geo_quality_ema >= cfg.geodf_quality_min);
+        }
+        geo_activation_active = ratio_active && quality_active;
         frame_active = geo_activation_active ? 1 : 0;
         if (!frame_active)
             candidates.clear();
@@ -628,6 +698,7 @@ void FeatureTracker::rejectGeoDynamic()
     int rejected = 0;
     int guard_triggered = 0;
     int guard_capped = 0;
+    int reject_limit = 0;
     if (!confirmed.empty())
     {
         sort(confirmed.begin(), confirmed.end(), [&](int a, int b) {
@@ -647,6 +718,9 @@ void FeatureTracker::rejectGeoDynamic()
 
         const int max_reject_by_min = std::max(0, total - cfg.geodf_min_feature_num);
         max_reject = std::min(max_reject, max_reject_by_min);
+        if (cfg.geodf_max_reject_per_frame > 0)
+            max_reject = std::min(max_reject, cfg.geodf_max_reject_per_frame);
+        reject_limit = max_reject;
 
         for (int idx : confirmed)
         {
@@ -697,7 +771,11 @@ void FeatureTracker::rejectGeoDynamic()
                   << guard_triggered << "," << guard_capped << ","
                   << geo_activation_ema << "," << frame_active << ","
                   << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
-                  << stereo_added << "," << confirmed_n << "\n";
+                  << stereo_added << "," << confirmed_n << ","
+                  << frame_outlier_ratio << "," << frame_candidate_ratio << ","
+                  << quality_score << "," << geo_quality_ema << "," << residual_lift << ","
+                  << median_candidate_sampson << "," << median_background_sampson << ","
+                  << reject_limit << "\n";
     }
 
     if (cfg.geodf_debug)

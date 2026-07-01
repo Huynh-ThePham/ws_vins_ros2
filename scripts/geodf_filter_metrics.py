@@ -50,6 +50,7 @@ def load_geo_df_rows(csv_path: Path) -> list[dict[str, Any]]:
                     "tracks_after",
                     "guard_triggered",
                     "guard_capped",
+                    "reject_limit",
                 ):
                     row[key] = int(float(v)) if v not in ("", None) else 0
                 elif key in (
@@ -58,6 +59,16 @@ def load_geo_df_rows(csv_path: Path) -> list[dict[str, Any]]:
                     "median_sampson",
                     "max_sampson",
                     "geo_ms",
+                    "activation_signal",
+                    "rho_on",
+                    "outlier_floor",
+                    "outlier_ratio",
+                    "candidate_ratio",
+                    "quality_score",
+                    "quality_ema",
+                    "residual_lift",
+                    "median_candidate_sampson",
+                    "median_background_sampson",
                 ):
                     row[key] = float(v) if v not in ("", None) else 0.0
                 else:
@@ -89,6 +100,11 @@ def analyze_filter_impact(rows: list[dict[str, Any]], sampson_th: float = 3.0) -
     ratio_vals = [r["reject_ratio"] for r in rows]
     max_sampson_vals = [r["max_sampson"] for r in rows]
     geo_ms_vals = [r["geo_ms"] for r in rows if r["geo_ms"] > 0]
+    quality_vals = [r.get("quality_score", 0.0) for r in rows]
+    quality_ema_vals = [r.get("quality_ema", 0.0) for r in rows]
+    residual_lift_vals = [r.get("residual_lift", 0.0) for r in rows if r.get("residual_lift", 0.0) > 0]
+    candidate_ratio_vals = [r.get("candidate_ratio", 0.0) for r in rows]
+    frame_active_vals = [int(float(r.get("frame_active", 0) or 0)) for r in rows]
 
     frames_scored = sum(1 for s in scored_vals if s > 0)
     frames_with_candidates = sum(1 for c in cand_vals if c > 0)
@@ -145,6 +161,12 @@ def analyze_filter_impact(rows: list[dict[str, Any]], sampson_th: float = 3.0) -
         "mean_reject_rate_per_scored_frame": statistics.mean(rej_per_scored_frames) if rej_per_scored_frames else 0.0,
         "mean_max_sampson": statistics.mean(max_sampson_vals),
         "p95_max_sampson": _percentile(max_sampson_vals, 95),
+        "frames_active_pct": _pct(sum(frame_active_vals), n),
+        "mean_candidate_ratio": statistics.mean(candidate_ratio_vals),
+        "mean_quality_score": statistics.mean(quality_vals),
+        "mean_quality_ema": statistics.mean(quality_ema_vals),
+        "mean_residual_lift": statistics.mean(residual_lift_vals) if residual_lift_vals else 0.0,
+        "p50_residual_lift": _percentile(residual_lift_vals, 50) if residual_lift_vals else 0.0,
         "frames_max_sampson_above_th_pct": _pct(
             sum(1 for m in max_sampson_vals if m > sampson_th), n
         ),
@@ -179,17 +201,21 @@ def _fmt_f(v: float, prec: int = 3) -> str:
 
 def impact_table_row(label: str, m: dict[str, Any]) -> list[str]:
     if m.get("frames", 0) == 0:
-        return [label] + ["—"] * 11
+        return [label] + ["—"] * 14
     return [
         label,
         str(m["frames"]),
+        _fmt_pct(m.get("frames_active_pct", 0.0)),
         _fmt_pct(m["frames_with_reject_pct"]),
         _fmt_pct(m["mean_reject_ratio"] * 100),
         str(m["total_rejected"]),
         str(m["total_candidates"]),
         _fmt_pct(m["candidate_rate_per_scored"] * 100),
+        _fmt_pct(m.get("mean_candidate_ratio", 0.0) * 100),
         "—" if math.isnan(m["dual_gate_reduction_pct"]) else _fmt_pct(m["dual_gate_reduction_pct"]),
         _fmt_pct(m["frames_guard_triggered_pct"]),
+        _fmt_f(m.get("mean_quality_ema", 0.0), 2),
+        _fmt_f(m.get("p50_residual_lift", 0.0), 2),
         _fmt_f(m["mean_max_sampson"], 2),
         _fmt_f(m["mean_geo_ms"], 2) if m["mean_geo_ms"] > 0 else "—",
         _fmt_f(m["mean_rejected_when_active"], 1),
@@ -199,13 +225,17 @@ def impact_table_row(label: str, m: dict[str, Any]) -> list[str]:
 IMPACT_HEADERS = [
     "Run",
     "Frames",
+    "Active",
     "Frames w/ reject",
     "Mean reject ratio",
     "Total rejected",
     "Total candidates",
     "Cand/scored",
+    "Cand ratio",
     "Dual-gate reduction",
     "Guard triggered",
+    "Quality EMA",
+    "Lift p50",
     "Mean max Sampson",
     "GeoDF ms",
     "Reject when active",

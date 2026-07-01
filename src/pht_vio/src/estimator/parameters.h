@@ -75,6 +75,7 @@ struct VinsConfig
     int geodf_min_feature_num = 40;
     double geodf_max_reject_ratio = 0.4;
     int geodf_ratio_guard = 1;
+    int geodf_max_reject_per_frame = 0;
     int geodf_debug = 0;
     int geodf_dump_features = 0;
     int geodf_adaptive = 0;
@@ -89,6 +90,14 @@ struct VinsConfig
     double geodf_activate_ratio_max = 0.40;
     double geodf_auto_floor_down = 0.02;
     double geodf_auto_floor_up = 0.004;
+    // Quality-aware activation: require candidate density and residual
+    // separation before an adaptive frame can arm hard rejection. This protects
+    // against high RANSAC-outlier ratios caused by degenerate static geometry.
+    int geodf_quality_gate = 0;
+    double geodf_quality_ema = 0.15;
+    double geodf_quality_min = 0.5;
+    double geodf_min_candidate_ratio = 0.01;
+    double geodf_min_residual_lift = 2.0;
     // Track-level temporal voting: hard-delete a feature only after it has been
     // flagged dynamic on >= vote_frames consecutive frames (suppresses transient
     // false positives that hurt local accuracy / static scenes). 1 = off.

@@ -155,6 +155,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_min_feature_num = 40;
     geodf_max_reject_ratio = 0.4;
     geodf_ratio_guard = 1;
+    geodf_max_reject_per_frame = 0;
     geodf_debug = 0;
     geodf_dump_features = 0;
     geodf_adaptive = 0;
@@ -168,6 +169,11 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_activate_ratio_max = 0.40;
     geodf_auto_floor_down = 0.02;
     geodf_auto_floor_up = 0.004;
+    geodf_quality_gate = 0;
+    geodf_quality_ema = 0.15;
+    geodf_quality_min = 0.5;
+    geodf_min_candidate_ratio = 0.01;
+    geodf_min_residual_lift = 2.0;
     geodf_vote_frames = 1;
     geodf_warmup_frames = 0;
     geodf_stereo_check = 0;
@@ -193,6 +199,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_max_reject_ratio = (double)fsSettings["geodf_max_reject_ratio"];
     if (!fsSettings["geodf_ratio_guard"].empty())
         geodf_ratio_guard = (int)fsSettings["geodf_ratio_guard"];
+    if (!fsSettings["geodf_max_reject_per_frame"].empty())
+        geodf_max_reject_per_frame = (int)fsSettings["geodf_max_reject_per_frame"];
     if (!fsSettings["geodf_debug"].empty())
         geodf_debug = (int)fsSettings["geodf_debug"];
     if (!fsSettings["geodf_dump_features"].empty())
@@ -219,6 +227,16 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_auto_floor_down = (double)fsSettings["geodf_auto_floor_down"];
     if (!fsSettings["geodf_auto_floor_up"].empty())
         geodf_auto_floor_up = (double)fsSettings["geodf_auto_floor_up"];
+    if (!fsSettings["geodf_quality_gate"].empty())
+        geodf_quality_gate = (int)fsSettings["geodf_quality_gate"];
+    if (!fsSettings["geodf_quality_ema"].empty())
+        geodf_quality_ema = (double)fsSettings["geodf_quality_ema"];
+    if (!fsSettings["geodf_quality_min"].empty())
+        geodf_quality_min = (double)fsSettings["geodf_quality_min"];
+    if (!fsSettings["geodf_min_candidate_ratio"].empty())
+        geodf_min_candidate_ratio = (double)fsSettings["geodf_min_candidate_ratio"];
+    if (!fsSettings["geodf_min_residual_lift"].empty())
+        geodf_min_residual_lift = (double)fsSettings["geodf_min_residual_lift"];
     if (!fsSettings["geodf_vote_frames"].empty())
         geodf_vote_frames = (int)fsSettings["geodf_vote_frames"];
     if (!fsSettings["geodf_warmup_frames"].empty())
@@ -236,7 +254,9 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geo_stats << "timestamp_ns,tracks_before,scored,ransac_outliers,sampson_above_th,"
                      "candidates,rejected,reject_ratio,tracks_after,"
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
-                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed\n";
+                     "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed,"
+                     "outlier_ratio,candidate_ratio,quality_score,quality_ema,residual_lift,"
+                     "median_candidate_sampson,median_background_sampson,reject_limit\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -248,6 +268,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " ransac_th_px=" << geodf_ransac_th_px
                         << " max_reject_ratio=" << geodf_max_reject_ratio
                         << " ratio_guard=" << geodf_ratio_guard
+                        << " max_reject_per_frame=" << geodf_max_reject_per_frame
                         << " hard_reject=" << geodf_hard_reject
                         << " dump_features=" << geodf_dump_features
                         << " adaptive=" << geodf_adaptive
@@ -257,6 +278,11 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " auto_rho=" << geodf_auto_rho
                         << " auto_mult=" << geodf_auto_mult
                         << " auto_margin=" << geodf_auto_margin
+                        << " quality_gate=" << geodf_quality_gate
+                        << " quality_ema=" << geodf_quality_ema
+                        << " quality_min=" << geodf_quality_min
+                        << " min_candidate_ratio=" << geodf_min_candidate_ratio
+                        << " min_residual_lift=" << geodf_min_residual_lift
                         << " vote_frames=" << geodf_vote_frames
                         << " warmup_frames=" << geodf_warmup_frames
                         << " stereo_check=" << geodf_stereo_check

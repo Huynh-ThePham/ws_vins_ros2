@@ -88,6 +88,7 @@ public:
     bool geo_activation_active = false;
     // (B) running estimate of the static epipolar-outlier floor (for auto rho_on).
     double geo_outlier_floor = -1.0;
+    double geo_quality_ema = -1.0;
     // Track-level temporal voting state: id -> consecutive frames flagged dynamic,
     // and a frame counter for the warmup guard.
     std::map<int, int> geo_dyn_streak;

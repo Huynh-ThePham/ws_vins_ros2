@@ -52,7 +52,8 @@ Không claim quá lớn. Claim đúng là:
 3. Áp dụng **hard rejection có ratio guard**, tránh xóa quá nhiều feature trong một frame.
 4. **(Đóng góp chính) Scene-aware self-gating activation:** dùng chính tỷ lệ outlier RANSAC toàn frame (EMA + hysteresis) làm chỉ báo "scene có động hay không"; **chỉ bật hard-reject khi scene thực sự bất nhất epipolar**, cảnh tĩnh thì pass-through. Triệt tiêu chi phí false-positive tĩnh (nguyên nhân ATE xấu ở mật độ động thấp) mà vẫn giữ lợi ích ở mật độ động cao — không thêm cảm biến, không học máy.
 5. **Auto-calibrate ngưỡng kích hoạt `ρ_on`:** ước lượng online noise-floor outlier của scene (EMA bất đối xứng) → `ρ_on` tự co giãn theo môi trường, **hyperparameter-free**, dập over-arming khi đổi dataset (vd. `parking_lot` armed% 34–78% → 12–22%).
-6. Đánh giá **chỉ trên dữ liệu gốc đã publish**: **EuRoC** (tĩnh) và **VIODE 3 môi trường** (`city_day`/`city_night`/`parking_lot`, động thật, có ground-truth trajectory + segmentation), bằng ATE, RPE, FPS, rejection ratio, và precision/recall/lift trên **nhãn động thật** — không dùng dữ liệu tự tạo (synthetic overlay). Kèm **phân tích phản ví dụ** (parking_lot, §2d) — điểm cộng trung thực cho reviewer.
+6. **Quality-aware activation:** ngoài tỷ lệ outlier, frame chỉ được arm khi dynamic-candidate đủ dày và median Sampson residual của candidate tách rõ khỏi nền static. Điều này phân biệt động thật với nhiễu hình học/low-parallax degeneration, đồng thời tạo thêm evidence (`candidate_ratio`, `residual_lift`, `quality_ema`) để ablation và trả lời reviewer.
+7. Đánh giá **chỉ trên dữ liệu gốc đã publish**: **EuRoC** (tĩnh) và **VIODE 3 môi trường** (`city_day`/`city_night`/`parking_lot`, động thật, có ground-truth trajectory + segmentation), bằng ATE, RPE, FPS, rejection ratio, và precision/recall/lift trên **nhãn động thật** — không dùng dữ liệu tự tạo (synthetic overlay). Kèm **phân tích phản ví dụ** (parking_lot, §2d) — điểm cộng trung thực cho reviewer.
 
 ---
 
@@ -66,6 +67,7 @@ Không claim quá lớn. Claim đúng là:
 | Ratio guard | ✅ |
 | Scene-aware activation (EMA + hysteresis) | ✅ |
 | Auto-`ρ_on` (B) | ✅ |
+| Quality-aware activation evidence | ✅ |
 | Stereo cross-check (F) | ❌ ablation / future work |
 
 **Config YAML:** `viode_stereo_imu_geodf_adaptive_config.yaml` / `euroc_stereo_imu_geodf_adaptive_config.yaml`  
@@ -196,28 +198,41 @@ if track_length(i) ≥ min_track_cnt
 
 Chỉ feature **outlier RANSAC** và **Sampson cao** mới vào \(C\). Inlier RANSAC không bị xóa dù \(e_i\) lớn (tránh trường hợp ATE phình ~0.685 m khi chỉ dùng ngưỡng Sampson).
 
-**Hard rejection + ratio guard** (đúng theo code, không nhầm ratio với count):
+**Hard rejection + ratio guard + per-frame cap** (đúng theo code, không nhầm ratio với count):
 
 ```text
 N  = số track trước lọc
 K  = floor(ρ_max × N)          # ρ_max = geodf_reject_ratio_max (default 0.40)
 K' = min(K, N − min_feature_num)
+K'' = min(K', max_reject_per_frame)  # nếu cap > 0; adaptive mặc định cap=3
 
 if ratio_guard OFF:
-    reject top min(|C|, K') candidates in C (sort by e_i descending)
+    reject top min(|C|, K'') candidates in C (sort by e_i descending)
 else:
-    if |C| ≤ K':
+    if |C| ≤ K'':
         reject all C                    # guard_triggered = 0
     else:
         guard_triggered = 1
-        reject top K' from C            # bỏ phần dư, giữ candidate Sampson thấp hơn
+        reject top K'' from C           # bỏ phần dư, giữ candidate Sampson thấp hơn
 ```
+
+Per-frame cap làm hard rejection mượt hơn: vẫn ưu tiên candidate có residual cao nhất nhưng tránh xóa đột ngột quá nhiều track trong một frame, giảm rủi ro RPE/local-motion spike.
 
 **Early skip:** nếu `N < min_feature_num` hoặc `N < 8` → bỏ qua GeoDF frame đó (bảo vệ khi feature quá ít).
 
 ### Scene-aware activation (adaptive self-gating) — đóng góp chính
 
 **Vấn đề.** Hard rejection *luôn bật* có một chi phí cố định: cổng kép vẫn loại nhầm ~0.6% feature tĩnh mỗi frame (false positive từ parallax/xoay nhanh làm F suy biến). Ở cảnh **ít vật động (`1_low`/`2_mid`)**, chi phí này có thể **lớn hơn lợi ích** ⇒ ATE-RMSE xấu hơn baseline; ở **`0_none`/`3_high`** always-on có thể cải thiện (+30% / +20% ATE-RMSE trong run mới).
+
+**Quality-aware gate.** Bản nâng cấp hiện tại không arm chỉ vì `ρ` cao. Sau khi tạo candidate bằng dual gate, module tính:
+
+```text
+candidate_ratio = |C| / N_scored
+residual_lift   = median_sampson(C) / median_sampson(non-C)
+quality_score   = clamp(candidate_ratio / r_min) * clamp(residual_lift / l_min)
+```
+
+`quality_score` được làm mượt bằng EMA và kết hợp với hysteresis của `ρ_on`. Frame chỉ hard-reject khi vừa vượt ngưỡng outlier-ratio, vừa có dynamic evidence đủ dày và residual tách khỏi nền. Các cột mới trong `geo_df_stats.csv`: `candidate_ratio`, `quality_score`, `quality_ema`, `residual_lift`, `median_candidate_sampson`, `median_background_sampson`.
 
 **Ý tưởng.** Tự suy ra "scene có đang động không" từ **chính hình học mà bộ lọc đã tính** — không thêm cảm biến/nhãn. Cảnh rigid tĩnh khớp **một** fundamental matrix tốt ⇒ tỷ lệ outlier RANSAC toàn frame thấp; có vật chuyển động độc lập ⇒ tỷ lệ outlier tăng và **kéo dài qua nhiều frame**. Dùng tín hiệu này làm cổng kích hoạt.
 

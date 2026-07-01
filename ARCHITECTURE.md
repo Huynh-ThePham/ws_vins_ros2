@@ -144,6 +144,7 @@ main
  └── baseline/ros2-stereo-vi-slam-euroc-v1
        ├── paper/geodf-adaptive-vins-2026
        ├── paper/geodf-weighted-vins-2026
+       ├── paper/sad-vins-2026
        └── paper/<future-paper>
 ```
 

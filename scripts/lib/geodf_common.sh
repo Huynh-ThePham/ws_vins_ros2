@@ -131,6 +131,16 @@ run_pht_vio_benchmark() {
         return 1
     fi
 
+    # Zero-risk process-level resource capture (peak RSS / CPU% / threads) for the
+    # whole VIO pipeline; self-terminates when the node exits. Optional: skip with
+    # GEODF_NO_RESOURCE=1. Requires no rebuild and does not touch the core algorithm.
+    local sampler_dir; sampler_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [ "${GEODF_NO_RESOURCE:-0}" != "1" ] && [ -f "${sampler_dir}/resource_sampler.py" ]; then
+        python3 "${sampler_dir}/resource_sampler.py" --name pht_vio_node \
+            --out "${out}/resource.json" --interval-ms 500 \
+            > /dev/null 2>&1 &
+    fi
+
     local play_args=(--clock --rate "$rate" --disable-keyboard-controls)
     if [ "$start" != "0" ] && [ -n "$start" ]; then
         play_args+=(--start-offset "$start")

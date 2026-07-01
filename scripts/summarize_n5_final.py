@@ -49,7 +49,10 @@ def imp(base, prop):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="results/geodf_evaluation/PAPER_RESULTS_N5.md")
+    ap.add_argument("--out-json", default="results/geodf_evaluation/paper_results_n5.json")
+    ap.add_argument("--viode-only", action="store_true", help="omit EuRoC static-safety section")
     args = ap.parse_args()
+    bundle = {"viode": {}, "euroc": {}}
     L = []
     L.append("# GeoDF-VINS — N=5 single-build results (mean±std)\n")
     L.append("ATE/RPE RMSE in metres. PROPOSED = adaptive (hard reject + scene-gating + "
@@ -70,6 +73,11 @@ def main():
             rows[f"{e}_{l}"] = dict(b=b, a=a, rb=rb, ra=ra, d=d)
             ds = f"{d:+.1f}%" if d is not None else "n/a"
             L.append(f"| {e} | {l} | {fmt(b)} | {fmt(a)} | {ds} | {fmt(rb)} | {fmt(ra)} |")
+            bundle["viode"][f"{e}/{l}"] = {
+                "baseline_ate": b, "proposed_ate": a,
+                "baseline_rpe": rb, "proposed_rpe": ra,
+                "improvement_pct": d,
+            }
 
     # ---- Determinism view ----
     L.append("\n## Determinism — run-to-run ATE std (lower = more repeatable)\n")
@@ -85,15 +93,17 @@ def main():
                 L.append(f"| {e} | {l} | {b['std']:.3f} | {a['std']:.3f} | {rng} |")
 
     # ---- EuRoC static safety ----
-    L.append("\n## EuRoC — static safety (ATE, baseline vs PROPOSED)\n")
-    L.append("| seq | baseline ATE | PROPOSED ATE | Δ% |")
-    L.append("|---|---|---|---|")
-    for seq in EUROC_SEQS:
-        b = ms(load(f"{EUROC_ROOT}/{seq}_baseline"))
-        a = ms(load(f"{EUROC_ROOT}/{seq}_adaptive"))
-        d = imp(b, a)
-        ds = f"{d:+.1f}%" if d is not None else "n/a"
-        L.append(f"| {seq} | {fmt(b)} | {fmt(a)} | {ds} |")
+    if not args.viode_only:
+        L.append("\n## EuRoC — static safety (ATE, baseline vs PROPOSED)\n")
+        L.append("| seq | baseline ATE | PROPOSED ATE | Δ% |")
+        L.append("|---|---|---|---|")
+        for seq in EUROC_SEQS:
+            b = ms(load(f"{EUROC_ROOT}/{seq}_baseline"))
+            a = ms(load(f"{EUROC_ROOT}/{seq}_adaptive"))
+            d = imp(b, a)
+            ds = f"{d:+.1f}%" if d is not None else "n/a"
+            L.append(f"| {seq} | {fmt(b)} | {fmt(a)} | {ds} |")
+            bundle["euroc"][seq] = {"baseline_ate": b, "proposed_ate": a, "improvement_pct": d}
 
     # ---- aggregate verdict ----
     wins = sum(1 for k, r in rows.items() if r['d'] is not None and r['d'] > 3)
@@ -104,8 +114,13 @@ def main():
 
     os.makedirs(os.path.dirname(args.out), exist_ok=True)
     open(args.out, "w").write("\n".join(L) + "\n")
+    if args.out_json:
+        os.makedirs(os.path.dirname(args.out_json), exist_ok=True)
+        open(args.out_json, "w").write(json.dumps(bundle, indent=2) + "\n")
     print("\n".join(L))
     print(f"\n[ok] wrote {args.out}")
+    if args.out_json:
+        print(f"[ok] wrote {args.out_json}")
 
 
 if __name__ == "__main__":

@@ -18,13 +18,33 @@ from pathlib import Path
 
 
 def _parse_evo_metrics(text: str) -> dict[str, float]:
-    """Extract rmse/mean/median/max from evo stdout."""
+    """Extract rmse/mean/median/max/min/std/sse from evo stdout."""
     out: dict[str, float] = {}
-    for key in ("rmse", "mean", "median", "max", "min", "std"):
+    for key in ("rmse", "mean", "median", "max", "min", "std", "sse"):
         m = re.search(rf"^\s*{key}\s+([0-9.eE+-]+)\s*$", text, re.MULTILINE)
         if m:
             out[key] = float(m.group(1))
     return out
+
+
+def _tum_span_s(tum_path: Path) -> tuple[float, float, float]:
+    """Return (t_first, t_last, duration_s) from a TUM trajectory file."""
+    first = last = None
+    with tum_path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                t = float(line.split()[0])
+            except (ValueError, IndexError):
+                continue
+            if first is None:
+                first = t
+            last = t
+    if first is None or last is None:
+        return 0.0, 0.0, 0.0
+    return first, last, max(0.0, last - first)
 
 
 def _parse_run_metadata(eval_dir: Path, run_name: str = "") -> dict:
@@ -136,17 +156,40 @@ def main():
     meta = _parse_run_metadata(args.out_dir, args.run_name)
     if args.run_name:
         meta["run_dir"] = args.run_name
+
+    # Trajectory coverage / divergence flag: an estimator that diverges or
+    # crashes early yields a short trajectory whose ATE is not comparable to a
+    # full run. Coverage = estimated duration / ground-truth duration.
+    est_t0, est_t1, est_dur = _tum_span_s(est)
+    gt_t0, gt_t1, gt_dur = _tum_span_s(gt)
+    coverage = (est_dur / gt_dur) if gt_dur > 0 else 0.0
+    complete = coverage >= 0.90  # <90% of GT time span -> flag for review
+
     metrics = {
         **meta,
         "ate_rmse_m": ate_metrics.get("rmse"),
         "ate_mean_m": ate_metrics.get("mean"),
         "ate_median_m": ate_metrics.get("median"),
+        "ate_std_m": ate_metrics.get("std"),
+        "ate_min_m": ate_metrics.get("min"),
         "ate_max_m": ate_metrics.get("max"),
         "rpe_rmse_m": rpe_metrics.get("rmse"),
+        "rpe_mean_m": rpe_metrics.get("mean"),
+        "rpe_median_m": rpe_metrics.get("median"),
+        "rpe_std_m": rpe_metrics.get("std"),
+        "rpe_max_m": rpe_metrics.get("max"),
         "n_poses_est": n_est,
         "n_poses_gt": n_gt,
+        "est_duration_s": round(est_dur, 3),
+        "gt_duration_s": round(gt_dur, 3),
+        "coverage_pct": round(100.0 * coverage, 2),
+        "trajectory_complete": complete,
     }
     (args.out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
+    if not complete:
+        print(f"[WARN] low trajectory coverage {metrics['coverage_pct']:.1f}% "
+              f"(est {est_dur:.1f}s / gt {gt_dur:.1f}s) — possible divergence",
+              file=sys.stderr)
     rmse = metrics["ate_rmse_m"]
     if rmse is not None:
         print(f"[metrics] ate_rmse={rmse:.4f} m -> {args.out_dir / 'metrics.json'}")

@@ -51,6 +51,9 @@ for level in $LEVELS; do
             python3 "${WS}/scripts/evaluate_trajectory.py" \
                 "${out}/vio.csv" "$gt" "${out}/eval" --no-plot \
                 --run-name "${VIODE_ENV}_${level}_${method}_t${i}" || echo "[warn] eval failed"
+            if [ "$method" != "baseline" ]; then
+                python3 "${WS}/scripts/geodf_filter_metrics.py" --run-dir "$out" 2>/dev/null || true
+            fi
         done
     done
 done

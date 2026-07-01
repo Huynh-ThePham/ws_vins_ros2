@@ -4,7 +4,7 @@ Frozen reference for **SGTA-VINS**: Semantic–Geometric–Temporal Adaptive ste
 
 **Recommended tag:** `paper-sgta-vins-2026-freeze`  
 **Worktree:** `/home/theph/ws_vins_ros2_sadvins`  
-**Supersedes:** semantic-only [SAD-VINS](SAD-VINS-FREEZE.md) on the same branch (SAD remains the `sad_sem` ablation).
+**Supersedes:** semantic-only [SAD-VINS](SAD-VINS-FREEZE.md) on the same branch (SAD remains the `sad_sem` ablation). Current implementation adds SGTA+ inertial reliability weighting; rerun N-repeat before updating final paper tables.
 
 ## What is frozen
 
@@ -62,6 +62,10 @@ sgta_aggressive_sem_on: 0.012
 sgta_aggressive_sem_off: 0.008
 sgta_aggressive_hold_frames: 45
 sgta_soft_weight_enable: 1
+sgta_backend_temporal_weight: 1
+sgta_inertial_epipolar_enable: 1
+sgta_inertial_median_mult: 5.0
+sgta_inertial_max_dyn_frac: 0.60
 ```
 
 Policy signal: `EMA(sqrt(dynamic_pixel_ratio × scene_observation))`.
@@ -81,12 +85,12 @@ Realtime protocol: [REALTIME_BENCHMARK.md](REALTIME_BENCHMARK.md)
 
 ## Paper claim (safe)
 
-> SGTA-VINS fuses semantic priors, adaptive epipolar geometry, and temporal dynamic probability for uncertainty-aware front-end gating and optional soft visual weighting, deployed as a decoupled ROS 2 pipeline that maintains ~10 Hz odometry at 1.0× sensor playback on GPU.
+> SGTA-VINS fuses semantic priors, adaptive epipolar geometry, inertial rigidity checks, and temporal dynamic probability for uncertainty-aware front-end gating and soft visual weighting, deployed as a decoupled ROS 2 pipeline that maintains ~10 Hz odometry at 1.0× sensor playback on GPU.
 
-Do **not** claim: first YOLO-VINS, TISA track arbitration, or GeoDF-Hybrid IMU.
+Do **not** claim: first YOLO-VINS, TISA track arbitration, or final SGTA+ superiority before rerunning the full N-repeat VIODE/EuRoC protocol.
 
 ## Diagnostics
 
 - `sem_stats.csv` — semantic mask / reject summary  
-- `geo_df_stats.csv` — SGTA geometry, Policy-2 signal, `sgta_aggressive`  
+- `geo_df_stats.csv` — SGTA geometry, Policy-2 signal, inertial mode, pose reliability, mean weight
 - `results/realtime_benchmark/realtime_summary.json` — latency / throughput  

@@ -21,6 +21,9 @@ using namespace std;
 const double FOCAL_LENGTH = 460.0;
 const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
+const int FEATURE_OBS_SIZE = 8;
+
+using FeatureObservation = Eigen::Matrix<double, FEATURE_OBS_SIZE, 1>;
 
 struct VinsConfig
 {
@@ -115,12 +118,25 @@ struct VinsConfig
     int sgta_soft_weight_enable = 0;
     double sgta_soft_weight_min = 0.25;
     double sgta_soft_weight_power = 1.0;
+    int sgta_backend_temporal_weight = 1;
+    double sgta_backend_temporal_attack = 0.45;
+    double sgta_backend_temporal_recovery = 0.12;
     int sgta_imu_gate_enable = 0;
     double sgta_imu_flow_th_px = 8.0;
     double sgta_imu_dynamic_obs = 0.75;
+    int sgta_inertial_epipolar_enable = 0;
+    double sgta_inertial_sampson_th = 3.0;
+    double sgta_inertial_parallax_min = 0.02;
+    double sgta_inertial_parallax_ref = 0.08;
+    double sgta_inertial_tau_cap = 4.0;
+    double sgta_inertial_median_mult = 5.0;
+    double sgta_inertial_max_dyn_frac = 0.60;
+    int sgta_inertial_derotate = 1;
+    double sgta_inertial_derotate_px = 3.0;
     std::string geodf_stats_path;
     std::string geodf_features_path;
     std::map<int, double> feature_dynamic_prob;
+    std::map<int, double> feature_dynamic_weight;
 
     void reset();
     bool loadFromYaml(const std::string &config_file);

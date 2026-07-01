@@ -37,7 +37,7 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(
+    map<int, vector<pair<int, FeatureObservation>>> trackImage(
         double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(),
         const cv::Mat &_sem_mask = cv::Mat(), double _sem_mask_lag_ms = -1.0);
     void setMask();
@@ -48,6 +48,7 @@ public:
     bool applySemanticSoftMask() const;
     double computeDynamicPixelRatio(int &mask_available) const;
     void setLatestCameraGyro(double t, const Eigen::Vector3d &gyro);
+    void setImuEpipolar(const Eigen::Matrix3d &R_rel, const Eigen::Vector3d &t_rel, bool valid);
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
     void rejectWithF();
@@ -102,6 +103,11 @@ public:
     bool sem_mask_trusted = false;
     double latest_gyro_time = -1.0;
     Eigen::Vector3d latest_cam_gyro = Eigen::Vector3d::Zero();
+    Eigen::Matrix3d imu_R_rel = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d imu_t_rel = Eigen::Vector3d::Zero();
+    bool imu_epi_valid = false;
+    double imu_t_norm = 0.0;
     map<int, double> dynamic_prob;
     map<int, int> dynamic_streak;
+    map<int, double> dynamic_belief;
 };

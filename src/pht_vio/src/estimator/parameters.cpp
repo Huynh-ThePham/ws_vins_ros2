@@ -110,9 +110,21 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     readOptionalInt(fsSettings, "sgta_soft_weight_enable", sgta_soft_weight_enable);
     readOptionalDouble(fsSettings, "sgta_soft_weight_min", sgta_soft_weight_min);
     readOptionalDouble(fsSettings, "sgta_soft_weight_power", sgta_soft_weight_power);
+    readOptionalInt(fsSettings, "sgta_backend_temporal_weight", sgta_backend_temporal_weight);
+    readOptionalDouble(fsSettings, "sgta_backend_temporal_attack", sgta_backend_temporal_attack);
+    readOptionalDouble(fsSettings, "sgta_backend_temporal_recovery", sgta_backend_temporal_recovery);
     readOptionalInt(fsSettings, "sgta_imu_gate_enable", sgta_imu_gate_enable);
     readOptionalDouble(fsSettings, "sgta_imu_flow_th_px", sgta_imu_flow_th_px);
     readOptionalDouble(fsSettings, "sgta_imu_dynamic_obs", sgta_imu_dynamic_obs);
+    readOptionalInt(fsSettings, "sgta_inertial_epipolar_enable", sgta_inertial_epipolar_enable);
+    readOptionalDouble(fsSettings, "sgta_inertial_sampson_th", sgta_inertial_sampson_th);
+    readOptionalDouble(fsSettings, "sgta_inertial_parallax_min", sgta_inertial_parallax_min);
+    readOptionalDouble(fsSettings, "sgta_inertial_parallax_ref", sgta_inertial_parallax_ref);
+    readOptionalDouble(fsSettings, "sgta_inertial_tau_cap", sgta_inertial_tau_cap);
+    readOptionalDouble(fsSettings, "sgta_inertial_median_mult", sgta_inertial_median_mult);
+    readOptionalDouble(fsSettings, "sgta_inertial_max_dyn_frac", sgta_inertial_max_dyn_frac);
+    readOptionalInt(fsSettings, "sgta_inertial_derotate", sgta_inertial_derotate);
+    readOptionalDouble(fsSettings, "sgta_inertial_derotate_px", sgta_inertial_derotate_px);
 
     multiple_thread = fsSettings["multiple_thread"];
 
@@ -162,21 +174,24 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                        "guard_triggered,guard_capped,activation_signal,frame_active,geo_ms,"
                        "rho_on,outlier_floor,sem_candidates,sem_confirmed,imu_outliers,"
                        "mask_available,mask_trusted,mask_lag_ms,sgta_policy_signal,"
-                       "sgta_aggressive\n";
+                       "sgta_aggressive,inertial_mode,inertial_tau,inertial_parallax,"
+                       "pose_unreliable,mean_weight\n";
         geodf_stats.close();
 
         if (geodf_dump_features) {
             geodf_features_path = output_folder + "/geo_df_features.csv";
             std::ofstream geodf_features(geodf_features_path, std::ios::out);
             geodf_features << "timestamp_ns,feature_id,track_cnt,semantic_dynamic,"
-                              "ransac_outlier,sampson,p_dyn,rejected\n";
+                              "ransac_outlier,sampson,p_dyn,rejected,weight\n";
             geodf_features.close();
         }
 
-        ROS_INFO("GeoDF/SGTA dynamic gating enabled: adaptive=%d sampson_th=%.3f reject_cap=%.2f auto_rho=%d vote=%d warmup=%d policy=%d soft_weight=%d imu_gate=%d",
+        ROS_INFO("GeoDF/SGTA dynamic gating enabled: adaptive=%d sampson_th=%.3f reject_cap=%.2f auto_rho=%d vote=%d warmup=%d policy=%d soft_weight=%d temporal_weight=%d gyro_gate=%d inertial_epi=%d",
                  geodf_adaptive, geodf_sampson_th, geodf_reject_ratio_max,
                  geodf_auto_rho, geodf_vote_frames, geodf_warmup_frames,
-                 sgta_policy_enable, sgta_soft_weight_enable, sgta_imu_gate_enable);
+                 sgta_policy_enable, sgta_soft_weight_enable,
+                 sgta_backend_temporal_weight, sgta_imu_gate_enable,
+                 sgta_inertial_epipolar_enable);
     }
 
     estimate_extrinsic = fsSettings["estimate_extrinsic"];

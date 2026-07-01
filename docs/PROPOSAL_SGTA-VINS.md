@@ -5,7 +5,7 @@
 
 ## Goal
 
-Move beyond YOLO hard-mask VINS by estimating **per-feature dynamic uncertainty** and using it in front-end gating and optional visual residual soft-weighting, with **scene-adaptive Policy-2** and **ROS 2 async** semantic inference.
+Move beyond YOLO hard-mask VINS by estimating **per-feature dynamic uncertainty** and using it in front-end gating and visual residual soft-weighting, with **scene-adaptive Policy-2**, inertial rigidity checks, and **ROS 2 async** semantic inference.
 
 ## Pipeline
 
@@ -13,7 +13,8 @@ Move beyond YOLO hard-mask VINS by estimating **per-feature dynamic uncertainty*
 /cam0 ──► mask_node (YOLOv11n-seg, GPU, async) ──► /dynamic_mask
 /cam0,/cam1,/imu ──► pht_vio_node
                        └─ FeatureTracker: SGTA + GeoDF adaptive
-                       └─ optional soft-weight projection factors
+                       └─ inertial epipolar / derotation reliability check
+                       └─ temporal soft-weight projection factors
                        └─ VINS-Fusion backend (stereo + IMU)
 ```
 
@@ -25,6 +26,7 @@ Move beyond YOLO hard-mask VINS by estimating **per-feature dynamic uncertainty*
 |--------|--------|
 | Semantic prior | YOLO mask on cam0 |
 | Geometric inconsistency | F temporal + Sampson (+ RANSAC gate) |
+| Inertial rigidity | IMU-propagated relative camera pose, epipolar / derotation residual |
 | Temporal persistence | EMA `p_dynamic`, vote frames, warmup |
 
 ### 2. Scene activation (GeoDF adaptive)
@@ -45,9 +47,16 @@ aggressive (policy_signal ≥ 0.012, hold 45 frames):
   ρ_on=0.05, vote=1, warmup=0, mask ungated, prob_th=0.45
 ```
 
-### 4. Soft backend (optional)
+### 4. SGTA+ inertial backend weighting
 
-`visual residual weight = max(w_min, (1 - p_dynamic)^power)`
+- Inertial epipolar scoring uses propagated pose to avoid fitting F to dynamic-majority features.
+- Low-parallax frames use gyro/pose derotation residuals instead of epipolar distance.
+- A robust median gate and `sgta_inertial_max_dyn_frac` skip unreliable propagated-pose frames.
+- Measurement confidence is exported as the 8th feature observation component and applied to residuals and Jacobians.
+
+```text
+visual residual weight = max(w_min, (1 - p_dynamic)^power)
+```
 
 ### 5. ROS 2 async integration
 
@@ -85,8 +94,14 @@ sgta_aggressive_sem_on: 0.012
 sgta_aggressive_sem_off: 0.008
 sgta_aggressive_hold_frames: 45
 sgta_soft_weight_enable: 1
+sgta_backend_temporal_weight: 1
+sgta_inertial_epipolar_enable: 1
+sgta_inertial_median_mult: 5.0
+sgta_inertial_max_dyn_frac: 0.60
 sgta_imu_gate_enable: 0   # ablation only
 ```
+
+The inertial SGTA+ path is code-complete and build-verified; rerun N-repeat VIODE/EuRoC before replacing the evidence snapshot below with final paper numbers.
 
 ## Run
 

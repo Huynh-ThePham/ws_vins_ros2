@@ -108,6 +108,13 @@ void Estimator::clearState()
 
     f_manager.clearState();
 
+    sgta_epi_prev_R.setIdentity();
+    sgta_epi_prev_P.setZero();
+    sgta_epi_have_prev = false;
+    featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero(), false);
+    vinsConfig().feature_dynamic_prob.clear();
+    vinsConfig().feature_dynamic_weight.clear();
+
     failure_occur = 0;
 
     mProcess.unlock();
@@ -182,8 +189,11 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1,
                            const cv::Mat &_sem_mask, double sem_mask_lag_ms)
 {
     inputImageCnt++;
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+    map<int, vector<pair<int, FeatureObservation>>> featureFrame;
     TicToc featureTrackerTime;
+
+    if (vinsConfig().sgta_inertial_epipolar_enable)
+        pushSgtaInertialEpipolarAtImage(t);
 
     if(_img1.empty())
         featureFrame = featureTracker.trackImage(t, _img, cv::Mat(), _sem_mask, sem_mask_lag_ms);
@@ -239,7 +249,7 @@ void Estimator::inputIMU(double t, const Vector3d &linearAcceleration, const Vec
     }
 }
 
-void Estimator::inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame)
+void Estimator::inputFeature(double t, const map<int, vector<pair<int, FeatureObservation>>> &featureFrame)
 {
     mBuf.lock();
     featureBuf.push(make_pair(t, featureFrame));
@@ -298,7 +308,7 @@ void Estimator::processMeasurements()
     while (1)
     {
         //printf("process measurments\n");
-        pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > feature;
+        pair<double, map<int, vector<pair<int, FeatureObservation > > > > feature;
         vector<pair<double, Eigen::Vector3d>> accVector, gyrVector;
         if(!featureBuf.empty())
         {
@@ -427,7 +437,7 @@ void Estimator::processIMU(double t, double dt, const Vector3d &linear_accelerat
     gyr_0 = angular_velocity; 
 }
 
-void Estimator::processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header)
+void Estimator::processImage(const map<int, vector<pair<int, FeatureObservation>>> &image, const double header)
 {
     ROS_DEBUG( "new image coming ------------------------------------------");
     ROS_DEBUG( "Adding feature points %lu", image.size());
@@ -1090,6 +1100,10 @@ void Estimator::optimization()
         const double base = std::pow(std::max(0.0, 1.0 - p), std::max(0.0, cfg.sgta_soft_weight_power));
         return std::max(cfg.sgta_soft_weight_min, base);
     };
+    auto fusedVisualWeight = [&](const FeaturePerFrame &a, const FeaturePerFrame &b, bool right_b) {
+        const double obs_weight = std::min(a.weight, right_b ? b.weightRight : b.weight);
+        return std::min(obs_weight, dynamicVisualWeight(a.dynamic_prob, b.dynamic_prob));
+    };
     for (auto &it_per_id : f_manager.feature)
     {
         it_per_id.used_num = it_per_id.feature_per_frame.size();
@@ -1101,8 +1115,6 @@ void Estimator::optimization()
         int imu_i = it_per_id.start_frame, imu_j = imu_i - 1;
         
         Vector3d pts_i = it_per_id.feature_per_frame[0].point;
-        const double p_dyn_i = it_per_id.feature_per_frame[0].dynamic_prob;
-
         for (auto &it_per_frame : it_per_id.feature_per_frame)
         {
             imu_j++;
@@ -1111,7 +1123,7 @@ void Estimator::optimization()
                 Vector3d pts_j = it_per_frame.point;
                 ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                f_td->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                f_td->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, false));
                 problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
             }
 
@@ -1122,14 +1134,14 @@ void Estimator::optimization()
                 {
                     ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                    f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                    f->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, true));
                     problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                 else
                 {
                     ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                    f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                    f->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, true));
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                
@@ -1217,8 +1229,6 @@ void Estimator::optimization()
                     continue;
 
                 Vector3d pts_i = it_per_id.feature_per_frame[0].point;
-                const double p_dyn_i = it_per_id.feature_per_frame[0].dynamic_prob;
-
                 for (auto &it_per_frame : it_per_id.feature_per_frame)
                 {
                     imu_j++;
@@ -1227,7 +1237,7 @@ void Estimator::optimization()
                         Vector3d pts_j = it_per_frame.point;
                         ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                        f_td->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                        f_td->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, false));
                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
                                                                                         vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
                                                                                         vector<int>{0, 3});
@@ -1240,7 +1250,7 @@ void Estimator::optimization()
                         {
                             ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                            f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                            f->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, true));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{0, 4});
@@ -1250,7 +1260,7 @@ void Estimator::optimization()
                         {
                             ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td);
-                            f->setDynamicWeight(dynamicVisualWeight(p_dyn_i, it_per_frame.dynamic_prob));
+                            f->setDynamicWeight(fusedVisualWeight(it_per_id.feature_per_frame[0], it_per_frame, true));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{2});
@@ -1529,6 +1539,44 @@ void Estimator::predictPtsInNextFrame()
     }
     featureTracker.setPrediction(predictPts);
     //printf("estimator output %d predict pts\n",(int)predictPts.size());
+}
+
+void Estimator::pushSgtaInertialEpipolarAtImage(double /*t*/)
+{
+    if (solver_flag != NON_LINEAR)
+    {
+        featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero(), false);
+        sgta_epi_have_prev = false;
+        return;
+    }
+
+    mPropagate.lock();
+    const Eigen::Matrix3d cur_R = latest_Q.toRotationMatrix();
+    const Eigen::Vector3d cur_P = latest_P;
+    mPropagate.unlock();
+
+    if (sgta_epi_have_prev)
+    {
+        const Eigen::Matrix3d &Ric = ric[0];
+        const Eigen::Vector3d &Tic = tic[0];
+        const Eigen::Matrix3d &Ra = sgta_epi_prev_R;
+        const Eigen::Matrix3d &Rb = cur_R;
+        const Eigen::Vector3d &Pa = sgta_epi_prev_P;
+        const Eigen::Vector3d &Pb = cur_P;
+
+        const Eigen::Matrix3d R_rel = Ric.transpose() * Rb.transpose() * Ra * Ric;
+        const Eigen::Vector3d t_rel = Ric.transpose() * Rb.transpose() *
+                                      (Ra * Tic + Pa - Rb * Tic - Pb);
+        featureTracker.setImuEpipolar(R_rel, t_rel, true);
+    }
+    else
+    {
+        featureTracker.setImuEpipolar(Eigen::Matrix3d::Identity(), Eigen::Vector3d::Zero(), false);
+    }
+
+    sgta_epi_prev_R = cur_R;
+    sgta_epi_prev_P = cur_P;
+    sgta_epi_have_prev = true;
 }
 
 double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,

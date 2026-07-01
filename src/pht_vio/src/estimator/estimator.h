@@ -58,11 +58,11 @@ class Estimator
     // interface
     void initFirstPose(Eigen::Vector3d p, Eigen::Matrix3d r);
     void inputIMU(double t, const Vector3d &linearAcceleration, const Vector3d &angularVelocity);
-    void inputFeature(double t, const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &featureFrame);
+    void inputFeature(double t, const map<int, vector<pair<int, FeatureObservation>>> &featureFrame);
     void inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(),
                     const cv::Mat &_sem_mask = cv::Mat(), double sem_mask_lag_ms = -1.0);
     void processIMU(double t, double dt, const Vector3d &linear_acceleration, const Vector3d &angular_velocity);
-    void processImage(const map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> &image, const double header);
+    void processImage(const map<int, vector<pair<int, FeatureObservation>>> &image, const double header);
     void processMeasurements();
     void changeSensorType(int use_imu, int use_stereo);
 
@@ -91,6 +91,7 @@ class Estimator
     void fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity);
     bool IMUAvailable(double t);
     void initFirstIMUPose(vector<pair<double, Eigen::Vector3d>> &accVector);
+    void pushSgtaInertialEpipolarAtImage(double t);
 
     enum SolverFlag
     {
@@ -109,7 +110,7 @@ class Estimator
     std::mutex mPropagate;
     queue<pair<double, Eigen::Vector3d>> accBuf;
     queue<pair<double, Eigen::Vector3d>> gyrBuf;
-    queue<pair<double, map<int, vector<pair<int, Eigen::Matrix<double, 7, 1> > > > > > featureBuf;
+    queue<pair<double, map<int, vector<pair<int, FeatureObservation > > > > > featureBuf;
     double prevTime, curTime;
     bool openExEstimation;
 
@@ -183,6 +184,9 @@ class Estimator
     double latest_time;
     Eigen::Vector3d latest_P, latest_V, latest_Ba, latest_Bg, latest_acc_0, latest_gyr_0;
     Eigen::Quaterniond latest_Q;
+    Eigen::Matrix3d sgta_epi_prev_R = Eigen::Matrix3d::Identity();
+    Eigen::Vector3d sgta_epi_prev_P = Eigen::Vector3d::Zero();
+    bool sgta_epi_have_prev = false;
 
     bool initFirstPoseFlag;
     bool initThreadFlag;

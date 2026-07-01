@@ -12,9 +12,97 @@
 #include "feature_tracker.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
 #include <numeric>
 #include <set>
 #include <opencv2/imgproc/imgproc_c.h>
+
+namespace {
+
+double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2f &p2)
+{
+    const double f11 = F.at<double>(0, 0), f12 = F.at<double>(0, 1), f13 = F.at<double>(0, 2);
+    const double f21 = F.at<double>(1, 0), f22 = F.at<double>(1, 1), f23 = F.at<double>(1, 2);
+    const double f31 = F.at<double>(2, 0), f32 = F.at<double>(2, 1), f33 = F.at<double>(2, 2);
+
+    const double x1 = p1.x, y1 = p1.y;
+    const double x2 = p2.x, y2 = p2.y;
+    const double Fx1x = f11 * x1 + f12 * y1 + f13;
+    const double Fx1y = f21 * x1 + f22 * y1 + f23;
+    const double Ftx2x = f11 * x2 + f21 * y2 + f31;
+    const double Ftx2y = f12 * x2 + f22 * y2 + f32;
+    const double num = x2 * Fx1x + y2 * Fx1y + f31 * x1 + f32 * y1 + f33;
+    const double denom = Fx1x * Fx1x + Fx1y * Fx1y + Ftx2x * Ftx2x + Ftx2y * Ftx2y;
+    if (denom < 1e-12)
+        return 0.0;
+    return (num * num) / denom;
+}
+
+cv::Mat imuFundamental(const Eigen::Matrix3d &R_rel, const Eigen::Vector3d &t_rel,
+                       double f, double cx, double cy)
+{
+    Eigen::Vector3d t = t_rel;
+    const double n = t.norm();
+    if (n < 1e-9)
+        return cv::Mat();
+    t /= n;
+    Eigen::Matrix3d tx;
+    tx << 0.0, -t.z(), t.y(),
+          t.z(), 0.0, -t.x(),
+         -t.y(), t.x(), 0.0;
+    const Eigen::Matrix3d E = tx * R_rel;
+    Eigen::Matrix3d Kinv;
+    Kinv << 1.0 / f, 0.0, -cx / f,
+            0.0, 1.0 / f, -cy / f,
+            0.0, 0.0, 1.0;
+    const Eigen::Matrix3d Feig = Kinv.transpose() * E.transpose() * Kinv;
+    cv::Mat F(3, 3, CV_64F);
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
+            F.at<double>(r, c) = Feig(r, c);
+    return F;
+}
+
+cv::Mat imuRotationHomography(const Eigen::Matrix3d &R_rel, double f, double cx, double cy)
+{
+    Eigen::Matrix3d K;
+    K << f, 0.0, cx,
+         0.0, f, cy,
+         0.0, 0.0, 1.0;
+    Eigen::Matrix3d Kinv;
+    Kinv << 1.0 / f, 0.0, -cx / f,
+            0.0, 1.0 / f, -cy / f,
+            0.0, 0.0, 1.0;
+    const Eigen::Matrix3d Heig = K * R_rel * Kinv;
+    cv::Mat H(3, 3, CV_64F);
+    for (int r = 0; r < 3; r++)
+        for (int c = 0; c < 3; c++)
+            H.at<double>(r, c) = Heig(r, c);
+    return H;
+}
+
+cv::Point2f applyHomography(const cv::Mat &H, const cv::Point2f &p)
+{
+    const double x = H.at<double>(0, 0) * p.x + H.at<double>(0, 1) * p.y + H.at<double>(0, 2);
+    const double y = H.at<double>(1, 0) * p.x + H.at<double>(1, 1) * p.y + H.at<double>(1, 2);
+    const double w = H.at<double>(2, 0) * p.x + H.at<double>(2, 1) * p.y + H.at<double>(2, 2);
+    if (std::fabs(w) < 1e-12)
+        return p;
+    return cv::Point2f(static_cast<float>(x / w), static_cast<float>(y / w));
+}
+
+double visualWeightFromDynamicProb(double p)
+{
+    const auto &cfg = vinsConfig();
+    if (!cfg.sgta_soft_weight_enable)
+        return 1.0;
+    p = std::clamp(p, 0.0, 1.0);
+    const double base = std::pow(std::max(0.0, 1.0 - p),
+                                 std::max(0.0, cfg.sgta_soft_weight_power));
+    return std::max(std::clamp(cfg.sgta_soft_weight_min, 0.0, 1.0), base);
+}
+
+}  // namespace
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
 {
@@ -66,12 +154,25 @@ FeatureTracker::FeatureTracker()
     sem_mask_trusted = false;
     latest_gyro_time = -1.0;
     latest_cam_gyro.setZero();
+    imu_R_rel.setIdentity();
+    imu_t_rel.setZero();
+    imu_epi_valid = false;
+    imu_t_norm = 0.0;
 }
 
 void FeatureTracker::setLatestCameraGyro(double t, const Eigen::Vector3d &gyro)
 {
     latest_gyro_time = t;
     latest_cam_gyro = gyro;
+}
+
+void FeatureTracker::setImuEpipolar(const Eigen::Matrix3d &R_rel,
+                                    const Eigen::Vector3d &t_rel, bool valid)
+{
+    imu_R_rel = R_rel;
+    imu_t_rel = t_rel;
+    imu_t_norm = t_rel.norm();
+    imu_epi_valid = valid;
 }
 
 bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
@@ -213,6 +314,21 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
     vector<double> scored_sampson;
     scored_sampson.reserve(scored_indices.size());
 
+    vector<cv::Point2f> prev_norm_all(total), cur_norm_all(total);
+    for (int i = 0; i < total; i++)
+    {
+        Eigen::Vector3d tmp_p;
+        m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[i].x, prev_pts[i].y), tmp_p);
+        prev_norm_all[i] = cv::Point2f(
+            FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
+            FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
+
+        m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y), tmp_p);
+        cur_norm_all[i] = cv::Point2f(
+            FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
+            FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
+    }
+
     if (static_cast<int>(scored_indices.size()) >= std::max(8, cfg.geodf_min_feature_num))
     {
         vector<cv::Point2f> prev_norm, cur_norm;
@@ -220,16 +336,8 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
         cur_norm.reserve(scored_indices.size());
         for (int idx : scored_indices)
         {
-            Eigen::Vector3d tmp_p;
-            m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[idx].x, prev_pts[idx].y), tmp_p);
-            prev_norm.emplace_back(
-                FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
-                FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
-
-            m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[idx].x, cur_pts[idx].y), tmp_p);
-            cur_norm.emplace_back(
-                FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + col / 2.0,
-                FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + row / 2.0);
+            prev_norm.push_back(prev_norm_all[idx]);
+            cur_norm.push_back(cur_norm_all[idx]);
         }
 
         vector<uchar> inlier_status;
@@ -272,6 +380,89 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
     }
 
     int imu_outliers = 0;
+    int inertial_mode = 0;  // 0=off, 1=epipolar, 2=derotation
+    double inertial_tau = 0.0;
+    double inertial_parallax = imu_t_norm;
+    bool pose_unreliable = false;
+    if (cfg.sgta_inertial_epipolar_enable && imu_epi_valid &&
+        static_cast<int>(scored_indices.size()) >= std::max(8, cfg.geodf_min_feature_num))
+    {
+        cv::Mat F_imu;
+        cv::Mat H_derot;
+        if (imu_t_norm >= cfg.sgta_inertial_parallax_min)
+        {
+            F_imu = imuFundamental(imu_R_rel, imu_t_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+            if (!F_imu.empty())
+            {
+                inertial_mode = 1;
+                double scale = cfg.sgta_inertial_parallax_ref / std::max(imu_t_norm, 1e-6);
+                scale = std::clamp(scale, 1.0, std::max(1.0, cfg.sgta_inertial_tau_cap));
+                inertial_tau = cfg.sgta_inertial_sampson_th * scale;
+            }
+        }
+        else if (cfg.sgta_inertial_derotate)
+        {
+            H_derot = imuRotationHomography(imu_R_rel, FOCAL_LENGTH, col / 2.0, row / 2.0);
+            if (!H_derot.empty())
+            {
+                inertial_mode = 2;
+                inertial_tau = cfg.sgta_inertial_derotate_px;
+            }
+        }
+
+        if (inertial_mode != 0 && inertial_tau > 1e-12)
+        {
+            vector<double> inertial_errors(total, 0.0);
+            vector<double> scored_inertial_errors;
+            scored_inertial_errors.reserve(scored_indices.size());
+            for (int idx : scored_indices)
+            {
+                if (inertial_mode == 1)
+                {
+                    inertial_errors[idx] = sampsonDistance(F_imu, cur_norm_all[idx], prev_norm_all[idx]);
+                }
+                else
+                {
+                    const cv::Point2f pred = applyHomography(H_derot, prev_norm_all[idx]);
+                    const double dx = cur_norm_all[idx].x - pred.x;
+                    const double dy = cur_norm_all[idx].y - pred.y;
+                    inertial_errors[idx] = std::sqrt(dx * dx + dy * dy);
+                }
+                scored_inertial_errors.push_back(inertial_errors[idx]);
+            }
+
+            if (cfg.sgta_inertial_median_mult > 0.0 && !scored_inertial_errors.empty())
+            {
+                std::vector<double> tmp(scored_inertial_errors);
+                const size_t mid = tmp.size() / 2;
+                std::nth_element(tmp.begin(), tmp.begin() + mid, tmp.end());
+                inertial_tau = std::max(inertial_tau, cfg.sgta_inertial_median_mult * tmp[mid]);
+            }
+
+            int inertial_candidates = 0;
+            for (int idx : scored_indices)
+                inertial_candidates += inertial_errors[idx] > inertial_tau ? 1 : 0;
+            const double inertial_frac = scored_indices.empty()
+                                             ? 0.0
+                                             : static_cast<double>(inertial_candidates) /
+                                                   static_cast<double>(scored_indices.size());
+            pose_unreliable = cfg.sgta_inertial_max_dyn_frac > 0.0 &&
+                              inertial_frac > cfg.sgta_inertial_max_dyn_frac;
+            if (!pose_unreliable)
+            {
+                for (int idx : scored_indices)
+                {
+                    if (inertial_errors[idx] > inertial_tau)
+                    {
+                        if (!imu_dynamic[idx])
+                            imu_outliers++;
+                        imu_dynamic[idx] = 1;
+                    }
+                }
+            }
+        }
+    }
+
     if (cfg.sgta_imu_gate_enable && prev_time > 0 && cur_time > prev_time &&
         m_camera.size() > 0 && latest_gyro_time > 0)
     {
@@ -288,8 +479,9 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
                 std::hypot(cur_pts[i].x - pred_px.x(), cur_pts[i].y - pred_px.y());
             if (flow_residual > cfg.sgta_imu_flow_th_px)
             {
+                if (!imu_dynamic[i])
+                    imu_outliers++;
                 imu_dynamic[i] = 1;
-                imu_outliers++;
             }
         }
     }
@@ -420,6 +612,35 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
         }
     }
 
+    double mean_weight = 1.0;
+    if (cfg.sgta_soft_weight_enable)
+    {
+        double weight_sum = 0.0;
+        for (int i = 0; i < total; i++)
+        {
+            double p_for_weight = p_dyn[i];
+            if (cfg.sgta_backend_temporal_weight)
+            {
+                const auto old_it = dynamic_belief.find(ids[i]);
+                const double old_belief = old_it == dynamic_belief.end() ? 0.0 : old_it->second;
+                const double attack = std::clamp(cfg.sgta_backend_temporal_attack, 0.0, 1.0);
+                const double recovery = std::clamp(cfg.sgta_backend_temporal_recovery, 0.0, 1.0);
+                const double alpha = p_dyn[i] > old_belief ? attack : recovery;
+                p_for_weight = alpha * p_dyn[i] + (1.0 - alpha) * old_belief;
+                dynamic_belief[ids[i]] = std::clamp(p_for_weight, 0.0, 1.0);
+            }
+            const double weight = visualWeightFromDynamicProb(p_for_weight);
+            cfg.feature_dynamic_weight[ids[i]] = weight;
+            weight_sum += weight;
+        }
+        mean_weight = total > 0 ? weight_sum / total : 1.0;
+    }
+    else
+    {
+        for (int i = 0; i < total; i++)
+            cfg.feature_dynamic_weight[ids[i]] = 1.0;
+    }
+
     std::map<int, int> next_streak;
     for (int i = 0; i < total; i++)
     {
@@ -506,10 +727,24 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
             else
                 ++it;
         }
+        for (auto it = dynamic_belief.begin(); it != dynamic_belief.end();)
+        {
+            if (live_ids.count(it->first) == 0)
+                it = dynamic_belief.erase(it);
+            else
+                ++it;
+        }
         for (auto it = cfg.feature_dynamic_prob.begin(); it != cfg.feature_dynamic_prob.end();)
         {
             if (live_ids.count(it->first) == 0)
                 it = cfg.feature_dynamic_prob.erase(it);
+            else
+                ++it;
+        }
+        for (auto it = cfg.feature_dynamic_weight.begin(); it != cfg.feature_dynamic_weight.end();)
+        {
+            if (live_ids.count(it->first) == 0)
+                it = cfg.feature_dynamic_weight.erase(it);
             else
                 ++it;
         }
@@ -542,7 +777,9 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
                     << semantic_candidates << "," << semantic_confirmed << ","
                     << imu_outliers << "," << mask_available << ","
                     << (sem_mask_trusted ? 1 : 0) << "," << sem_mask_lag_ms << ","
-                    << sgta_policy_signal_ema << "," << (use_aggressive ? 1 : 0) << "\n";
+                    << sgta_policy_signal_ema << "," << (use_aggressive ? 1 : 0) << ","
+                    << inertial_mode << "," << inertial_tau << "," << inertial_parallax << ","
+                    << (pose_unreliable ? 1 : 0) << "," << mean_weight << "\n";
     }
 
     if (!cfg.sem_stats_path.empty())
@@ -562,24 +799,28 @@ void FeatureTracker::rejectSemanticGeometricDynamic()
         std::ofstream geodf_features(cfg.geodf_features_path, std::ios::app);
         for (int i = 0; i < total; i++)
         {
+            const auto weight_it = cfg.feature_dynamic_weight.find(original_ids[i]);
+            const double weight = weight_it == cfg.feature_dynamic_weight.end() ? 1.0 : weight_it->second;
             geodf_features << static_cast<long long>(cur_time * 1e9) << ","
                            << original_ids[i] << "," << original_track_cnt[i] << ","
                            << static_cast<int>(semantic_dynamic[i]) << ","
                            << static_cast<int>(ransac_outlier[i]) << ","
                            << sampson[i] << "," << p_dyn[i] << ","
-                           << static_cast<int>(reject_status[i]) << "\n";
+                           << static_cast<int>(reject_status[i]) << ","
+                           << weight << "\n";
         }
     }
 
     if (cfg.geodf_debug)
     {
-        ROS_INFO("GeoDF/SGTA: reject %d/%d raw=%d confirmed=%d scored=%zu scene=%.3f rho=%.3f active=%d mode=%s policy=%.3f sem=%d geo=%d imu=%d %.2fms",
+        ROS_INFO("GeoDF/SGTA: reject %d/%d raw=%d confirmed=%d scored=%zu scene=%.3f rho=%.3f active=%d mode=%s policy=%.3f sem=%d geo=%d imu=%d inertial=%d weight=%.3f %.2fms",
                  rejected, total, raw_candidates, confirmed_candidates,
                  scored_indices.size(), dynamic_scene_ema, rho_on,
                  dynamic_scene_active ? 1 : 0,
                  use_aggressive ? "aggressive" : "static",
                  sgta_policy_signal_ema, semantic_candidates,
-                 std::max(ransac_outliers, sampson_above), imu_outliers, t_geo.toc());
+                 std::max(ransac_outliers, sampson_above), imu_outliers,
+                 inertial_mode, mean_weight, t_geo.toc());
     }
 }
 
@@ -629,7 +870,7 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(
+map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(
     double _cur_time, const cv::Mat &_img, const cv::Mat &_img1,
     const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
 {
@@ -812,12 +1053,14 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     for(size_t i = 0; i < cur_pts.size(); i++)
         prevLeftPtsMap[ids[i]] = cur_pts[i];
 
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+    map<int, vector<pair<int, FeatureObservation>>> featureFrame;
     for (size_t i = 0; i < ids.size(); i++)
     {
         int feature_id = ids[i];
         if (vinsConfig().feature_dynamic_prob.find(feature_id) == vinsConfig().feature_dynamic_prob.end())
             vinsConfig().feature_dynamic_prob[feature_id] = 0.0;
+        if (vinsConfig().feature_dynamic_weight.find(feature_id) == vinsConfig().feature_dynamic_weight.end())
+            vinsConfig().feature_dynamic_weight[feature_id] = 1.0;
         double x, y ,z;
         x = cur_un_pts[i].x;
         y = cur_un_pts[i].y;
@@ -830,8 +1073,9 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
 
-        Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+        const double weight = vinsConfig().feature_dynamic_weight[feature_id];
+        FeatureObservation xyz_uv_velocity;
+        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
 
@@ -851,9 +1095,11 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             double velocity_x, velocity_y;
             velocity_x = right_pts_velocity[i].x;
             velocity_y = right_pts_velocity[i].y;
+            const auto weight_it = vinsConfig().feature_dynamic_weight.find(feature_id);
+            const double weight = weight_it == vinsConfig().feature_dynamic_weight.end() ? 1.0 : weight_it->second;
 
-            Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+            FeatureObservation xyz_uv_velocity;
+            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
             featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
         }
     }
@@ -886,6 +1132,7 @@ void FeatureTracker::rejectWithF()
         vector<uchar> status;
         cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC, vinsConfig().f_threshold, 0.99, status);
         int size_a = cur_pts.size();
+        (void)size_a;
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
         reduceVector(cur_un_pts, status);

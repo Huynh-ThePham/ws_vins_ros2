@@ -33,7 +33,7 @@ Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** ·
 
 ### SGTA-VINS (current paper branch)
 
-Uncertainty-aware semantic–geometric–temporal VIO on ROS 2 with async YOLO (`mask_node`) and Policy-2 scene switching.
+Uncertainty-aware semantic–geometric–temporal VIO on ROS 2 with async YOLO (`mask_node`), Policy-2 scene switching, inertial rigidity checks, and temporal backend soft weighting.
 
 ```bash
 git checkout paper/sad-vins-2026

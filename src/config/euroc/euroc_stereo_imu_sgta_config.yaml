@@ -93,9 +93,21 @@ sgta_aggressive_warmup_frames: 0
 sgta_soft_weight_enable: 1
 sgta_soft_weight_min: 0.25
 sgta_soft_weight_power: 1.0
+sgta_backend_temporal_weight: 1
+sgta_backend_temporal_attack: 0.45
+sgta_backend_temporal_recovery: 0.12
 sgta_imu_gate_enable: 0
 sgta_imu_flow_th_px: 12.0
 sgta_imu_dynamic_obs: 0.75
+sgta_inertial_epipolar_enable: 1
+sgta_inertial_sampson_th: 3.0
+sgta_inertial_parallax_min: 0.02
+sgta_inertial_parallax_ref: 0.08
+sgta_inertial_tau_cap: 4.0
+sgta_inertial_median_mult: 5.0
+sgta_inertial_max_dyn_frac: 0.60
+sgta_inertial_derotate: 1
+sgta_inertial_derotate_px: 3.0
 
 max_solver_time: 0.04
 max_num_iterations: 8

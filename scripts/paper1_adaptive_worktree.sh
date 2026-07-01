@@ -55,7 +55,11 @@ if [ -e "$WORKTREE" ] && git -C "$WORKTREE" rev-parse --is-inside-work-tree >/de
         echo "Commit/stash its changes or choose PAPER1_WORKTREE=/path/to/new/worktree." >&2
         exit 1
     fi
-    git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    if git -C "$ROOT" show-ref --verify --quiet "refs/heads/${PAPER1_REF#origin/}"; then
+        git -C "$WORKTREE" checkout "$PAPER1_REF"
+    else
+        git -C "$WORKTREE" checkout --detach "$RESOLVED_REF"
+    fi
 elif [ ! -e "$WORKTREE" ]; then
     mkdir -p "$(dirname "$WORKTREE")"
     git -C "$ROOT" worktree add --detach "$WORKTREE" "$RESOLVED_REF"

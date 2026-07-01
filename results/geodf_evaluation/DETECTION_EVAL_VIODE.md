@@ -1,7 +1,7 @@
 # GeoDF Detection Eval — VIODE GT Segmentation (Reproduced)
 
 **Date:** 2026-06-24  
-**Branch:** `paper/geodf-adaptive-vins-2026-q4`  
+**Branch:** `paper/geodf-adaptive-vins-2026`  
 **Dataset:** `/media/theph/Data1/Research/Datasets/Viode`  
 **Pipeline:** `scripts/run_geodf_proposal_evaluation.sh` (Phase 3)  
 **Summary:** `results/viode/viode_city_day_detection.md` + `.json`  

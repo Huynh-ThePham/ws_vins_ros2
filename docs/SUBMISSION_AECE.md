@@ -62,6 +62,7 @@ algorithm-integration contribution.
 - Do not claim universal improvement over baseline.
 - Do not claim state-of-the-art visual-inertial odometry.
 - Do not use hybrid/soft/YOLO experiments as main paper artifacts.
+- Semantic–GeoDF fusion (`paper/sem-geodf-vins-2026`, `docs/PROPOSAL_Sem-GeoDF-VINS.md`) is a **separate manuscript branch**; do not mix its tables into the GeoDF-Adaptive AECE submission set.
 
 ## Measured Runtime (now available)
 

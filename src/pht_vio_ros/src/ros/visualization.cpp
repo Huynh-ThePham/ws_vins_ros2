@@ -250,6 +250,9 @@ void pubCameraPose(const Estimator &estimator, const std_msgs::msg::Header &head
 
 void pubPointCloud(const Estimator &estimator, const std_msgs::msg::Header &header)
 {
+    if (estimator.solver_flag != Estimator::SolverFlag::NON_LINEAR)
+        return;
+
     sensor_msgs::msg::PointCloud point_cloud, loop_point_cloud;
     point_cloud.header = header;
     loop_point_cloud.header = header;
@@ -257,13 +260,14 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::msg::Header &head
 
     for (auto &it_per_id : estimator.f_manager.feature)
     {
-        int used_num;
-        used_num = it_per_id.feature_per_frame.size();
+        int used_num = static_cast<int>(it_per_id.feature_per_frame.size());
         if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
         if (it_per_id.start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id.solve_flag != 1)
             continue;
         int imu_i = it_per_id.start_frame;
+        if (imu_i < 0 || imu_i > WINDOW_SIZE || it_per_id.estimated_depth <= 0.0)
+            continue;
         Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;
         Vector3d w_pts_i = estimator.Rs[imu_i] * (estimator.ric[0] * pts_i + estimator.tic[0]) + estimator.Ps[imu_i];
 
@@ -282,15 +286,14 @@ void pubPointCloud(const Estimator &estimator, const std_msgs::msg::Header &head
 
     for (auto &it_per_id : estimator.f_manager.feature)
     { 
-        int used_num;
-        used_num = it_per_id.feature_per_frame.size();
+        int used_num = static_cast<int>(it_per_id.feature_per_frame.size());
         if (!(used_num >= 2 && it_per_id.start_frame < WINDOW_SIZE - 2))
             continue;
         //if (it_per_id->start_frame > WINDOW_SIZE * 3.0 / 4.0 || it_per_id->solve_flag != 1)
         //        continue;
 
         if (it_per_id.start_frame == 0 && it_per_id.feature_per_frame.size() <= 2 
-            && it_per_id.solve_flag == 1 )
+            && it_per_id.solve_flag == 1 && it_per_id.estimated_depth > 0.0)
         {
             int imu_i = it_per_id.start_frame;
             Vector3d pts_i = it_per_id.feature_per_frame[0].point * it_per_id.estimated_depth;

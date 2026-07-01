@@ -598,7 +598,7 @@ EuRoC static (gốc) + VIODE real-dynamic (gốc) benchmark
 | 5 | VIODE dynamic experiments + ablation (baseline/always-on/adaptive) |
 | 6 | Viết paper + figures (ATE, rejection ratio, FPS, detection lift) |
 
-**Branch:** `paper/geodf-adaptive-vins-2026-q4` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
+**Branch:** `paper/geodf-adaptive-vins-2026` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
 
 ---
 

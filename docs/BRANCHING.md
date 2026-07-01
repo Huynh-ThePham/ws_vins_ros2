@@ -53,14 +53,23 @@ baseline/<platform>-<sensor-modality>-<system>-<benchmark>-v<N>
 Format:
 
 ```text
-paper/<method-slug>-<year>-<venue>
+paper/<method-slug>-<year>
+```
+
+Optional **named conference** suffix when two manuscripts share the same year:
+
+```text
+paper/<method-slug>-<year>-<conference>
 ```
 
 | Field | Meaning | Examples |
 |-------|---------|----------|
-| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `sad-vins` |
+| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `geodf-weighted-vins`, `sad-vins` |
 | `year` | Target submission / publication year | `2026` |
-| `venue` | Journal tier or conference | `q4`, `q3`, `q2`, `q1`, `icra2026`, `iros2026`, `ral2026` |
+| `conference` | Optional venue slug (conference or journal acronym) | `icra2027`, `iros2026`, `ral2026`, `aece2026` |
+
+Do **not** encode Scopus quartiles (`q1`–`q4`), manuscript priority, or “paper number”
+in branch names. Each branch names **one method**, not its rank in a publication queue.
 
 **Rules**
 
@@ -72,30 +81,21 @@ paper/<method-slug>-<year>-<venue>
 **Naming examples**
 
 ```text
-paper/geodf-adaptive-vins-2026-q4      # GeoDF-VINS-Hard + scene-aware gating
-paper/sad-vins-2026-q1                 # SAD-VINS (semantic-adaptive dynamic)
-paper/dyn-robust-vio-2027-icra2027     # future conference paper
+paper/geodf-adaptive-vins-2026      # GeoDF-Adaptive: scene-aware hard rejection
+paper/geodf-weighted-vins-2026      # GeoDF-Weighted: backend soft weighting
+paper/sad-vins-2026                 # SGTA-VINS (+ SAD ablation)
+paper/sem-geodf-vins-2026           # Semantic–GeoDF adaptive gated union
+paper/dyn-robust-vio-2027-icra2027  # optional conference suffix
 ```
 
-**Current paper branches** (inherit baseline sensor modality: **stereo + IMU**)
+**Current paper branches** (stereo + IMU unless noted)
 
-| Branch | Method | Sensor | Primary config |
-|--------|--------|--------|----------------|
-| `paper/geodf-adaptive-vins-2026-q4` | Geometry-only dynamic filter | stereo + IMU | `euroc_stereo_imu_geodf_*.yaml` |
-| `paper/sad-vins-2026-q1` | YOLO semantic dynamic mask | stereo + IMU | `euroc_stereo_imu_sem_config.yaml` |
-
-Paper branches must **not** downgrade to mono-only unless the manuscript explicitly targets mono VIO.
-
-**Venue codes**
-
-| Code | Meaning |
-|------|---------|
-| `q1` … `q4` | Scopus journal quartile (target) |
-| `ral2026` | IEEE RA-L |
-| `tro2026` | IEEE T-RO |
-| `icra2026`, `iros2026` | Conference + year |
-
-Use the **shortest unambiguous** venue code.
+| Branch | Method | Primary config |
+|--------|--------|----------------|
+| `paper/geodf-adaptive-vins-2026` | GeoDF-Adaptive | `euroc_stereo_imu_geodf_*.yaml` |
+| `paper/geodf-weighted-vins-2026` | GeoDF-Weighted | `euroc_stereo_imu_geodf_weighted_config.yaml` |
+| `paper/sad-vins-2026` | SGTA-VINS (+ SAD ablation) | `euroc_stereo_imu_sgta_config.yaml` |
+| `paper/sem-geodf-vins-2026` | Sem-GeoDF fusion | `euroc_stereo_imu_sem_geodf_config.yaml` |
 
 ## 3. Experimental branches
 
@@ -116,13 +116,15 @@ Examples: `exp/imu-gated-geodf`, `exp/soft-weight-backend`.
 ```text
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1     [frozen]
-       ├── paper/geodf-adaptive-vins-2026-q4
-       ├── paper/sad-vins-2026-q1
+       ├── paper/geodf-adaptive-vins-2026
+       ├── paper/geodf-weighted-vins-2026
+       ├── paper/sad-vins-2026
+       ├── paper/sem-geodf-vins-2026
        └── exp/<scratch>
 ```
 
 1. Verify baseline on EuRoC (and other core benchmarks).
-2. `git checkout -b paper/<new-paper> baseline/ros2-stereo-vi-slam-euroc-v1`
+2. `git checkout -b paper/<method>-<year> baseline/ros2-stereo-vi-slam-euroc-v1`
 3. Implement method + benchmarks on the paper branch.
 4. Tag baseline/paper milestones; open PR to `main` only when integrating stable code.
 
@@ -132,8 +134,17 @@ main
 |------------|------------|
 | `baseline/euroc-verified` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
 | `baseline/ros2-euroc-stereo-imu-v1` | `baseline/ros2-stereo-vi-slam-euroc-v1` |
-| `paper/geodf-vins-hard-q4` | `paper/geodf-adaptive-vins-2026-q4` |
-| `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026-q1` (recommended) |
+| `paper/geodf-vins-hard-q4` | `paper/geodf-adaptive-vins-2026` |
+| `paper/geodf-adaptive-vins-2026` | `paper/geodf-adaptive-vins-2026` |
+| `paper/geodf-imu-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026` |
+| `paper/geodf-weighted-vins-2026` | `paper/geodf-weighted-vins-2026` |
+| `paper/geodf-weighted-dynamic-2026-q4` | `paper/geodf-weighted-vins-2026` |
+| `paper/sad-vins-2026` | `paper/sad-vins-2026` |
+| `ws_vins_ros2_paper1_freeze` (worktree) | `ws_vins_ros2_paper1_adaptive` |
+| `ws_vins_ros2_paper2_freeze` (worktree) | `ws_vins_ros2_paper2_weight` |
+| `ws_vins_ros2_sem_geodf` (worktree) | `paper/sem-geodf-vins-2026` |
+| `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026` (recommended) |
+| `paper/sem-geodf-vins-2026` | `paper/sem-geodf-vins-2026` |
 
 After renaming locally, update remote:
 

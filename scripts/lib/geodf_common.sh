@@ -70,8 +70,11 @@ geodf_method_to_mode() {
         adaptiveB|adaptive_b) echo stereo_imu_geodf_adaptive ;;  # same as proposed
         geodf_dump_v2|alwayson_v2) echo stereo_imu_geodf_dump_v2 ;;
         geodf_noguard) echo stereo_imu_geodf_noguard ;;
+        sem_geodf|fusion) echo stereo_imu_sem_geodf ;;
+        sequential|sem_geodf_seq) echo stereo_imu_sem_geodf_sequential ;;
+        sem_geodf_mask_gated|mask_gated) echo stereo_imu_sem_geodf_mask_gated ;;
         *)
-            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_v2|geodf_dump_v2|geodf_noguard)" >&2
+            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_v2|geodf_dump_v2|geodf_noguard|sem_geodf|sequential|sem_geodf_mask_gated|sad_sem)" >&2
             return 1
             ;;
     esac

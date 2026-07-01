@@ -136,22 +136,24 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)** — international naming
 |--------|---------|
 | `main` | Stable ROS 2 integration (default for contributors) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **ROS 2 stereo Visual-Inertial SLAM** reference (EuRoC verified). **No algorithm experiments.** |
-| `paper/<method>-<year>-<venue>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026-q4`) |
+| `paper/<method>-<year>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026`) |
 | `exp/<topic>` | Exploratory work; not publication-bound |
 
 ```text
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1
-       ├── paper/geodf-adaptive-vins-2026-q4
-       ├── paper/sad-vins-2026-q1          (planned)
+       ├── paper/geodf-adaptive-vins-2026
+       ├── paper/geodf-weighted-vins-2026
+       ├── paper/sad-vins-2026
+       ├── paper/sem-geodf-vins-2026
        └── exp/<scratch>
 ```
 
 Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
-### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026-q4`)
+### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026`)
 
-Q4 paper branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
+GeoDF-Adaptive branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 
 | Method | Config | Use case |
 |--------|--------|----------|
@@ -184,6 +186,26 @@ export VIODE_ROOT=/path/to/viode
 ```
 
 Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
+
+### Sem-GeoDF VINS (`paper/sem-geodf-vins-2026`)
+
+Semantic YOLO + GeoDF-Adaptive **adaptive gated union (OR)** fusion. See [docs/PROPOSAL_Sem-GeoDF-VINS.md](docs/PROPOSAL_Sem-GeoDF-VINS.md).
+
+**Worktree:** `../ws_vins_ros2_sem_geodf` — `bash scripts/sem_geodf_worktree.sh [--build] [--benchmark quick|full]`
+
+| Method | Config | Use case |
+|--------|--------|----------|
+| `sem_geodf` | `*_sem_geodf_config.yaml` | **Recommended** — fusion + adaptive semantic policy |
+| `sem_geodf_mask_gated` | `*_sem_geodf_mask_gated_config.yaml` | Soft-mask gating ablation |
+| `sequential` | `*_sem_geodf_sequential_config.yaml` | GeoDF then semantic (fusion off) |
+| `sad_sem` | semantic-only baseline | YOLO hard reject |
+| `adaptive` | GeoDF-Adaptive only | geometry-only reference |
+
+```bash
+./scripts/run_sem_geodf_ablation.sh quick
+./scripts/run_sem_geodf_full_rerun.sh
+python3 scripts/summarize_sem_geodf_ablation.py --root results/sem_geodf_ablation/fair1p0
+```
 
 Re-run EuRoC checks before merging research into baseline:
 

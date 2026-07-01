@@ -27,13 +27,30 @@ Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** ·
 |--------|------|
 | **`main`** | Stable integration (start here) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen stereo **Visual-Inertial SLAM** reference (EuRoC verified) |
-| [`paper/geodf-adaptive-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026-q4) | GeoDF-VINS-Hard + adaptive self-gating (Q4 paper) |
+| [`paper/geodf-adaptive-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026) | GeoDF-Adaptive — scene-aware hard rejection |
+| [`paper/geodf-weighted-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-weighted-vins-2026) | GeoDF-Weighted — backend soft weighting |
+| [`paper/sad-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/sad-vins-2026) | SGTA-VINS (+ SAD ablation) |
+| **`paper/sem-geodf-vins-2026`** | **Sem-GeoDF** — semantic + GeoDF adaptive gated union (this worktree) |
+
+### Sem-GeoDF VINS (current branch)
+
+YOLO semantic masking + GeoDF-Adaptive OR fusion with online adaptive semantic policy.
+
+```bash
+git checkout paper/sem-geodf-vins-2026
+pip install -r requirements-yolo.txt
+colcon build --symlink-install --packages-up-to pht_vio_ros yolo_dynamic_mask
+source install/setup.bash
+./scripts/run_sem_geodf_ablation.sh quick
+```
+
+Docs: [PROPOSAL_Sem-GeoDF-VINS.md](docs/PROPOSAL_Sem-GeoDF-VINS.md) · Worktree: `bash scripts/sem_geodf_worktree.sh [--build] [--benchmark quick|full]`
 
 New paper branch:
 
 ```bash
 git fetch origin
-git checkout -b paper/my-method-2026-q4 origin/baseline/ros2-stereo-vi-slam-euroc-v1
+git checkout -b paper/my-method-2026 origin/baseline/ros2-stereo-vi-slam-euroc-v1
 ```
 
 ## Packages
@@ -166,7 +183,7 @@ bash scripts/regenerate_benchmark_summaries.sh                   # refresh JSON 
 
 Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_refactor_summary.json`.
 
-## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026-q4`)
+## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026`)
 
 Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 

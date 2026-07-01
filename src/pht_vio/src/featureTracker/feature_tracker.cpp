@@ -13,6 +13,8 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <fstream>
 #include <cmath>
+#include <set>
+#include <algorithm>
 
 namespace {
 
@@ -93,6 +95,283 @@ bool FeatureTracker::isSemanticStatic(const cv::Point2f &pt) const
     return sem_mask.at<uchar>(y, x) >= static_cast<uchar>(vinsConfig().sem_static_value);
 }
 
+bool FeatureTracker::applySemanticSoftMask() const
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable || sem_mask.empty() || !sem_mask_trusted)
+        return false;
+    if (cfg.sem_adaptive_policy)
+        return sem_policy_soft_mask_active;
+    return !cfg.sem_mask_gated || sem_scene_active;
+}
+
+bool FeatureTracker::applySemanticHardReject() const
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable || sem_mask.empty() || !sem_mask_trusted)
+        return false;
+    if (cfg.sem_adaptive_policy)
+        return sem_policy_hard_reject_active;
+    return sem_scene_active;
+}
+
+double FeatureTracker::computeDynamicPixelRatio(int &mask_available) const
+{
+    mask_available = sem_mask.empty() ? 0 : 1;
+    if (!mask_available)
+        return 0.0;
+
+    cv::Mat sized;
+    if (sem_mask.size() != cv::Size(col, row))
+        cv::resize(sem_mask, sized, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
+    else
+        sized = sem_mask;
+
+    int dynamic_pixels = 0;
+    for (int y = 0; y < sized.rows; y++)
+    {
+        const uchar *row_ptr = sized.ptr<uchar>(y);
+        for (int x = 0; x < sized.cols; x++)
+        {
+            if (row_ptr[x] < static_cast<uchar>(vinsConfig().sem_static_value))
+                dynamic_pixels++;
+        }
+    }
+    return static_cast<double>(dynamic_pixels) / static_cast<double>(sized.total());
+}
+
+void FeatureTracker::updateSemanticSceneGate()
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable)
+        return;
+
+    int mask_available = 0;
+    const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
+    if (sem_activation_ema < 0.0)
+        sem_activation_ema = dynamic_pixel_ratio;
+    else
+        sem_activation_ema = cfg.sem_activate_ema * dynamic_pixel_ratio +
+                               (1.0 - cfg.sem_activate_ema) * sem_activation_ema;
+
+    const double sem_rho_off = cfg.sem_activate_ratio * cfg.sem_deactivate_frac;
+    sem_scene_active = sem_scene_active ? (sem_activation_ema >= sem_rho_off)
+                                        : (sem_activation_ema >= cfg.sem_activate_ratio);
+}
+
+void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
+                                                  int mask_available,
+                                                  const GeoDynamicAnalysis *geo)
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_adaptive_policy)
+    {
+        sem_policy_state = sem_scene_active ? 1 : 0;
+        sem_policy_hold = 0;
+        sem_policy_soft_mask_active = applySemanticSoftMask();
+        sem_policy_hard_reject_active = sem_scene_active;
+        sem_geo_overlap_last = 0.0;
+        return;
+    }
+
+    if (!cfg.sem_enable || !mask_available || !sem_mask_trusted)
+    {
+        sem_policy_state = 0;
+        sem_policy_hold = 0;
+        sem_policy_soft_mask_active = false;
+        sem_policy_hard_reject_active = false;
+        sem_geo_overlap_last = 0.0;
+        return;
+    }
+
+    if (cfg.sem_policy_dynamic_level >= 0)
+    {
+        sem_geo_overlap_last = 0.0;
+        if (sem_geo_overlap_ema < 0.0)
+            sem_geo_overlap_ema = 0.0;
+
+        if (cfg.sem_policy_dynamic_level == 0)
+        {
+            // Manual static/low override: protect feature supply from YOLO FP.
+            sem_policy_state = 0;
+            sem_policy_hold = 0;
+            sem_policy_soft_mask_active = sem_scene_active;
+            sem_policy_hard_reject_active = false;
+            return;
+        }
+        if (cfg.sem_policy_dynamic_level == 1)
+        {
+            // Manual mid-dynamic override: recover legacy default soft-mask recall
+            // from the beginning of the run; hard reject remains scene-gated.
+            sem_policy_state = 1;
+            sem_policy_hold = std::max(0, cfg.sem_policy_hold_frames);
+            sem_policy_soft_mask_active = true;
+            sem_policy_hard_reject_active = sem_scene_active;
+            return;
+        }
+
+        // Manual high-dynamic override: keep semantic hard reject armed when the
+        // scene gate is active, while soft masking remains gated to avoid over-mask.
+        sem_policy_state = 2;
+        sem_policy_hold = std::max(0, cfg.sem_policy_hold_frames);
+        sem_policy_soft_mask_active = sem_scene_active;
+        sem_policy_hard_reject_active = sem_scene_active;
+        return;
+    }
+
+    int geo_overlap_hits = 0;
+    int geo_overlap_total = 0;
+    sem_policy_trigger_burst = 0;
+    sem_policy_trigger_strong = 0;
+    sem_policy_trigger_overlap = 0;
+    const bool geo_frame_active = geo && geo->valid && geo->frame_active;
+    if (geo_frame_active)
+    {
+        geo_overlap_total = static_cast<int>(geo->confirmed.size());
+        for (int idx : geo->confirmed)
+        {
+            if (0 <= idx && idx < static_cast<int>(cur_pts.size()) && !isSemanticStatic(cur_pts[idx]))
+                geo_overlap_hits++;
+        }
+    }
+
+    sem_geo_overlap_last = geo_overlap_total > 0
+                               ? static_cast<double>(geo_overlap_hits) / geo_overlap_total
+                               : 0.0;
+    if (sem_geo_overlap_ema < 0.0)
+        sem_geo_overlap_ema = sem_geo_overlap_last;
+    else
+        sem_geo_overlap_ema = cfg.sem_policy_overlap_ema * sem_geo_overlap_last +
+                              (1.0 - cfg.sem_policy_overlap_ema) * sem_geo_overlap_ema;
+
+    const bool semantic_burst = dynamic_pixel_ratio >= cfg.sem_policy_burst_ratio;
+    const bool semantic_strong = sem_activation_ema >= cfg.sem_policy_strong_ratio;
+    const bool semantic_geo_agree =
+        geo_frame_active &&
+        geo_overlap_total >= std::max(1, cfg.sem_policy_min_geo_candidates) &&
+        sem_geo_overlap_ema >= cfg.sem_policy_overlap_ratio;
+
+    sem_policy_trigger_burst = semantic_burst ? 1 : 0;
+    sem_policy_trigger_strong = semantic_strong ? 1 : 0;
+    sem_policy_trigger_overlap = semantic_geo_agree ? 1 : 0;
+
+    if (semantic_burst || semantic_strong || semantic_geo_agree)
+        sem_policy_hold = std::max(0, cfg.sem_policy_hold_frames);
+    else if (sem_policy_hold > 0)
+        sem_policy_hold--;
+
+    const bool dynamic_assist = sem_policy_hold > 0;
+    if (semantic_strong || (dynamic_assist && geo_frame_active))
+        sem_policy_state = 2;  // strong-dynamic: full OR fusion remains armed.
+    else if (dynamic_assist)
+        sem_policy_state = 1;  // dynamic-assist: hold soft mask across intermittent motion.
+    else
+        sem_policy_state = 0;  // static-safe: suppress semantic hard reject.
+
+    // Static-safe still allows sem_scene_active-gated soft masking, which preserves
+    // the observed 0_none fix, while assist/strong temporarily behave like the
+    // default always-on soft mask around real dynamic bursts.
+    sem_policy_soft_mask_active = sem_scene_active || dynamic_assist;
+    sem_policy_hard_reject_active = sem_scene_active && (sem_policy_state > 0);
+}
+
+void FeatureTracker::collectSemanticRawCandidates(std::vector<int> &sem_raw) const
+{
+    sem_raw.clear();
+    if (!vinsConfig().sem_enable || sem_mask.empty() || !sem_mask_trusted)
+        return;
+
+    const int total = static_cast<int>(cur_pts.size());
+    sem_raw.reserve(total);
+    for (int i = 0; i < total; i++)
+    {
+        if (!isSemanticStatic(cur_pts[i]))
+            sem_raw.push_back(i);
+    }
+}
+
+bool FeatureTracker::semanticHardRejectArmed() const
+{
+    auto &cfg = vinsConfig();
+    if (!cfg.sem_enable || sem_mask.empty() || !sem_mask_trusted)
+        return false;
+    if (cfg.sem_geodf_fusion && cfg.sem_adaptive_policy)
+        return applySemanticHardReject();
+    if (cfg.sem_mask_gated)
+        return sem_scene_active;
+    return true;
+}
+
+int FeatureTracker::confirmSemanticCandidates(const std::vector<int> &sem_raw,
+                                              std::vector<int> &confirmed,
+                                              bool update_streak)
+{
+    confirmed.clear();
+    auto &cfg = vinsConfig();
+    const int total = static_cast<int>(cur_pts.size());
+    const int vote_k = std::max(1, cfg.sem_vote_frames);
+    const bool have_ids = (static_cast<int>(ids.size()) == total);
+
+    if (update_streak)
+    {
+        std::map<int, int> next_streak;
+        if (have_ids)
+        {
+            for (int idx : sem_raw)
+            {
+                const int id = ids[idx];
+                const auto it = sem_dyn_streak.find(id);
+                next_streak[id] = (it != sem_dyn_streak.end() ? it->second : 0) + 1;
+            }
+            sem_dyn_streak.swap(next_streak);
+        }
+        else
+        {
+            sem_dyn_streak.clear();
+        }
+    }
+
+    for (int idx : sem_raw)
+    {
+        if (vote_k <= 1 || !have_ids)
+        {
+            confirmed.push_back(idx);
+            continue;
+        }
+        const auto it = sem_dyn_streak.find(ids[idx]);
+        if (it != sem_dyn_streak.end() && it->second >= vote_k)
+            confirmed.push_back(idx);
+    }
+    return static_cast<int>(confirmed.size());
+}
+
+int FeatureTracker::applySemanticCandidateRejection(const std::vector<int> &confirmed)
+{
+    if (confirmed.empty())
+        return 0;
+
+    const int total = static_cast<int>(cur_pts.size());
+    vector<uchar> keep(total, 1);
+    int rejected = 0;
+    for (int idx : confirmed)
+    {
+        if (0 <= idx && idx < total && keep[idx])
+        {
+            keep[idx] = 0;
+            rejected++;
+        }
+    }
+    if (rejected > 0)
+    {
+        vector<uchar> status(keep.begin(), keep.end());
+        reduceVector(prev_pts, status);
+        reduceVector(cur_pts, status);
+        reduceVector(ids, status);
+        reduceVector(track_cnt, status);
+    }
+    return rejected;
+}
+
 void FeatureTracker::rejectSemanticDynamic()
 {
     auto &cfg = vinsConfig();
@@ -100,45 +379,24 @@ void FeatureTracker::rejectSemanticDynamic()
         return;
 
     const int total = static_cast<int>(cur_pts.size());
-    const int mask_available = sem_mask.empty() ? 0 : 1;
-    double dynamic_pixel_ratio = 0.0;
-    if (mask_available)
-    {
-        if (sem_mask.size() != cv::Size(col, row))
-            cv::resize(sem_mask, sem_mask, cv::Size(col, row), 0, 0, cv::INTER_NEAREST);
-        int dynamic_pixels = 0;
-        for (int y = 0; y < sem_mask.rows; y++)
-        {
-            const uchar *row_ptr = sem_mask.ptr<uchar>(y);
-            for (int x = 0; x < sem_mask.cols; x++)
-            {
-                if (row_ptr[x] < static_cast<uchar>(cfg.sem_static_value))
-                    dynamic_pixels++;
-            }
-        }
-        dynamic_pixel_ratio =
-            static_cast<double>(dynamic_pixels) / static_cast<double>(sem_mask.total());
-    }
+    int mask_available = 0;
+    const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
 
     int rejected = 0;
-    if (mask_available)
+    int sem_candidates = 0;
+    int sem_confirmed = 0;
+    if (semanticHardRejectArmed() && mask_available)
     {
-        vector<uchar> status(cur_pts.size(), 1);
-        for (size_t i = 0; i < cur_pts.size(); i++)
-        {
-            if (!isSemanticStatic(cur_pts[i]))
-            {
-                status[i] = 0;
-                rejected++;
-            }
-        }
-        if (rejected > 0)
-        {
-            reduceVector(prev_pts, status);
-            reduceVector(cur_pts, status);
-            reduceVector(ids, status);
-            reduceVector(track_cnt, status);
-        }
+        std::vector<int> sem_raw;
+        collectSemanticRawCandidates(sem_raw);
+        sem_candidates = static_cast<int>(sem_raw.size());
+        std::vector<int> confirmed;
+        sem_confirmed = confirmSemanticCandidates(sem_raw, confirmed, true);
+        rejected = applySemanticCandidateRejection(confirmed);
+    }
+    else
+    {
+        sem_dyn_streak.clear();
     }
 
     if (!cfg.sem_stats_path.empty())
@@ -148,14 +406,15 @@ void FeatureTracker::rejectSemanticDynamic()
         sem_stats << static_cast<long long>(cur_time * 1e9) << ","
                   << total << "," << rejected << "," << ratio << ","
                   << static_cast<int>(cur_pts.size()) << ","
-                  << mask_available << "," << dynamic_pixel_ratio << "\n";
+                  << mask_available << "," << dynamic_pixel_ratio << ","
+                  << sem_candidates << "," << sem_confirmed << "\n";
     }
 }
 
 void FeatureTracker::setMask()
 {
     mask = cv::Mat(row, col, CV_8UC1, cv::Scalar(255));
-    if (vinsConfig().sem_enable && !sem_mask.empty())
+    if (applySemanticSoftMask())
     {
         if (sem_mask.size() != mask.size())
             cv::resize(sem_mask, sem_mask, mask.size(), 0, 0, cv::INTER_NEAREST);
@@ -179,7 +438,8 @@ void FeatureTracker::setMask()
 
     for (auto &it : cnt_pts_id)
     {
-        if (mask.at<uchar>(it.second.first) == 255 && isSemanticStatic(it.second.first))
+        const bool sem_ok = !applySemanticSoftMask() || isSemanticStatic(it.second.first);
+        if (mask.at<uchar>(it.second.first) == 255 && sem_ok)
         {
             cur_pts.push_back(it.second.first);
             ids.push_back(it.second.second);
@@ -197,7 +457,7 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask)
+map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
 {
     TicToc t_r;
     cur_time = _cur_time;
@@ -206,8 +466,17 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     row = cur_img.rows;
     col = cur_img.cols;
     sem_mask = _sem_mask;
-    if (vinsConfig().sem_enable && !sem_mask.empty() && sem_mask.size() != cur_img.size())
-        cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
+    sem_mask_lag_ms = _sem_mask_lag_ms;
+    sem_mask_trusted = false;
+    if (vinsConfig().sem_enable && !sem_mask.empty())
+    {
+        if (sem_mask.size() != cur_img.size())
+            cv::resize(sem_mask, sem_mask, cur_img.size(), 0, 0, cv::INTER_NEAREST);
+        if (sem_mask_lag_ms < 0.0)
+            sem_mask_trusted = true;
+        else
+            sem_mask_trusted = sem_mask_lag_ms <= vinsConfig().sem_mask_max_age_ms;
+    }
     cv::Mat rightImg = _img1;
     /*
     {
@@ -271,10 +540,18 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //printf("track cnt %d\n", (int)ids.size());
     }
 
-    if (vinsConfig().geodf_enable)
-        rejectGeoDynamic();
     if (vinsConfig().sem_enable)
-        rejectSemanticDynamic();
+        updateSemanticSceneGate();
+
+    if (vinsConfig().geodf_enable && vinsConfig().sem_enable && vinsConfig().sem_geodf_fusion)
+        rejectSemGeoFused();
+    else
+    {
+        if (vinsConfig().geodf_enable)
+            rejectGeoDynamic();
+        if (vinsConfig().sem_enable)
+            rejectSemanticDynamic();
+    }
 
     for (auto &n : track_cnt)
         n++;
@@ -456,18 +733,19 @@ void FeatureTracker::rejectWithF()
     }
 }
 
-void FeatureTracker::rejectGeoDynamic()
+bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
 {
+    out = GeoDynamicAnalysis{};
     auto &cfg = vinsConfig();
     if (!cfg.geodf_enable || !cfg.geodf_hard_reject)
-        return;
+        return false;
 
     const int total = static_cast<int>(cur_pts.size());
+    out.total = total;
     if (total < 8 || prev_pts.size() != cur_pts.size())
-        return;
-
+        return false;
     if (total < cfg.geodf_min_feature_num)
-        return;
+        return false;
 
     TicToc t_geo;
     vector<cv::Point2f> un_cur_pts(total), un_prev_pts(total);
@@ -485,14 +763,14 @@ void FeatureTracker::rejectGeoDynamic()
         un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
     }
 
-    cv::Mat F;
     vector<uchar> f_status;
-    F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
-                               cfg.geodf_ransac_th_px, 0.99, f_status);
-    if (F.empty())
-        return;
+    out.F = cv::findFundamentalMat(un_cur_pts, un_prev_pts, cv::FM_RANSAC,
+                                   cfg.geodf_ransac_th_px, 0.99, f_status);
+    out.f_status = f_status;
+    if (out.F.empty())
+        return false;
 
-    vector<double> errors(total, 0.0);
+    out.errors.assign(total, 0.0);
     vector<uchar> left_outlier(total, 0);
     vector<double> scored_errors;
     scored_errors.reserve(total);
@@ -505,25 +783,22 @@ void FeatureTracker::rejectGeoDynamic()
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
         scored++;
-        errors[i] = sampsonDistance(F, un_cur_pts[i], un_prev_pts[i]);
-        scored_errors.push_back(errors[i]);
-        if (errors[i] > cfg.geodf_sampson_th)
+        out.errors[i] = sampsonDistance(out.F, un_cur_pts[i], un_prev_pts[i]);
+        scored_errors.push_back(out.errors[i]);
+        if (out.errors[i] > cfg.geodf_sampson_th)
             sampson_above_th++;
         const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
         left_outlier[i] = ransac_outlier ? 1 : 0;
         if (ransac_outlier)
             ransac_outliers++;
     }
+    out.scored = scored;
+    out.ransac_outliers = ransac_outliers;
+    out.sampson_above_th = sampson_above_th;
 
-    // (F) Stereo temporal cross-check: a static point is consistent with BOTH the
-    // left and right temporal epipolar geometry. A dynamic point that happens to
-    // slide along the left epipolar line (Sampson_left ~ 0) is generally still an
-    // outlier in the right view, whose epipolar geometry differs by the stereo
-    // baseline. We track cur-left -> cur-right and pair with the previous frame's
-    // right pixel (by id) to estimate a right temporal F and score Sampson_right.
-    vector<double> right_err(total, 0.0);
+    out.right_err.assign(total, 0.0);
     vector<uchar> right_outlier(total, 0);
-    vector<uchar> right_valid(total, 0);
+    out.right_valid.assign(total, 0);
     if (cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
         !cur_img1.empty() && !prev_right_pts_map.empty())
     {
@@ -567,20 +842,14 @@ void FeatureTracker::rejectGeoDynamic()
                 for (size_t k = 0; k < ref_idx.size(); k++)
                 {
                     const int i = ref_idx[k];
-                    right_err[i] = sampsonDistance(Fr, un_cr[k], un_pr[k]);
+                    out.right_err[i] = sampsonDistance(Fr, un_cr[k], un_pr[k]);
                     right_outlier[i] = (r_status.empty() || r_status[k] == 0) ? 1 : 0;
-                    right_valid[i] = 1;
+                    out.right_valid[i] = 1;
                 }
             }
         }
     }
 
-    // Candidate = dynamic if EITHER view's temporal dual-gate (RANSAC outlier AND
-    // Sampson > threshold) fires. The right branch raises recall on dynamics the
-    // left epipolar geometry misses, while each branch keeps its own dual gate.
-    // Scene gate: only trust the (noisier) right-view branch when the scene's
-    // epipolar-outlier floor is low enough that the geometry is reliable. The
-    // member geo_outlier_floor still holds the previous frame's (smooth) estimate.
     const bool stereo_trust =
         cfg.geodf_stereo_check &&
         (cfg.geodf_stereo_floor_max <= 0.0 || geo_outlier_floor < 0.0 ||
@@ -592,9 +861,9 @@ void FeatureTracker::rejectGeoDynamic()
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
-        const bool left_cand = left_outlier[i] && (errors[i] > cfg.geodf_sampson_th);
-        const bool right_cand = stereo_trust && right_valid[i] &&
-                                right_outlier[i] && (right_err[i] > cfg.geodf_stereo_sampson_th);
+        const bool left_cand = left_outlier[i] && (out.errors[i] > cfg.geodf_sampson_th);
+        const bool right_cand = stereo_trust && out.right_valid[i] &&
+                                right_outlier[i] && (out.right_err[i] > cfg.geodf_stereo_sampson_th);
         if (left_cand || right_cand)
         {
             candidates.push_back(i);
@@ -602,20 +871,21 @@ void FeatureTracker::rejectGeoDynamic()
                 stereo_added++;
         }
     }
+    out.stereo_added = stereo_added;
+    out.raw_candidates = candidates;
 
-    double mean_sampson = 0.0, median_sampson = 0.0, max_sampson = 0.0;
     if (!scored_errors.empty())
     {
         double sum = 0.0;
         for (double e : scored_errors)
             sum += e;
-        mean_sampson = sum / scored_errors.size();
+        out.mean_sampson = sum / scored_errors.size();
         std::sort(scored_errors.begin(), scored_errors.end());
         const size_t n = scored_errors.size();
-        median_sampson = (n % 2 == 0)
-                             ? 0.5 * (scored_errors[n / 2 - 1] + scored_errors[n / 2])
-                             : scored_errors[n / 2];
-        max_sampson = scored_errors.back();
+        out.median_sampson = (n % 2 == 0)
+                                 ? 0.5 * (scored_errors[n / 2 - 1] + scored_errors[n / 2])
+                                 : scored_errors[n / 2];
+        out.max_sampson = scored_errors.back();
     }
 
     const double frame_outlier_ratio =
@@ -626,11 +896,6 @@ void FeatureTracker::rejectGeoDynamic()
         geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
                              (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
 
-    // (B) Update a running estimate of the scene's static epipolar-outlier floor:
-    // adapt down quickly (to catch genuinely static stretches) and creep up slowly
-    // (so transient dynamics do not inflate it). The arm threshold then sits a
-    // margin above this floor, so a high-noise scene (e.g. dense traffic) needs a
-    // proportionally higher outlier ratio to arm — fixing fixed-threshold over-arming.
     if (geo_outlier_floor < 0.0)
         geo_outlier_floor = frame_outlier_ratio;
     else
@@ -641,36 +906,29 @@ void FeatureTracker::rejectGeoDynamic()
         geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
     }
 
-    double rho_on = cfg.geodf_activate_ratio;
+    out.rho_on = cfg.geodf_activate_ratio;
     if (cfg.geodf_auto_rho)
     {
-        rho_on = geo_outlier_floor * cfg.geodf_auto_mult + cfg.geodf_auto_margin;
-        if (rho_on < cfg.geodf_activate_ratio_min)
-            rho_on = cfg.geodf_activate_ratio_min;
-        if (rho_on > cfg.geodf_activate_ratio_max)
-            rho_on = cfg.geodf_activate_ratio_max;
+        out.rho_on = geo_outlier_floor * cfg.geodf_auto_mult + cfg.geodf_auto_margin;
+        if (out.rho_on < cfg.geodf_activate_ratio_min)
+            out.rho_on = cfg.geodf_activate_ratio_min;
+        if (out.rho_on > cfg.geodf_activate_ratio_max)
+            out.rho_on = cfg.geodf_activate_ratio_max;
     }
-    const double rho_off = rho_on * cfg.geodf_deactivate_frac;
+    const double rho_off = out.rho_on * cfg.geodf_deactivate_frac;
 
-    const size_t candidates_raw = candidates.size();
-    int frame_active = 1;
+    out.candidates_raw = candidates.size();
+    out.frame_active = 1;
     if (cfg.geodf_adaptive)
     {
         geo_activation_active = geo_activation_active
                                     ? (geo_activation_ema >= rho_off)
-                                    : (geo_activation_ema >= rho_on);
-        frame_active = geo_activation_active ? 1 : 0;
-        if (!frame_active)
+                                    : (geo_activation_ema >= out.rho_on);
+        out.frame_active = geo_activation_active ? 1 : 0;
+        if (!out.frame_active)
             candidates.clear();
     }
 
-    // Track-level temporal voting: only features flagged on >= vote_frames
-    // consecutive frames are eligible for hard-delete. We always advance the
-    // per-id streak (incrementing this frame's candidates, dropping the rest),
-    // so transient false positives -- 1-frame epipolar spikes from fast rotation
-    // or low parallax that dominate static / low-dynamic scenes -- never reach the
-    // threshold and are kept, protecting local accuracy (RPE); persistent dynamics
-    // accumulate and are removed (with a <= vote_frames-1 frame delay).
     geo_frame_count++;
     const bool have_ids = (static_cast<int>(ids.size()) == total);
     const int vote_k = std::max(1, cfg.geodf_vote_frames);
@@ -688,60 +946,73 @@ void FeatureTracker::rejectGeoDynamic()
     const bool warmup =
         geo_frame_count <= static_cast<long long>(cfg.geodf_warmup_frames);
 
-    vector<int> confirmed;
-    confirmed.reserve(candidates.size());
+    out.confirmed.clear();
+    out.confirmed.reserve(candidates.size());
     if (!warmup)
     {
         for (int idx : candidates)
         {
             if (vote_k <= 1 || !have_ids)
             {
-                confirmed.push_back(idx);
+                out.confirmed.push_back(idx);
                 continue;
             }
             const auto it = geo_dyn_streak.find(ids[idx]);
             if (it != geo_dyn_streak.end() && it->second >= vote_k)
-                confirmed.push_back(idx);
+                out.confirmed.push_back(idx);
         }
+    }
+    out.confirmed_n = out.confirmed.size();
+    out.geo_ms = t_geo.toc();
+    out.valid = true;
+    return true;
+}
+
+int FeatureTracker::applyTrackRejection(const std::vector<int> &indices, GeoDynamicAnalysis *geo)
+{
+    auto &cfg = vinsConfig();
+    const int total = static_cast<int>(cur_pts.size());
+    if (indices.empty() || total <= 0)
+        return 0;
+
+    vector<int> to_reject = indices;
+    if (geo && static_cast<int>(geo->errors.size()) == total)
+    {
+        std::sort(to_reject.begin(), to_reject.end(), [&](int a, int b) {
+            const double sa = std::max(geo->errors[a],
+                                       geo->right_valid[a] ? geo->right_err[a] : 0.0);
+            const double sb = std::max(geo->errors[b],
+                                       geo->right_valid[b] ? geo->right_err[b] : 0.0);
+            return sa > sb;
+        });
     }
 
     vector<uchar> keep(total, 1);
     int rejected = 0;
     int guard_triggered = 0;
     int guard_capped = 0;
-    if (!confirmed.empty())
+    int max_reject = static_cast<int>(to_reject.size());
+    if (cfg.geodf_ratio_guard)
     {
-        sort(confirmed.begin(), confirmed.end(), [&](int a, int b) {
-            const double sa = std::max(errors[a], right_valid[a] ? right_err[a] : 0.0);
-            const double sb = std::max(errors[b], right_valid[b] ? right_err[b] : 0.0);
-            return sa > sb;
-        });
-
-        int max_reject = static_cast<int>(confirmed.size());
-        if (cfg.geodf_ratio_guard)
-        {
-            const int ratio_cap = static_cast<int>(std::floor(cfg.geodf_max_reject_ratio * total));
-            if (static_cast<int>(confirmed.size()) > ratio_cap)
-                guard_triggered = 1;
-            max_reject = ratio_cap;
-        }
-
-        const int max_reject_by_min = std::max(0, total - cfg.geodf_min_feature_num);
-        max_reject = std::min(max_reject, max_reject_by_min);
-
-        for (int idx : confirmed)
-        {
-            if (rejected >= max_reject)
-                break;
-            keep[idx] = 0;
-            rejected++;
-        }
-        if (static_cast<int>(confirmed.size()) > rejected)
-            guard_capped = 1;
+        const int ratio_cap = static_cast<int>(std::floor(cfg.geodf_max_reject_ratio * total));
+        if (static_cast<int>(to_reject.size()) > ratio_cap)
+            guard_triggered = 1;
+        max_reject = ratio_cap;
     }
-    const size_t confirmed_n = confirmed.size();
+    const int max_reject_by_min = std::max(0, total - cfg.geodf_min_feature_num);
+    max_reject = std::min(max_reject, max_reject_by_min);
 
-    if (cfg.geodf_dump_features && !cfg.geodf_feat_path.empty())
+    for (int idx : to_reject)
+    {
+        if (rejected >= max_reject)
+            break;
+        keep[idx] = 0;
+        rejected++;
+    }
+    if (static_cast<int>(to_reject.size()) > rejected)
+        guard_capped = 1;
+
+    if (geo && cfg.geodf_dump_features && !cfg.geodf_feat_path.empty())
     {
         std::ofstream feat(cfg.geodf_feat_path, std::ios::app);
         const long long ts = static_cast<long long>(cur_time * 1e9);
@@ -749,12 +1020,19 @@ void FeatureTracker::rejectGeoDynamic()
         {
             if (track_cnt[i] < cfg.geodf_min_track_cnt)
                 continue;
-            const int ransac_outlier = (f_status.empty() || f_status[i] == 0) ? 1 : 0;
+            const int ransac_outlier =
+                (geo->f_status.empty() || geo->f_status[i] == 0) ? 1 : 0;
             feat << ts << "," << ids[i] << ","
                  << cur_pts[i].x << "," << cur_pts[i].y << ","
-                 << errors[i] << "," << ransac_outlier << ","
+                 << geo->errors[i] << "," << ransac_outlier << ","
                  << (keep[i] ? 0 : 1) << "\n";
         }
+    }
+
+    if (geo)
+    {
+        geo->guard_triggered = guard_triggered;
+        geo->guard_capped = guard_capped;
     }
 
     if (rejected > 0)
@@ -765,20 +1043,27 @@ void FeatureTracker::rejectGeoDynamic()
         reduceVector(ids, status);
         reduceVector(track_cnt, status);
     }
+    return rejected;
+}
 
+void FeatureTracker::logGeoDynamicStats(const GeoDynamicAnalysis &analysis, int rejected)
+{
+    auto &cfg = vinsConfig();
+    const int total = analysis.total;
     if (!cfg.geodf_stats_path.empty())
     {
         std::ofstream geo_stats(cfg.geodf_stats_path, std::ios::app);
         const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
         geo_stats << static_cast<long long>(cur_time * 1e9) << ","
-                  << total << "," << scored << "," << ransac_outliers << ","
-                  << sampson_above_th << "," << candidates_raw << ","
+                  << total << "," << analysis.scored << "," << analysis.ransac_outliers << ","
+                  << analysis.sampson_above_th << "," << analysis.candidates_raw << ","
                   << rejected << "," << ratio << "," << cur_pts.size() << ","
-                  << mean_sampson << "," << median_sampson << "," << max_sampson << ","
-                  << guard_triggered << "," << guard_capped << ","
-                  << geo_activation_ema << "," << frame_active << ","
-                  << t_geo.toc() << "," << rho_on << "," << geo_outlier_floor << ","
-                  << stereo_added << "," << confirmed_n << "\n";
+                  << analysis.mean_sampson << "," << analysis.median_sampson << ","
+                  << analysis.max_sampson << "," << analysis.guard_triggered << ","
+                  << analysis.guard_capped << "," << geo_activation_ema << ","
+                  << analysis.frame_active << "," << analysis.geo_ms << ","
+                  << analysis.rho_on << "," << geo_outlier_floor << ","
+                  << analysis.stereo_added << "," << analysis.confirmed_n << "\n";
     }
 
     if (cfg.geodf_debug)
@@ -787,13 +1072,102 @@ void FeatureTracker::rejectGeoDynamic()
         if (debug_cnt++ % 50 == 0)
         {
             ROS_INFO("GeoDF: reject %d/%d (cand %zu scored %d guard %d) %.2fms",
-                     rejected, total, candidates.size(), scored, guard_triggered, t_geo.toc());
+                     rejected, total, analysis.candidates_raw, analysis.scored,
+                     analysis.guard_triggered, analysis.geo_ms);
         }
     }
     else
     {
         ROS_DEBUG("GeoDF reject: %d/%d (cand %zu) cost %fms",
-                  rejected, total, candidates.size(), t_geo.toc());
+                  rejected, total, analysis.candidates_raw, analysis.geo_ms);
+    }
+}
+
+void FeatureTracker::rejectGeoDynamic()
+{
+    GeoDynamicAnalysis analysis;
+    if (!analyzeGeoDynamic(analysis))
+        return;
+    GeoDynamicAnalysis mutable_analysis = analysis;
+    const int rejected = applyTrackRejection(mutable_analysis.confirmed, &mutable_analysis);
+    logGeoDynamicStats(mutable_analysis, rejected);
+}
+
+void FeatureTracker::rejectSemGeoFused()
+{
+    auto &cfg = vinsConfig();
+    if (cur_pts.empty())
+        return;
+
+    const int total = static_cast<int>(cur_pts.size());
+    int mask_available = 0;
+    const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
+
+    GeoDynamicAnalysis geo;
+    const bool geo_ok = analyzeGeoDynamic(geo);
+    updateSemanticAdaptivePolicy(dynamic_pixel_ratio, mask_available, geo_ok ? &geo : nullptr);
+
+    std::set<int> fused_set;
+    int sem_candidates = 0;
+    int sem_confirmed = 0;
+    const bool sem_hard_reject = applySemanticHardReject();
+    if (sem_hard_reject && mask_available && sem_mask_trusted)
+    {
+        std::vector<int> sem_raw;
+        collectSemanticRawCandidates(sem_raw);
+        sem_candidates = static_cast<int>(sem_raw.size());
+        std::vector<int> confirmed;
+        sem_confirmed = confirmSemanticCandidates(sem_raw, confirmed, true);
+        for (int idx : confirmed)
+            fused_set.insert(idx);
+    }
+    else
+    {
+        sem_dyn_streak.clear();
+    }
+
+    int geo_candidates = 0;
+    if (geo_ok && geo.frame_active)
+    {
+        geo_candidates = static_cast<int>(geo.confirmed.size());
+        for (int idx : geo.confirmed)
+            fused_set.insert(idx);
+    }
+
+    std::vector<int> fused(fused_set.begin(), fused_set.end());
+    GeoDynamicAnalysis mutable_geo = geo;
+    if (geo_ok && static_cast<int>(mutable_geo.errors.size()) == total)
+    {
+        const double sem_sort_score = cfg.geodf_sampson_th + 1.0;
+        for (int idx : fused)
+        {
+            const bool geo_hit = geo.frame_active &&
+                                 std::find(geo.confirmed.begin(), geo.confirmed.end(), idx) != geo.confirmed.end();
+            if (!geo_hit)
+                mutable_geo.errors[idx] = std::max(mutable_geo.errors[idx], sem_sort_score);
+        }
+    }
+    const int rejected = applyTrackRejection(fused, geo_ok ? &mutable_geo : nullptr);
+
+    if (!cfg.sem_geodf_stats_path.empty())
+    {
+        std::ofstream fusion_stats(cfg.sem_geodf_stats_path, std::ios::app);
+        const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
+        fusion_stats << static_cast<long long>(cur_time * 1e9) << ","
+                     << total << "," << (sem_scene_active ? 1 : 0) << ","
+                     << (geo_ok && geo.frame_active ? 1 : 0) << ","
+                     << (applySemanticSoftMask() ? 1 : 0) << ","
+                     << sem_candidates << "," << sem_confirmed << ","
+                     << geo_candidates << "," << static_cast<int>(fused.size()) << ","
+                     << rejected << "," << ratio << "," << cur_pts.size() << ","
+                     << mask_available << "," << (sem_mask_trusted ? 1 : 0) << ","
+                     << dynamic_pixel_ratio << "," << sem_mask_lag_ms << ","
+                     << sem_activation_ema << "," << geo_activation_ema << ","
+                     << sem_policy_state << "," << sem_policy_hold << ","
+                     << sem_geo_overlap_last << "," << sem_geo_overlap_ema << ","
+                     << (sem_hard_reject ? 1 : 0) << ","
+                     << sem_policy_trigger_burst << "," << sem_policy_trigger_strong << ","
+                     << sem_policy_trigger_overlap << "\n";
     }
 }
 

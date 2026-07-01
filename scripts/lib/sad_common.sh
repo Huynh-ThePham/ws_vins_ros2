@@ -8,6 +8,7 @@ resolve_euroc_root() {
     fi
     local candidate
     for candidate in \
+        "/media/theph/Data1/Research/Datasets/EuRoC" \
         "/media/theph/Data1/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/euroc"; do
@@ -26,6 +27,7 @@ resolve_viode_root() {
     fi
     local candidate env="${VIODE_ENV:-city_day}"
     for candidate in \
+        "/media/theph/Data1/Research/Datasets/Viode" \
         "/media/theph/Data1/ws_research_datasets/viode" \
         "/media/theph/Data/ws_research_datasets/viode"; do
         if [ -d "${candidate}/${env}" ]; then
@@ -59,8 +61,11 @@ sad_method_to_mode() {
     case "$1" in
         baseline) echo stereo_imu ;;
         sad_sem|semantic|sad) echo stereo_imu_sem ;;
+        sequential|sem_geodf_seq) echo stereo_imu_sem_geodf_sequential ;;
+        sem_geodf|fusion) echo stereo_imu_sem_geodf ;;
+        sem_geodf_mask_gated|mask_gated) echo stereo_imu_sem_geodf_mask_gated ;;
         *)
-            echo "Unknown SAD method: $1 (baseline|sad_sem)" >&2
+            echo "Unknown SAD method: $1 (baseline|sad_sem|sem_geodf|sequential|sem_geodf_mask_gated)" >&2
             return 1
             ;;
     esac

@@ -52,6 +52,40 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     cv::FileNode sem_static_value_node = fsSettings["sem_static_value"];
     if (!sem_static_value_node.empty())
         sem_static_value = static_cast<int>(sem_static_value_node);
+    if (!fsSettings["sem_geodf_fusion"].empty())
+        sem_geodf_fusion = static_cast<int>(fsSettings["sem_geodf_fusion"]);
+    if (!fsSettings["sem_activate_ratio"].empty())
+        sem_activate_ratio = static_cast<double>(fsSettings["sem_activate_ratio"]);
+    if (!fsSettings["sem_activate_ema"].empty())
+        sem_activate_ema = static_cast<double>(fsSettings["sem_activate_ema"]);
+    if (!fsSettings["sem_deactivate_frac"].empty())
+        sem_deactivate_frac = static_cast<double>(fsSettings["sem_deactivate_frac"]);
+    if (!fsSettings["sem_mask_gated"].empty())
+        sem_mask_gated = static_cast<int>(fsSettings["sem_mask_gated"]);
+    if (!fsSettings["sem_vote_frames"].empty())
+        sem_vote_frames = static_cast<int>(fsSettings["sem_vote_frames"]);
+    if (!fsSettings["sem_adaptive_policy"].empty())
+        sem_adaptive_policy = static_cast<int>(fsSettings["sem_adaptive_policy"]);
+    if (!fsSettings["sem_policy_dynamic_level"].empty())
+        sem_policy_dynamic_level = static_cast<int>(fsSettings["sem_policy_dynamic_level"]);
+    if (!fsSettings["sem_policy_burst_ratio"].empty())
+        sem_policy_burst_ratio = static_cast<double>(fsSettings["sem_policy_burst_ratio"]);
+    if (!fsSettings["sem_policy_strong_ratio"].empty())
+        sem_policy_strong_ratio = static_cast<double>(fsSettings["sem_policy_strong_ratio"]);
+    if (!fsSettings["sem_policy_hold_frames"].empty())
+        sem_policy_hold_frames = static_cast<int>(fsSettings["sem_policy_hold_frames"]);
+    if (!fsSettings["sem_policy_overlap_ratio"].empty())
+        sem_policy_overlap_ratio = static_cast<double>(fsSettings["sem_policy_overlap_ratio"]);
+    if (!fsSettings["sem_policy_overlap_ema"].empty())
+        sem_policy_overlap_ema = static_cast<double>(fsSettings["sem_policy_overlap_ema"]);
+    if (!fsSettings["sem_policy_min_geo_candidates"].empty())
+        sem_policy_min_geo_candidates = static_cast<int>(fsSettings["sem_policy_min_geo_candidates"]);
+    if (!fsSettings["sem_mask_max_age_ms"].empty())
+        sem_mask_max_age_ms = static_cast<double>(fsSettings["sem_mask_max_age_ms"]);
+    if (!fsSettings["sem_use_latest_mask"].empty())
+        sem_use_latest_mask = static_cast<int>(fsSettings["sem_use_latest_mask"]);
+    if (!fsSettings["sem_block_on_mask"].empty())
+        sem_block_on_mask = static_cast<int>(fsSettings["sem_block_on_mask"]);
     multiple_thread = fsSettings["multiple_thread"];
 
     use_imu = fsSettings["imu"];
@@ -277,9 +311,26 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         sem_stats_path = output_folder + "/sem_stats.csv";
         std::ofstream sem_stats(sem_stats_path, std::ios::out);
         sem_stats << "timestamp_ns,tracks_before,rejected,reject_ratio,tracks_after,"
-                     "mask_available,dynamic_pixel_ratio\n";
+                     "mask_available,dynamic_pixel_ratio,sem_candidates,sem_confirmed\n";
         sem_stats.close();
         ROS_INFO("SAD-VINS semantic mask enabled, topic: %s", sem_mask_topic.c_str());
+    }
+
+    if (sem_enable && geodf_enable && sem_geodf_fusion) {
+        sem_geodf_stats_path = output_folder + "/sem_geodf_stats.csv";
+        std::ofstream fusion_stats(sem_geodf_stats_path, std::ios::out);
+        fusion_stats << "timestamp_ns,tracks_before,sem_scene_active,geo_frame_active,"
+                        "sem_mask_applied,sem_candidates,sem_confirmed,geo_candidates,"
+                        "fused_candidates,rejected,reject_ratio,tracks_after,mask_available,"
+                        "sem_mask_trusted,dynamic_pixel_ratio,sem_mask_lag_ms,"
+                        "sem_activation_ema,geo_activation_ema,"
+                        "sem_policy_state,sem_policy_hold,sem_geo_overlap,"
+                        "sem_geo_overlap_ema,sem_policy_hard_reject,"
+                        "sem_policy_trigger_burst,sem_policy_trigger_strong,"
+                        "sem_policy_trigger_overlap\n";
+        fusion_stats.close();
+        ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
+                        << sem_adaptive_policy << ")");
     }
 
     fsSettings.release();

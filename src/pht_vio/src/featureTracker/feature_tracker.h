@@ -37,10 +37,15 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat());
+    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat(), double _sem_mask_lag_ms = -1.0);
     void setMask();
     void rejectSemanticDynamic();
+    void rejectSemGeoFused();
     bool isSemanticStatic(const cv::Point2f &pt) const;
+    bool applySemanticSoftMask() const;
+    bool applySemanticHardReject() const;
+    double computeDynamicPixelRatio(int &mask_available) const;
+    void updateSemanticSceneGate();
     void readIntrinsicParameter(const vector<string> &calib_file);
     void showUndistortion(const string &name);
     void rejectWithF();
@@ -98,4 +103,62 @@ public:
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
     std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel
+
+    // SAD-VINS scene-aware semantic activation (EMA of dynamic pixel ratio).
+    double sem_activation_ema = -1.0;
+    bool sem_scene_active = false;
+    bool sem_mask_trusted = false;
+    double sem_mask_lag_ms = -1.0;
+    std::map<int, int> sem_dyn_streak;
+    // Adaptive Semantic-GeoDF policy:
+    // 0=static-safe, 1=dynamic-assist, 2=strong-dynamic.
+    int sem_policy_state = 0;
+    int sem_policy_hold = 0;
+    bool sem_policy_soft_mask_active = false;
+    bool sem_policy_hard_reject_active = false;
+    double sem_geo_overlap_ema = -1.0;
+    double sem_geo_overlap_last = 0.0;
+    int sem_policy_trigger_burst = 0;
+    int sem_policy_trigger_strong = 0;
+    int sem_policy_trigger_overlap = 0;
+
+    struct GeoDynamicAnalysis
+    {
+        bool valid = false;
+        int total = 0;
+        int scored = 0;
+        int ransac_outliers = 0;
+        int sampson_above_th = 0;
+        int frame_active = 1;
+        int guard_triggered = 0;
+        int guard_capped = 0;
+        size_t candidates_raw = 0;
+        size_t confirmed_n = 0;
+        int stereo_added = 0;
+        double mean_sampson = 0.0;
+        double median_sampson = 0.0;
+        double max_sampson = 0.0;
+        double rho_on = 0.0;
+        double geo_ms = 0.0;
+        std::vector<int> confirmed;
+        std::vector<int> raw_candidates;
+        std::vector<double> errors;
+        std::vector<double> right_err;
+        std::vector<uchar> right_valid;
+        cv::Mat F;
+        std::vector<uchar> f_status;
+    };
+
+    bool analyzeGeoDynamic(GeoDynamicAnalysis &out);
+    int applyTrackRejection(const std::vector<int> &indices, GeoDynamicAnalysis *geo);
+    void logGeoDynamicStats(const GeoDynamicAnalysis &analysis, int rejected);
+    void updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
+                                      int mask_available,
+                                      const GeoDynamicAnalysis *geo);
+    void collectSemanticRawCandidates(std::vector<int> &sem_raw) const;
+    bool semanticHardRejectArmed() const;
+    int confirmSemanticCandidates(const std::vector<int> &sem_raw,
+                                  std::vector<int> &confirmed,
+                                  bool update_streak);
+    int applySemanticCandidateRejection(const std::vector<int> &confirmed);
 };

@@ -110,6 +110,41 @@ struct VinsConfig
     std::string sem_mask_topic = "/dynamic_mask";
     int sem_static_value = 255;
     std::string sem_stats_path;
+    // Semantic–GeoDF fusion: gated union (OR) with independent scene activation (rejectSemGeoFused)
+    int sem_geodf_fusion = 0;
+    double sem_activate_ratio = 0.015;
+    double sem_activate_ema = 0.15;
+    double sem_deactivate_frac = 0.6;
+    // 1: apply YOLO mask in setMask only when sem_scene_active (ablation vs always-on soft mask)
+    int sem_mask_gated = 0;
+    // Hard-delete semantic candidates only after >=k consecutive dynamic flags (fusion path)
+    int sem_vote_frames = 1;
+    // Adaptive Semantic-GeoDF policy:
+    // 0 keeps legacy sem_mask_gated behavior.
+    // 1 uses a three-state policy (static-safe / dynamic-assist / strong-dynamic)
+    // driven by semantic bursts and semantic-geometry agreement.
+    int sem_adaptive_policy = 0;
+    // -1: online auto policy (main result). 0/1/2 are manual diagnostic
+    // overrides for static/low, mid-dynamic, and high-dynamic behavior.
+    int sem_policy_dynamic_level = -1;
+    // A high instantaneous semantic-mask ratio arms dynamic-assist hold. This
+    // separates true moving-object bursts from low-level YOLO noise on static scenes.
+    double sem_policy_burst_ratio = 0.18;
+    // Sustained semantic EMA above this value is treated as strong dynamic pressure.
+    // Keep this high enough to avoid static-scene YOLO FP bursts.
+    double sem_policy_strong_ratio = 0.20;
+    // Keep the soft mask active for this many frames after dynamic evidence appears.
+    int sem_policy_hold_frames = 120;
+    // Semantic-geometry overlap gate: fraction of raw GeoDF outlier candidates that
+    // also lie on the YOLO dynamic mask.
+    double sem_policy_overlap_ratio = 0.35;
+    double sem_policy_overlap_ema = 0.20;
+    int sem_policy_min_geo_candidates = 2;
+    // Real-time robustness: non-blocking mask sync + Geo-only fallback when mask missing/stale
+    double sem_mask_max_age_ms = 150.0;
+    int sem_use_latest_mask = 1;
+    int sem_block_on_mask = 0;
+    std::string sem_geodf_stats_path;
 
     void reset();
     bool loadFromYaml(const std::string &config_file);

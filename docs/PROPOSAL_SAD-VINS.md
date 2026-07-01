@@ -1,6 +1,6 @@
 # SAD-VINS: Semantic-Adaptive Dynamic Visual-Inertial Navigation
 
-**Branch:** `paper/sad-vins-2026-q1`  
+**Branch:** `paper/sad-vins-2026`  
 **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` (frozen EuRoC reference)  
 **Sensor setup:** **stereo camera + IMU** (same as baseline; not mono-only)
 
@@ -100,8 +100,8 @@ ros2 launch pht_vio_ros euroc_stereo_imu_sem.launch.py enable_yolo:=false
 
 | Method | Signal | Branch |
 |--------|--------|--------|
-| **SAD-VINS** | Semantic segmentation (YOLO) | `paper/sad-vins-2026-q1` |
-| **GeoDF-Adaptive** | Epipolar geometry (Sampson) | `paper/geodf-adaptive-vins-2026-q4` |
+| **SAD-VINS** | Semantic segmentation (YOLO) | `paper/sad-vins-2026` |
+| **GeoDF-Adaptive** | Epipolar geometry (Sampson) | `paper/geodf-adaptive-vins-2026` |
 
 These are **orthogonal** and can be combined in a future hybrid branch if needed.
 

@@ -32,6 +32,7 @@ src/support_files/brief_k10L6.bin
 src/VINS-Fusion-ROS1/.git/
 
 # Editor / OS
+debug/
 .vscode/
 .idea/
 *.swp

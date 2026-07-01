@@ -171,16 +171,31 @@ Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_
 
 Backend **soft-weighting** method: instead of hard-rejecting suspected dynamic features, it keeps them and scales their visual residual confidence (uncertainty-normalized inertial residual weighting). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-Weighted.md](docs/PROPOSAL_GeoDF-Weighted.md).
 
-```bash
-# VIODE real-dynamic: full N-repeat eval (baseline vs weighted, all conditions)
-export VIODE_ROOT=/path/to/viode
-FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
+Reproducible N-repeat pipeline (mirrors the GeoDF-Adaptive paper workflow):
 
-# EuRoC static-safety regression (baseline vs weighted)
-FORCE=1 bash scripts/run_geodf_euroc_weighted.sh 5
+```bash
+source scripts/setup_ws.bash
+export VIODE_ROOT=/path/to/viode
+export EUROC_ROOT=/path/to/EuRoC
+
+# 1. Prepare datasets (bags + GT + manifest; optional REBUILD=1)
+bash scripts/run_viode_n5_prepare.sh 5
+bash scripts/run_euroc_n3_prepare.sh 3
+
+# 2. Run benchmarks (baseline + weighted, N trials each)
+FORCE=1 bash scripts/run_viode_n5.sh 5          # VIODE: 3 env × 4 levels
+FORCE=1 bash scripts/run_euroc_n3.sh 3          # EuRoC: MH_01..05 static safety
+
+# 3. (optional) Detection eval on VIODE GT masks (weight < 0.999)
+bash scripts/run_viode_detection_prepare.sh
+
+# 4. Regenerate all paper tables + figures under results/geodf_evaluation/
+bash scripts/postprocess_paper_artifacts.sh
 ```
 
-Results: per-trial under `results/viode_repeat/`, summarized under `results/geodf_evaluation/`.
+Shortcut for step 2 VIODE only: `FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5`
+
+**Outputs:** per-trial trajectories in `results/viode_repeat/` and `results/euroc_repeat/`; paper tables (`PAPER_RESULTS_N5.md`, `EUROC_REPEAT_N3.md`, `STATS_TESTS.md`, `RUNTIME_TABLE.md`, optional `DETECTION_EVAL_VIODE.md`) and figures under `results/geodf_evaluation/`.
 
 ## Manual Node Launch
 

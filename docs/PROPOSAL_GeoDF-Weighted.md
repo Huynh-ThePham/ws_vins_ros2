@@ -69,10 +69,13 @@ cost contribution is weighted by `w`.
 
 - `src/config/viode/viode_stereo_imu_geodf_weighted_config.yaml`
 - `src/config/euroc/euroc_stereo_imu_geodf_weighted_config.yaml`
-- `scripts/run_geodf_weighted.sh`
-- `scripts/run_geodf_weighted_n5.sh`
-- `scripts/run_geodf_euroc_weighted.sh`
-- `scripts/eval_viode_detection.py --prediction weight`
+- `scripts/run_viode_n5_prepare.sh` / `scripts/run_viode_n5.sh` — VIODE N-repeat orchestrator
+- `scripts/run_euroc_n3_prepare.sh` / `scripts/run_euroc_n3.sh` — EuRoC static-safety orchestrator
+- `scripts/run_geodf_weighted.sh` / `scripts/run_geodf_weighted_n5.sh` — low-level VIODE runner (+ shortcut)
+- `scripts/run_geodf_euroc_weighted.sh` — low-level EuRoC runner
+- `scripts/postprocess_paper_artifacts.sh` — regenerate all tables/figures
+- `scripts/summarize_n5_final.py`, `scripts/stats_tests.py`, `scripts/verify_paper_data.py`
+- `scripts/run_viode_detection_prepare.sh` + `scripts/eval_viode_detection.py --prediction weight`
 
 ## Smoke result
 
@@ -91,31 +94,34 @@ Mask-level detection using `weight < 0.999`:
 This direction improves the parking-lot failure case seen with hard rejection
 while preserving all feature tracks for the estimator.
 
-## Next evaluation
+## Full N-repeat evaluation (paper numbers)
 
-Run N=5:
+Same workflow as GeoDF-Adaptive paper #1: prepare → run → postprocess.
 
 ```bash
-FORCE=1 bash scripts/run_geodf_weighted.sh "0_none 1_low 2_mid 3_high" "city_day city_night parking_lot" 5
+source scripts/setup_ws.bash
+export VIODE_ROOT=/path/to/viode
+export EUROC_ROOT=/path/to/EuRoC
+
+bash scripts/run_viode_n5_prepare.sh 5
+bash scripts/run_euroc_n3_prepare.sh 3
+FORCE=1 bash scripts/run_viode_n5.sh 5
+FORCE=1 bash scripts/run_euroc_n3.sh 3
+bash scripts/run_viode_detection_prepare.sh   # optional: Table detection
+bash scripts/postprocess_paper_artifacts.sh     # PAPER_RESULTS_N5, STATS_TESTS, figures
 ```
 
-or equivalently:
+Artifacts land in `results/geodf_evaluation/` (see `results/geodf_evaluation/README.md`).
+
+Detection eval (weight < 0.999 marks dynamic candidate):
 
 ```bash
-FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
-```
-
-Run mask evaluation for weighted predictions:
-
-```bash
+bash scripts/run_viode_detection_prepare.sh
+# or single-cell:
 python3 scripts/eval_viode_detection.py \
-  --root results/viode \
-  --mask-root results/viode/masks \
-  --env parking_lot \
-  --levels "3_high" \
-  --method weighted \
-  --prediction weight \
-  --weight-threshold 0.999
+  --features results/viode_detection/parking_lot_3_high_weighted/geo_df_features.csv \
+  --mask-dir results/viode_detection/parking_lot_3_high_weighted/masks \
+  --prediction weight --weight-threshold 0.999
 ```
 
 **Branch:** `paper/geodf-weighted-vins-2026` · **Worktree:** `../ws_vins_ros2_paper2_weight` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).

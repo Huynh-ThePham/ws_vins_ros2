@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# Regenerate ALL GeoDF-Weighted paper artifacts after VIODE N=5 + EuRoC N=3 (+ optional detection).
+#
+# Produces, under results/geodf_evaluation/:
+#   PAPER_RESULTS_N5.md + .json       (Table: VIODE ATE/RPE mean±std)
+#   EUROC_REPEAT_N3.md  + .json       (Table: EuRoC static safety)
+#   STATS_TESTS.md      + .json       (significance, effect size, CI, variance)
+#   RUNTIME_TABLE.md    + .json       (per-frame geo cost, active %)
+#   DETECTION_EVAL_VIODE.md           (detection lift/FPR from weighted runs, if present)
+#   verify_report.json                (trial integrity)
+#   figures/viode_ate_delta_n5_gray.* (Fig: ATE improvement)
+#   figures/viode_detection_lift_gray.* (Fig: detection lift, if data exists)
+#   figures/viode_trajectories_gray.* (qualitative overlays)
+#
+# Usage: ./scripts/postprocess_paper_artifacts.sh
+set -eo pipefail
+
+WS="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$WS"
+mkdir -p results/geodf_evaluation/figures
+
+echo "[post] 0/9 integrity check"
+python3 scripts/verify_paper_data.py \
+    --out-json results/geodf_evaluation/verify_report.json || \
+    echo "[post][WARN] verifier reported problems — inspect verify_report.json"
+
+echo "[post] 1/9 per-weighted-trial filter metrics"
+find results/viode_repeat results/euroc_repeat -path '*_weighted/trial_*' -type d 2>/dev/null | while read -r d; do
+    [ -f "$d/geo_df_stats.csv" ] && python3 scripts/geodf_filter_metrics.py --run-dir "$d" >/dev/null 2>&1 || true
+done
+
+echo "[post] 2/9 VIODE N=5 summary"
+python3 scripts/summarize_n5_final.py --viode-only \
+    --out results/geodf_evaluation/PAPER_RESULTS_N5.md \
+    --out-json results/geodf_evaluation/paper_results_n5.json >/dev/null || echo "[WARN] viode summary"
+
+echo "[post] 3/9 EuRoC N=3 summary"
+python3 scripts/summarize_euroc_repeat.py --n 3 \
+    --out results/geodf_evaluation/EUROC_REPEAT_N3.md \
+    --out-json results/geodf_evaluation/euroc_repeat_n3.json >/dev/null || echo "[WARN] euroc summary"
+
+echo "[post] 4/9 statistical significance (STATS_TESTS)"
+python3 scripts/stats_tests.py >/dev/null || echo "[WARN] stats tests"
+
+echo "[post] 5/9 runtime table + resource table"
+python3 scripts/summarize_runtime_from_repeat.py --root results/viode_repeat >/dev/null || echo "[WARN] runtime"
+python3 scripts/summarize_resources.py >/dev/null || echo "[WARN] resource summary"
+
+echo "[post] 6/9 detection eval (if weighted feature dumps exist)"
+if ls results/viode_detection/*_weighted/detection_eval.json >/dev/null 2>&1; then
+    python3 - << 'PY'
+import glob, json
+from pathlib import Path
+rows = []
+for p in sorted(glob.glob("results/viode_detection/*_weighted/detection_eval.json")):
+    d = json.loads(Path(p).read_text())
+    name = Path(p).parent.name.replace("_weighted", "")
+    env, level = name.rsplit("_", 1) if name.count("_") >= 2 else (name, "")
+    rows.append((env, level, d))
+lines = ["# VIODE dynamic-feature detection (GeoDF-Weighted, weight < threshold)", "",
+         "| env | level | dyn base-rate | precision | lift | recall | static-FPR |",
+         "|---|---|---:|---:|---:|---:|---:|"]
+for env, level, d in rows:
+    def f(k, pct=False, x=False):
+        v = d.get(k)
+        if not isinstance(v, (int, float)): return "n/a"
+        if x: return f"{v:.2f}x"
+        return f"{v*100:.2f}%" if pct else f"{v:.3f}"
+    lines.append(f"| {env} | {level} | {f('dynamic_base_rate',pct=True)} | "
+                 f"{f('precision',pct=True)} | {f('precision_lift',x=True)} | "
+                 f"{f('recall',pct=True)} | {f('static_fpr',pct=True)} |")
+Path("results/geodf_evaluation/DETECTION_EVAL_VIODE.md").write_text("\n".join(lines) + "\n")
+print(f"[ok] detection table: {len(rows)} cells")
+PY
+else
+    echo "[post] no detection dumps — run scripts/run_viode_detection_prepare.sh for detection table/figure"
+fi
+
+echo "[post] 7/9 result figures"
+python3 scripts/make_result_figures.py 2>/dev/null || echo "[WARN] result figures"
+
+echo "[post] 8/9 trajectory overlays"
+python3 scripts/make_trajectory_figures.py --root results/viode_repeat 2>/dev/null || echo "[WARN] trajectory figures"
+
+echo "[post] 9/9 manifest progress"
+python3 scripts/viode_n5_manifest.py update --root results/viode_repeat --n 5 >/dev/null 2>&1 || true
+python3 scripts/euroc_n3_manifest.py update --root results/euroc_repeat --n 3 >/dev/null 2>&1 || true
+
+echo "[post] done — artifacts in results/geodf_evaluation/"
+ls -1 results/geodf_evaluation/*.md results/geodf_evaluation/*.json 2>/dev/null | sed 's|^|  |'

@@ -162,11 +162,15 @@ Branch — *GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting f
 | `weighted` | `euroc_stereo_imu_geodf_weighted_config.yaml` | **Recommended** — IMU geometry scoring + backend soft weights |
 
 ```bash
+```bash
 # VIODE full eval (N=5) — runs baseline + weighted on all conditions
-FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
+FORCE=1 bash scripts/run_viode_n5.sh 5
 
 # EuRoC static regression — baseline + weighted
-FORCE=1 bash scripts/run_geodf_euroc_weighted.sh 5
+FORCE=1 bash scripts/run_euroc_n3.sh 3
+
+# Regenerate paper tables + figures after runs complete
+bash scripts/postprocess_paper_artifacts.sh
 ```
 
 Re-run EuRoC checks before merging research into baseline:

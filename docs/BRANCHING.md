@@ -72,8 +72,8 @@ paper/<method-slug>-<year>-<venue>
 **Naming examples**
 
 ```text
-paper/geodf-adaptive-vins-2026-q4      # GeoDF-VINS-Hard + scene-aware gating (Paper #1)
-paper/geodf-weighted-vins-2026-q4      # GeoDF-Weighted backend soft weighting (Paper #2)
+paper/geodf-adaptive-vins-2026-q4      # GeoDF-Adaptive: scene-aware hard rejection
+paper/geodf-weighted-vins-2026-q4      # GeoDF-Weighted: backend soft weighting
 paper/sad-vins-2026-q1                 # SAD-VINS (semantic-adaptive dynamic)
 paper/dyn-robust-vio-2027-icra2027     # future conference paper
 ```

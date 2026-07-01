@@ -1,4 +1,4 @@
-# GeoDF-VINS-Hard benchmark configuration (see docs/PROPOSAL_GeoDF-VINS-Hard.md)
+# GeoDF-Weighted benchmark configuration (see docs/PROPOSAL_GeoDF-Weighted.md)
 
 methods:
   baseline:

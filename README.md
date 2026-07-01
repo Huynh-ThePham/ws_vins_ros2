@@ -167,27 +167,20 @@ bash scripts/regenerate_benchmark_summaries.sh                   # refresh JSON 
 
 Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_refactor_summary.json`.
 
-## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026`)
+## GeoDF-Weighted (paper branch: `paper/geodf-weighted-vins-2026`)
 
-Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
+Backend **soft-weighting** method: instead of hard-rejecting suspected dynamic features, it keeps them and scales their visual residual confidence (uncertainty-normalized inertial residual weighting). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-Weighted.md](docs/PROPOSAL_GeoDF-Weighted.md).
 
 ```bash
-# EuRoC: single run (baseline | geodf_hard | alwayson | adaptive)
-bash scripts/run_geodf_euroc.sh MH_01_easy adaptive 40 --eval
-
-# EuRoC static ablation + full study
-bash scripts/run_euroc_static_ablation.sh
-bash scripts/run_geodf_full_benchmark.sh all
-
-# VIODE real-dynamic (ROS1 bag auto-converted to ros2_bag)
+# VIODE real-dynamic: full N-repeat eval (baseline vs weighted, all conditions)
 export VIODE_ROOT=/path/to/viode
-bash scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
+FORCE=1 bash scripts/run_geodf_weighted_n5.sh 5
 
-# Everything (EuRoC + VIODE)
-bash scripts/run_geodf_benchmark_all.sh all
+# EuRoC static-safety regression (baseline vs weighted)
+FORCE=1 bash scripts/run_geodf_euroc_weighted.sh 5
 ```
 
-Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
+Results: per-trial under `results/viode_repeat/`, summarized under `results/geodf_evaluation/`.
 
 ## Manual Node Launch
 
@@ -287,7 +280,7 @@ GPL-3.0 — see [LICENSE](LICENSE) (same as upstream VINS-Fusion).
 
 If you use VINS-Fusion in academic research, please cite the original papers. See [support_files/paper_bib.txt](src/support_files/paper_bib.txt).
 
-When using research branches (e.g. GeoDF-Adaptive), cite that work separately once published.
+When using research branches (e.g. GeoDF-Weighted), cite that work separately once published.
 
 ## Authors
 

@@ -150,44 +150,6 @@ main
 
 Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
-### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026`)
-
-GeoDF-Adaptive branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
-
-**Worktree:** `../ws_vins_ros2_paper1_adaptive` — `bash scripts/paper1_adaptive_worktree.sh [--build] [--benchmark N] [--docx]`
-
-| Method | Config | Use case |
-|--------|--------|----------|
-| `baseline` | `euroc_stereo_imu_config.yaml` | No filter |
-| `geodf_hard` | `euroc_stereo_imu_geodf_config.yaml` | Always-on + ratio guard (EuRoC static sanity) |
-| `alwayson` / `geodf_dump` | `euroc_stereo_imu_geodf_dump_config.yaml` | Always-on + per-feature dump (detection eval) |
-| `adaptive` | `euroc_stereo_imu_geodf_adaptive_config.yaml` | **Recommended** — scene-aware self-gating |
-| `geodf_noguard` | `euroc_stereo_imu_geodf_noguard_config.yaml` | Ablation (no ratio guard) |
-
-VIODE configs under `src/config/viode/` (max_cnt=120, pinhole calib).
-
-**Datasets:** EuRoC (`EUROC_ROOT`) + VIODE (`VIODE_ROOT`, default `city_day`).
-
-```bash
-# EuRoC single run
-./scripts/run_geodf_euroc.sh MH_01_easy adaptive --eval
-
-# EuRoC static ablation (baseline / always-on / adaptive)
-./scripts/run_euroc_static_ablation.sh
-
-# Full EuRoC study + filter impact
-./scripts/run_geodf_full_benchmark.sh all
-
-# VIODE dynamic (converts ROS1 bag → ros2_bag on first run)
-export VIODE_ROOT=/path/to/viode
-./scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
-
-# Full pipeline (EuRoC + VIODE)
-./scripts/run_geodf_benchmark_all.sh all
-```
-
-Summaries: `results/geodf_study/geodf_summary.md`, `results/geodf/euroc_static_ablation.md`, `results/viode/viode_city_day_adaptive.md`.
-
 ### GeoDF-Weighted VINS (`paper/geodf-weighted-vins-2026`)
 
 Branch — *GeoDF-Weighted: Uncertainty-Normalized Inertial Residual Weighting for Dynamic Feature Robustness in Stereo-Inertial VINS*. See [docs/PROPOSAL_GeoDF-Weighted.md](docs/PROPOSAL_GeoDF-Weighted.md).

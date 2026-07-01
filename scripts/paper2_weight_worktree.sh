@@ -9,13 +9,13 @@
 #   bash scripts/paper2_weight_worktree.sh [--build] [--benchmark N] [--euroc]
 #
 # Environment:
-#   PAPER2_REF       branch or commit (default: paper/geodf-weighted-vins-2026-q4)
+#   PAPER2_REF       branch or commit (default: paper/geodf-weighted-vins-2026)
 #   PAPER2_WORKTREE  output worktree path (default: ../ws_vins_ros2_paper2_weight)
 #   FORCE            forwarded to benchmark scripts (default: 0)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PAPER2_REF="${PAPER2_REF:-paper/geodf-weighted-vins-2026-q4}"
+PAPER2_REF="${PAPER2_REF:-paper/geodf-weighted-vins-2026}"
 WORKTREE="${PAPER2_WORKTREE:-$(dirname "$ROOT")/ws_vins_ros2_paper2_weight}"
 DO_BUILD=0
 DO_EUROC=0

@@ -99,4 +99,4 @@ python3 scripts/eval_viode_detection.py \
   --weight-threshold 0.999
 ```
 
-**Branch:** `paper/geodf-weighted-vins-2026-q4` · **Worktree:** `../ws_vins_ros2_paper2_weight` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
+**Branch:** `paper/geodf-weighted-vins-2026` · **Worktree:** `../ws_vins_ros2_paper2_weight` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).

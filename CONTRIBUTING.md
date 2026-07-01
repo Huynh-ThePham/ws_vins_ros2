@@ -29,7 +29,7 @@ Do **not** open feature PRs directly to `baseline/*`.
 2. Branch from the current baseline:
    ```bash
    git fetch origin
-   git checkout -b paper/<method>-<year>-<venue> origin/baseline/ros2-stereo-vi-slam-euroc-v1
+   git checkout -b paper/<method>-<year> origin/baseline/ros2-stereo-vi-slam-euroc-v1
    ```
 3. Keep **one branch per manuscript**.
 4. Include reproducible scripts/configs for your evaluation.
@@ -61,7 +61,7 @@ bash scripts/run_euroc_benchmark.sh MH_01_easy stereo_imu 40 0 --eval
 bash scripts/run_euroc_benchmark.sh MH_01_easy stereo_imu 40 1 --eval
 ```
 
-For research branches, follow the evaluation scripts documented on that branch (e.g. GeoDF on `paper/geodf-adaptive-vins-2026-q4`).
+For research branches, follow the evaluation scripts documented on that branch (e.g. GeoDF on `paper/geodf-adaptive-vins-2026`).
 
 ## Code style
 

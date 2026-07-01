@@ -26,7 +26,7 @@ universal dynamic-scene VIO improvement.
 ## Reproducibility Freeze
 
 GeoDF-Adaptive artifacts are tied to the frozen commit on
-`paper/geodf-adaptive-vins-2026-q4`:
+`paper/geodf-adaptive-vins-2026`:
 
 ```text
 c64674097ab230465bf73576c60d3728050d3ec2

@@ -27,14 +27,14 @@ Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** ·
 |--------|------|
 | **`main`** | Stable integration (start here) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen stereo **Visual-Inertial SLAM** reference (EuRoC verified) |
-| [`paper/geodf-adaptive-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026-q4) | GeoDF-Adaptive — scene-aware hard rejection (AECE) |
-| [`paper/geodf-weighted-vins-2026-q4`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-weighted-vins-2026-q4) | GeoDF-Weighted — backend soft weighting |
+| [`paper/geodf-adaptive-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026) | GeoDF-Adaptive — scene-aware hard rejection (AECE) |
+| [`paper/geodf-weighted-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-weighted-vins-2026) | GeoDF-Weighted — backend soft weighting |
 
 New paper branch:
 
 ```bash
 git fetch origin
-git checkout -b paper/my-method-2026-q4 origin/baseline/ros2-stereo-vi-slam-euroc-v1
+git checkout -b paper/my-method-2026 origin/baseline/ros2-stereo-vi-slam-euroc-v1
 ```
 
 ## Packages
@@ -167,7 +167,7 @@ bash scripts/regenerate_benchmark_summaries.sh                   # refresh JSON 
 
 Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_refactor_summary.json`.
 
-## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026-q4`)
+## GeoDF-VINS-Hard (paper branch: `paper/geodf-adaptive-vins-2026`)
 
 Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 

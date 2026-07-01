@@ -45,7 +45,7 @@ algorithm-integration contribution.
 
 ## GeoDF-Adaptive Frozen Build Protocol
 
-Rebuild AECE submission artifacts from branch `paper/geodf-adaptive-vins-2026-q4`
+Rebuild AECE submission artifacts from branch `paper/geodf-adaptive-vins-2026`
 (worktree `../ws_vins_ros2_paper1_adaptive`). Reference freeze commit:
 
 ```text

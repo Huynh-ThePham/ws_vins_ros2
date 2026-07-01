@@ -30,6 +30,7 @@ Multi-paper workflow documented in **[docs/BRANCHING.md](docs/BRANCHING.md)** ·
 | [`paper/geodf-adaptive-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-adaptive-vins-2026) | GeoDF-Adaptive — scene-aware hard rejection (AECE) |
 | [`paper/geodf-weighted-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/geodf-weighted-vins-2026) | GeoDF-Weighted — backend soft weighting |
 | [`paper/sad-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/sad-vins-2026) | SGTA-VINS (+ SAD ablation) |
+| [`paper/sem-geodf-vins-2026`](https://github.com/Huynh-ThePham/ws_vins_ros2/tree/paper/sem-geodf-vins-2026) | Sem-GeoDF — semantic + GeoDF adaptive gated union |
 
 New paper branch:
 

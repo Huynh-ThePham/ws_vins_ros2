@@ -145,6 +145,7 @@ main
        ├── paper/geodf-adaptive-vins-2026
        ├── paper/geodf-weighted-vins-2026
        ├── paper/sad-vins-2026
+       ├── paper/sem-geodf-vins-2026
        └── paper/<future-paper>
 ```
 

@@ -64,7 +64,7 @@ paper/<method-slug>-<year>-<conference>
 
 | Field | Meaning | Examples |
 |-------|---------|----------|
-| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `geodf-weighted-vins`, `sad-vins` |
+| `method-slug` | Short method name (≤4 words) | `geodf-adaptive-vins`, `geodf-weighted-vins`, `sad-vins`, `sem-geodf-vins` |
 | `year` | Target submission / publication year | `2026` |
 | `conference` | Optional venue slug (conference or journal acronym) | `icra2027`, `iros2026`, `ral2026`, `aece2026` |
 
@@ -82,9 +82,10 @@ in branch names. Each branch names **one method**, not its rank in a publication
 
 ```text
 paper/geodf-adaptive-vins-2026      # GeoDF-Adaptive: scene-aware hard rejection
-paper/geodf-weighted-vins-2026        # GeoDF-Weighted: backend soft weighting
-paper/sad-vins-2026                   # SAD-VINS (semantic-adaptive dynamic)
-paper/dyn-robust-vio-2027-icra2027    # optional conference suffix
+paper/geodf-weighted-vins-2026      # GeoDF-Weighted: backend soft weighting
+paper/sad-vins-2026                 # SGTA-VINS (+ SAD ablation)
+paper/sem-geodf-vins-2026           # Semantic–GeoDF adaptive gated union
+paper/dyn-robust-vio-2027-icra2027  # optional conference suffix
 ```
 
 ## 3. Experimental branches
@@ -109,6 +110,7 @@ main
        ├── paper/geodf-adaptive-vins-2026
        ├── paper/geodf-weighted-vins-2026
        ├── paper/sad-vins-2026
+       ├── paper/sem-geodf-vins-2026
        └── exp/<scratch>
 ```
 
@@ -132,6 +134,8 @@ main
 | `ws_vins_ros2_paper1_freeze` (worktree) | `ws_vins_ros2_paper1_adaptive` |
 | `ws_vins_ros2_paper2_freeze` (worktree) | `ws_vins_ros2_paper2_weight` |
 | `paper/sad-vins-q1-research-20260501` | `paper/sad-vins-2026` (recommended) |
+| `exp/sem-geodf-gated` | `paper/sem-geodf-vins-2026` |
+| `ws_vins_ros2_sem_geodf` (worktree) | `paper/sem-geodf-vins-2026` |
 
 After renaming locally, update remote:
 

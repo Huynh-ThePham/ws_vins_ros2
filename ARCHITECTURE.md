@@ -136,22 +136,23 @@ Full policy: **[docs/BRANCHING.md](docs/BRANCHING.md)** — international naming
 |--------|---------|
 | `main` | Stable ROS 2 integration (default for contributors) |
 | `baseline/ros2-stereo-vi-slam-euroc-v1` | Frozen **ROS 2 stereo Visual-Inertial SLAM** reference (EuRoC verified). **No algorithm experiments.** |
-| `paper/<method>-<year>-<venue>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026-q4`) |
+| `paper/<method>-<year>` | One branch per manuscript (e.g. `paper/geodf-adaptive-vins-2026`) |
 | `exp/<topic>` | Exploratory work; not publication-bound |
 
 ```text
 main
  └── baseline/ros2-stereo-vi-slam-euroc-v1
-       ├── paper/geodf-adaptive-vins-2026-q4
-       ├── paper/sad-vins-2026-q1          (planned)
+       ├── paper/geodf-adaptive-vins-2026
+       ├── paper/geodf-weighted-vins-2026
+       ├── paper/sad-vins-2026
        └── exp/<scratch>
 ```
 
 Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
-### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026-q4`)
+### GeoDF-Adaptive VINS (`paper/geodf-adaptive-vins-2026`)
 
-Q4 paper branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
+GeoDF-Adaptive branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 
 **Worktree:** `../ws_vins_ros2_paper1_adaptive` — `bash scripts/paper1_adaptive_worktree.sh [--build] [--benchmark N] [--docx]`
 

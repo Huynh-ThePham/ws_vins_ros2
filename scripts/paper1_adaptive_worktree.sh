@@ -10,13 +10,13 @@
 #   bash scripts/paper1_adaptive_worktree.sh [--build] [--benchmark N] [--docx]
 #
 # Environment:
-#   PAPER1_REF       branch or commit (default: paper/geodf-adaptive-vins-2026-q4)
+#   PAPER1_REF       branch or commit (default: paper/geodf-adaptive-vins-2026)
 #   PAPER1_WORKTREE  output worktree path (default: ../ws_vins_ros2_paper1_adaptive)
 #   FORCE            forwarded to benchmark scripts (default: 0)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PAPER1_REF="${PAPER1_REF:-paper/geodf-adaptive-vins-2026-q4}"
+PAPER1_REF="${PAPER1_REF:-paper/geodf-adaptive-vins-2026}"
 WORKTREE="${PAPER1_WORKTREE:-$(dirname "$ROOT")/ws_vins_ros2_paper1_adaptive}"
 DO_BUILD=0
 DO_DOCX=0

@@ -1,4 +1,4 @@
-# Research Proposal — Scopus Q4
+# Research Proposal — GeoDF-Adaptive (AECE)
 
 ## Đề tài chính thức
 
@@ -582,7 +582,7 @@ scene-aware self-gating activation  ← đóng góp chính
 EuRoC static (gốc) + VIODE real-dynamic (gốc) benchmark
 ```
 
-**Target venue:** Scopus Q4 — robotics / autonomous systems / applied computer vision.
+**Target venue:** AECE — *Advances in Electrical and Computer Engineering* (applied EE / sensor fusion).
 
 **Differentiator:** Không thay estimator, không DL, không IMU trong filter, **không dữ liệu tự tạo** — chỉ geometry front-end + scene-aware self-gating, đánh giá trên dataset gốc (EuRoC + VIODE), dễ reproduce, overhead thấp.
 
@@ -598,7 +598,7 @@ EuRoC static (gốc) + VIODE real-dynamic (gốc) benchmark
 | 5 | VIODE dynamic experiments + ablation (baseline/always-on/adaptive) |
 | 6 | Viết paper + figures (ATE, rejection ratio, FPS, detection lift) |
 
-**Branch:** `paper/geodf-adaptive-vins-2026-q4` · **Worktree:** `../ws_vins_ros2_paper1_adaptive` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
+**Branch:** `paper/geodf-adaptive-vins-2026` · **Worktree:** `../ws_vins_ros2_paper1_adaptive` · **Baseline:** `baseline/ros2-stereo-vi-slam-euroc-v1` · See [docs/BRANCHING.md](BRANCHING.md).
 
 ---
 

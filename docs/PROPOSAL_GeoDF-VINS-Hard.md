@@ -444,7 +444,7 @@ Chạy lại **toàn bộ** pipeline (baseline/always-on/adaptive × 4 mức + d
 
 ### 2e. Hai nâng cấp thuật toán (v2): (B) auto-`ρ_on` + (F) stereo cross-check
 
-Hai giới hạn ở §2d được **hiện thực hoá thành thuật toán** và đánh giá lại (cùng-session để khử nhiễu cho ATE). Nguồn đầy đủ: `results/geodf_evaluation/V2_COMPARISON.md`, `scripts/summarize_geodf_v2.py`.
+Hai giới hạn ở §2d được **hiện thực hoá thành thuật toán** và đánh giá lại (cùng-session để khử nhiễu cho ATE). Các bảng bằng chứng v2 được giữ inline dưới đây; đây là nhánh thăm dò, không thuộc bộ artifact AECE đóng băng (script/summary so sánh v2 và `V2_COMPARISON.md` đã được gỡ khỏi worktree).
 
 **(B) Auto-calibrate `ρ_on` theo per-scene noise-floor.** Thay vì ngưỡng ARM cố định, ước lượng online "sàn outlier tĩnh" của scene bằng EMA bất đối xứng (giảm nhanh `β↓=0.02`, tăng chậm `β↑=0.004` ⇒ bám đáy), rồi đặt:
 ```text

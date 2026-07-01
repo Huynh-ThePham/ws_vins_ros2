@@ -153,6 +153,8 @@ Tag baseline freezes: `baseline-v1.0-ros2-stereo-vi-slam-euroc`.
 
 Q4 paper branch — *GeoDF-VINS-Hard: A Lightweight Geometry-Based Dynamic Feature Rejection Method for Stereo-Inertial VINS-Fusion* (scene-aware adaptive self-gating). See [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 
+**Worktree:** `../ws_vins_ros2_paper1_adaptive` — `bash scripts/paper1_adaptive_worktree.sh [--build] [--benchmark N] [--docx]`
+
 | Method | Config | Use case |
 |--------|--------|----------|
 | `baseline` | `euroc_stereo_imu_config.yaml` | No filter |

@@ -59,6 +59,31 @@ double clamp01(double v)
     return v;
 }
 
+bool triangulateStereoPoint(const Eigen::Vector3d &ray0,
+                            const Eigen::Vector3d &ray1,
+                            const Eigen::Matrix3d &R01,
+                            const Eigen::Vector3d &t01,
+                            double min_depth,
+                            double max_depth,
+                            Eigen::Vector3d &point0)
+{
+    const Eigen::Vector3d d0 = ray0.normalized();
+    const Eigen::Vector3d d1 = (R01 * ray1).normalized();
+    Eigen::Matrix<double, 3, 2> A;
+    A.col(0) = d0;
+    A.col(1) = -d1;
+    Eigen::Vector2d lambdas = A.colPivHouseholderQr().solve(t01);
+    const double z0 = lambdas.x();
+    const double z1 = lambdas.y();
+    if (!std::isfinite(z0) || !std::isfinite(z1) || z0 < min_depth || z0 > max_depth || z1 < min_depth)
+        return false;
+
+    const Eigen::Vector3d p0 = z0 * d0;
+    const Eigen::Vector3d p1 = t01 + z1 * d1;
+    point0 = 0.5 * (p0 + p1);
+    return point0.z() > min_depth && point0.z() < max_depth;
+}
+
 }  // namespace
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
@@ -454,23 +479,41 @@ void FeatureTracker::rejectGeoDynamic()
             ransac_outliers++;
     }
 
+    vector<cv::Point2f> cur_r(total);
+    vector<uchar> cur_r_valid(total, 0);
+    if ((cfg.geodf_stereo_check || cfg.geodf_motion3d_enable) && stereo_cam &&
+        m_camera.size() > 1 && !cur_img1.empty() && !prev_right_pts_map.empty())
+    {
+        vector<uchar> st;
+        vector<float> er;
+        cv::calcOpticalFlowPyrLK(cur_img, cur_img1, cur_pts, cur_r, st, er,
+                                 cv::Size(21, 21), 3);
+        vector<cv::Point2f> reverse_left;
+        vector<uchar> st_back;
+        if (cfg.flow_back)
+        {
+            cv::calcOpticalFlowPyrLK(cur_img1, cur_img, cur_r, reverse_left, st_back, er,
+                                     cv::Size(21, 21), 3);
+        }
+        for (int i = 0; i < total; i++)
+        {
+            bool ok = i < static_cast<int>(st.size()) && st[i] && inBorder(cur_r[i]);
+            if (ok && cfg.flow_back)
+                ok = i < static_cast<int>(st_back.size()) && st_back[i] &&
+                     distance(cur_pts[i], reverse_left[i]) <= 0.5;
+            cur_r_valid[i] = ok ? 1 : 0;
+        }
+    }
+
     // (F) Stereo temporal cross-check: a static point is consistent with BOTH the
-    // left and right temporal epipolar geometry. A dynamic point that happens to
-    // slide along the left epipolar line (Sampson_left ~ 0) is generally still an
-    // outlier in the right view, whose epipolar geometry differs by the stereo
-    // baseline. We track cur-left -> cur-right and pair with the previous frame's
-    // right pixel (by id) to estimate a right temporal F and score Sampson_right.
+    // left and right temporal epipolar geometry. This remains as a fallback when
+    // stereo 3D motion consistency is unavailable.
     vector<double> right_err(total, 0.0);
     vector<uchar> right_outlier(total, 0);
     vector<uchar> right_valid(total, 0);
     if (cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
         !cur_img1.empty() && !prev_right_pts_map.empty())
     {
-        vector<cv::Point2f> cur_r;
-        vector<uchar> st;
-        vector<float> er;
-        cv::calcOpticalFlowPyrLK(cur_img, cur_img1, cur_pts, cur_r, st, er,
-                                 cv::Size(21, 21), 3);
         vector<cv::Point2f> un_cr, un_pr;
         vector<int> ref_idx;
         un_cr.reserve(total);
@@ -480,7 +523,7 @@ void FeatureTracker::rejectGeoDynamic()
         {
             if (track_cnt[i] < cfg.geodf_min_track_cnt)
                 continue;
-            if (i >= static_cast<int>(st.size()) || !st[i] || !inBorder(cur_r[i]))
+            if (!cur_r_valid[i])
                 continue;
             auto it = prev_right_pts_map.find(ids[i]);
             if (it == prev_right_pts_map.end())
@@ -514,9 +557,91 @@ void FeatureTracker::rejectGeoDynamic()
         }
     }
 
-    // Candidate = dynamic if EITHER view's temporal dual-gate (RANSAC outlier AND
-    // Sampson > threshold) fires. The right branch raises recall on dynamics the
-    // left epipolar geometry misses, while each branch keeps its own dual gate.
+    vector<double> motion3d_residual(total, 0.0);
+    vector<uchar> motion3d_valid(total, 0);
+    vector<uchar> motion3d_outlier_mask(total, 0);
+    int motion3d_valid_count = 0;
+    int motion3d_outliers = 0;
+    double motion3d_median_residual = 0.0;
+    bool motion3d_used = false;
+    if (cfg.geodf_motion3d_enable && stereo_cam && m_camera.size() > 1 &&
+        !cur_img1.empty() && !prev_right_pts_map.empty() &&
+        vinsConfig().ric.size() >= 2 && vinsConfig().tic.size() >= 2)
+    {
+        const Eigen::Matrix3d R01 = vinsConfig().ric[0].transpose() * vinsConfig().ric[1];
+        const Eigen::Vector3d t01 = vinsConfig().ric[0].transpose() *
+                                    (vinsConfig().tic[1] - vinsConfig().tic[0]);
+        vector<cv::Point3f> prev3d;
+        vector<cv::Point2f> cur2d;
+        vector<int> ref_idx;
+        prev3d.reserve(total);
+        cur2d.reserve(total);
+        ref_idx.reserve(total);
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            auto it = prev_right_pts_map.find(ids[i]);
+            if (it == prev_right_pts_map.end())
+                continue;
+
+            Eigen::Vector3d prev_l, prev_r;
+            m_camera[0]->liftProjective(Eigen::Vector2d(prev_pts[i].x, prev_pts[i].y), prev_l);
+            m_camera[1]->liftProjective(Eigen::Vector2d(it->second.x, it->second.y), prev_r);
+
+            Eigen::Vector3d p_prev;
+            if (!triangulateStereoPoint(prev_l, prev_r, R01, t01,
+                                        cfg.geodf_motion3d_min_depth,
+                                        cfg.geodf_motion3d_max_depth, p_prev))
+                continue;
+            prev3d.emplace_back(static_cast<float>(p_prev.x()),
+                                static_cast<float>(p_prev.y()),
+                                static_cast<float>(p_prev.z()));
+            cur2d.emplace_back(un_cur_pts[i].x, un_cur_pts[i].y);
+            ref_idx.push_back(i);
+        }
+
+        motion3d_valid_count = static_cast<int>(ref_idx.size());
+        if (motion3d_valid_count >= cfg.geodf_motion3d_min_points)
+        {
+            cv::Mat rvec, tvec, inliers;
+            cv::Mat K = (cv::Mat_<double>(3, 3) << FOCAL_LENGTH, 0.0, col / 2.0,
+                         0.0, FOCAL_LENGTH, row / 2.0,
+                         0.0, 0.0, 1.0);
+            cv::setRNGSeed(0x47454f44);
+            const bool ok = cv::solvePnPRansac(prev3d, cur2d, K, cv::Mat(), rvec, tvec,
+                                               false,
+                                               std::max(1, cfg.geodf_motion3d_ransac_iters),
+                                               static_cast<float>(cfg.geodf_motion3d_residual_th),
+                                               0.99, inliers, cv::SOLVEPNP_EPNP);
+            if (ok && inliers.rows >= std::max(6, cfg.geodf_motion3d_min_points / 2))
+            {
+                vector<cv::Point2f> projected;
+                cv::projectPoints(prev3d, rvec, tvec, K, cv::Mat(), projected);
+                vector<double> residuals;
+                residuals.reserve(motion3d_valid_count);
+                for (int k = 0; k < motion3d_valid_count; k++)
+                {
+                    const int i = ref_idx[k];
+                    const double res = cv::norm(projected[k] - cur2d[k]);
+                    motion3d_residual[i] = res;
+                    motion3d_valid[i] = 1;
+                    residuals.push_back(res);
+                    if (res > cfg.geodf_motion3d_residual_th)
+                    {
+                        motion3d_outlier_mask[i] = 1;
+                        motion3d_outliers++;
+                    }
+                }
+                motion3d_median_residual = medianValue(residuals);
+                motion3d_used = true;
+            }
+        }
+    }
+
+    // Candidate = dynamic. Prefer stereo 3D motion consistency when enough
+    // triangulated correspondences are available; otherwise fall back to temporal
+    // epipolar dual-gates.
     // Scene gate: only trust the (noisier) right-view branch when the scene's
     // epipolar-outlier floor is low enough that the geometry is reliable. The
     // member geo_outlier_floor still holds the previous frame's (smooth) estimate.
@@ -532,6 +657,15 @@ void FeatureTracker::rejectGeoDynamic()
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
+        if (motion3d_used)
+        {
+            if (motion3d_valid[i] && motion3d_outlier_mask[i])
+            {
+                candidates.push_back(i);
+                candidate_mask[i] = 1;
+            }
+            continue;
+        }
         const bool left_cand = left_outlier[i] && (errors[i] > cfg.geodf_sampson_th);
         const bool right_cand = stereo_trust && right_valid[i] &&
                                 right_outlier[i] && (right_err[i] > cfg.geodf_stereo_sampson_th);
@@ -553,11 +687,15 @@ void FeatureTracker::rejectGeoDynamic()
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
-        const double evidence_error = std::max(errors[i], right_valid[i] ? right_err[i] : 0.0);
+        double evidence_error = std::max(errors[i], right_valid[i] ? right_err[i] : 0.0);
+        if (motion3d_used && motion3d_valid[i])
+            evidence_error = cfg.geodf_sampson_th *
+                             motion3d_residual[i] /
+                             std::max(1e-6, cfg.geodf_motion3d_residual_th);
         if (candidate_mask[i])
             candidate_sampson.push_back(evidence_error);
         else
-            background_sampson.push_back(errors[i]);
+            background_sampson.push_back(evidence_error);
     }
     if (!scored_errors.empty())
     {
@@ -573,16 +711,27 @@ void FeatureTracker::rejectGeoDynamic()
         max_sampson = scored_errors.back();
     }
 
-    const double frame_outlier_ratio =
+    const double frame_2d_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
+    const bool motion3d_supported =
+        !motion3d_used || cfg.geodf_motion3d_min_2d_ratio <= 0.0 ||
+        frame_2d_outlier_ratio >= cfg.geodf_motion3d_min_2d_ratio;
+    const double frame_outlier_ratio =
+        (motion3d_used && !motion3d_supported)
+            ? 0.0
+            :
+        motion3d_used
+            ? static_cast<double>(motion3d_outliers) / std::max(1, motion3d_valid_count)
+            : frame_2d_outlier_ratio;
     const size_t candidates_raw = candidates.size();
     const double frame_candidate_ratio =
         scored > 0 ? static_cast<double>(candidates_raw) / scored : 0.0;
     const double median_candidate_sampson = medianValue(candidate_sampson);
     const double median_background_sampson = medianValue(background_sampson);
+    const double background_scale = std::max(cfg.geodf_sampson_th, median_background_sampson);
     const double residual_lift =
         median_candidate_sampson > 0.0
-            ? median_candidate_sampson / std::max(1e-6, median_background_sampson)
+            ? median_candidate_sampson / std::max(1e-6, background_scale)
             : 0.0;
     const double ratio_quality =
         cfg.geodf_min_candidate_ratio > 0.0
@@ -592,7 +741,8 @@ void FeatureTracker::rejectGeoDynamic()
         cfg.geodf_min_residual_lift > 0.0
             ? clamp01(residual_lift / cfg.geodf_min_residual_lift)
             : 1.0;
-    const double quality_score = candidate_sampson.empty()
+    const double quality_score = (candidate_sampson.empty() ||
+                                  (motion3d_used && !motion3d_supported))
                                      ? 0.0
                                      : ratio_quality * lift_quality;
     if (geo_quality_ema < 0.0)
@@ -647,7 +797,7 @@ void FeatureTracker::rejectGeoDynamic()
                                  ? (geo_quality_ema >= quality_off)
                                  : (geo_quality_ema >= cfg.geodf_quality_min);
         }
-        geo_activation_active = ratio_active && quality_active;
+        geo_activation_active = ratio_active && quality_active && motion3d_supported;
         frame_active = geo_activation_active ? 1 : 0;
         if (!frame_active)
             candidates.clear();
@@ -775,7 +925,9 @@ void FeatureTracker::rejectGeoDynamic()
                   << frame_outlier_ratio << "," << frame_candidate_ratio << ","
                   << quality_score << "," << geo_quality_ema << "," << residual_lift << ","
                   << median_candidate_sampson << "," << median_background_sampson << ","
-                  << reject_limit << "\n";
+                  << reject_limit << ","
+                  << motion3d_valid_count << "," << motion3d_outliers << ","
+                  << motion3d_median_residual << "," << (motion3d_used ? 1 : 0) << "\n";
     }
 
     if (cfg.geodf_debug)

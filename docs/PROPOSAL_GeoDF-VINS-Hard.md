@@ -129,11 +129,12 @@ Stereo images + IMU
         ↓
 VINS-Fusion feature tracking (left cam, temporal KLT t−1 → t)
         ↓
-GeoDF (cam0 only, inter-frame geometry)
+GeoDF (stereo 3D motion consistency + epipolar support)
         ↓
   • lift to normalized plane + VINS pseudo-pixel space
-  • estimate F via RANSAC on all temporal correspondences
-  • Sampson scoring + dual gate (RANSAC outlier ∧ e > τ)
+  • triangulate previous left/right stereo tracks
+  • estimate dominant rigid motion with PnP RANSAC into current left image
+  • score by 3D reprojection residual; use 2D-F as fallback/support evidence
   • hard reject + ratio guard (+ min-feature floor)
         ↓
 Detect new features + stereo KLT (left → right, unchanged)
@@ -143,7 +144,7 @@ VINS-Fusion stereo-inertial estimator (unchanged backend)
 Trajectory
 ```
 
-**Lưu ý hình học:** GeoDF dùng **fundamental matrix giữa hai frame liên tiếp của cùng camera trái** (ràng buộc epipolar temporal), **không** dùng F stereo giữa cam0/cam1 cùng timestamp. IMU không tham gia bước lọc.
+**Lưu ý hình học:** cấu hình hiện tại dùng **stereo 3D motion consistency** làm gate ứng viên chính: triangulate feature stereo ở frame trước, estimate rigid motion bằng PnP RANSAC sang frame hiện tại, rồi reject track có reprojection residual lớn. Fundamental matrix temporal của cam trái vẫn được tính nhưng đóng vai trò **fallback/support signal** cho activation; IMU không tham gia bước lọc.
 
 ### Công thức chính
 
@@ -187,7 +188,7 @@ e_i = \frac{\varepsilon_i^{2}}
 
 Trong đó \(\|\cdot\|_{1:2}\) là norm của hai thành phần đầu vector 3D; \(e_i\) là **Sampson²** (implementation trả về bình phương, không lấy căn).
 
-**Dynamic candidate** (dual gate — tránh xóa nhầm inlier tĩnh):
+**Dynamic candidate fallback 2D-F** (dual gate — dùng khi stereo 3D không đủ điểm):
 
 ```text
 if track_length(i) ≥ min_track_cnt
@@ -204,7 +205,7 @@ Chỉ feature **outlier RANSAC** và **Sampson cao** mới vào \(C\). Inlier RA
 N  = số track trước lọc
 K  = floor(ρ_max × N)          # ρ_max = geodf_reject_ratio_max (default 0.40)
 K' = min(K, N − min_feature_num)
-K'' = min(K', max_reject_per_frame)  # nếu cap > 0; adaptive mặc định cap=3
+K'' = min(K', max_reject_per_frame)  # nếu cap > 0; adaptive mặc định cap=5
 
 if ratio_guard OFF:
     reject top min(|C|, K'') candidates in C (sort by e_i descending)
@@ -228,11 +229,12 @@ Per-frame cap làm hard rejection mượt hơn: vẫn ưu tiên candidate có re
 
 ```text
 candidate_ratio = |C| / N_scored
-residual_lift   = median_sampson(C) / median_sampson(non-C)
+background_scale = max(sampson_th, median_sampson(non-C))
+residual_lift   = median_sampson(C) / background_scale
 quality_score   = clamp(candidate_ratio / r_min) * clamp(residual_lift / l_min)
 ```
 
-`quality_score` được làm mượt bằng EMA và kết hợp với hysteresis của `ρ_on`. Frame chỉ hard-reject khi vừa vượt ngưỡng outlier-ratio, vừa có dynamic evidence đủ dày và residual tách khỏi nền. Các cột mới trong `geo_df_stats.csv`: `candidate_ratio`, `quality_score`, `quality_ema`, `residual_lift`, `median_candidate_sampson`, `median_background_sampson`.
+`background_scale` dùng ngưỡng Sampson làm sàn để median nền gần 0 ở cảnh tĩnh không thổi phồng lift. `quality_score` được làm mượt bằng EMA và kết hợp với hysteresis của `ρ_on`. Frame chỉ hard-reject khi vừa vượt ngưỡng outlier-ratio, vừa có dynamic evidence đủ dày và residual tách khỏi nền. Các cột mới trong `geo_df_stats.csv`: `candidate_ratio`, `quality_score`, `quality_ema`, `residual_lift`, `median_candidate_sampson`, `median_background_sampson`.
 
 **Ý tưởng.** Tự suy ra "scene có đang động không" từ **chính hình học mà bộ lọc đã tính** — không thêm cảm biến/nhãn. Cảnh rigid tĩnh khớp **một** fundamental matrix tốt ⇒ tỷ lệ outlier RANSAC toàn frame thấp; có vật chuyển động độc lập ⇒ tỷ lệ outlier tăng và **kéo dài qua nhiều frame**. Dùng tín hiệu này làm cổng kích hoạt.
 
@@ -256,9 +258,18 @@ EMA dập **spike nhất thời** ở cảnh tĩnh (xoay nhanh, ít texture → 
 
 ```yaml
 geodf_adaptive: 1            # 1: scene-aware; 0: always-on (ablation)
-geodf_activate_ratio: 0.12   # ρ_on — ngưỡng EMA outlier-ratio để ARM
+geodf_activate_ratio: 0.12   # fallback khi auto-rho tắt
 geodf_activate_ema: 0.15     # α — hệ số EMA (thấp = trơn hơn)
 geodf_deactivate_frac: 0.6   # κ — disarm khi EMA < ρ_on·κ
+geodf_auto_rho: 1
+geodf_auto_mult: 1.8
+geodf_auto_margin: 0.10
+geodf_activate_ratio_min: 0.14
+geodf_quality_min: 0.80
+geodf_min_candidate_ratio: 0.05
+geodf_min_residual_lift: 2.5
+geodf_vote_frames: 3
+geodf_warmup_frames: 60
 ```
 
 **Bằng chứng thiết kế — % frame được ARM** (offline replay trên `geo_df_stats.csv` từ **VIODE gốc**, `simulate_activation.py`, α=0.15, ρ_on=0.12):
@@ -297,13 +308,13 @@ geodf_debug: 1
 | `geodf_activate_ema` | α — hệ số EMA của tín hiệu outlier-ratio | ∈(0,1] |
 | `geodf_deactivate_frac` | κ — hysteresis disarm (EMA < ρ_on·κ) | ratio |
 
-**Điểm cài đặt:** `feature_tracker.cpp` — sau temporal KLT cam0, **trước** `setMask`/detect và **trước** stereo KLT. Gọi `findFundamentalMat(un_cur, un_prev, …)` và `sampsonDistance(F, un_cur, un_prev)` nhất quán với \(\mathbf{x}=\tilde{\mathbf{u}}^{t}\), \(\mathbf{x}'=\tilde{\mathbf{u}}^{t-1}\) ở trên.
+**Điểm cài đặt:** `feature_tracker.cpp` — sau temporal KLT cam0, **trước** `setMask`/detect. Cấu hình hiện tại track thêm current-left→current-right để có stereo observation, triangulate stereo ở frame trước, chạy `solvePnPRansac(prev3d, cur2d, K, ...)`, rồi dùng reprojection residual làm candidate gate. `findFundamentalMat(un_cur, un_prev, …)` và `sampsonDistance(F, un_cur, un_prev)` vẫn được giữ làm fallback/support signal.
 
 ### Giả định & hạn chế (nên ghi Section 4/6)
 
 1. **Đa số inlier rigid:** RANSAC ước lượng F từ scene tĩnh; nếu >~40% track động, F có thể lệch. **Đã quan sát thực nghiệm trên `parking_lot`** (§2d): base-rate động 10.7–14.0% + xe chiếm vùng ảnh lớn ⇒ lift sụt còn 1.4–1.6× và adaptive xấu nặng ở `3_high`.
-2. **Chỉ cam0 temporal (v1):** feature động trên cam1/right-only path không qua GeoDF. **v2 (§2e) bổ sung epipolar temporal cam phải** (stereo cross-check) làm nhánh OR, tăng recall động ở scene hình học đáng tin.
-3. **Không dùng IMU / depth stereo (v1)** trong gate → không phân biệt parallax thật vs object motion trong mọi trường hợp. **v2 đã khai thác stereo** (cross-check cam phải, §2e); IMU vẫn chưa dùng trong gate.
+2. **Stereo 3D phụ thuộc depth ngắn-baseline:** gate hiện tại đã dùng stereo depth, nhưng depth nhiễu ở low-parallax/occlusion vẫn có thể tạo residual giả. Vì vậy activation yêu cầu thêm `motion3d_min_2d_ratio` từ temporal 2D-F trước khi hard-reject.
+3. **Không dùng IMU trong gate:** IMU vẫn chưa tham gia bước lọc, nên pure rotation/low parallax kéo dài vẫn là case cần bảo vệ bằng EMA, quality gate, warm-up và temporal voting.
 4. **Chuyển động suy biến** (pure rotation, baseline rất nhỏ): F ill-conditioned → outlier-ratio tăng giả. **Scene-aware gating dùng EMA + hysteresis nên dập được spike suy biến nhất thời** (1–2 frame); chỉ suy biến *kéo dài* (hiếm trên EuRoC/VIODE) mới có thể kích hoạt nhầm.
 5. **Hard delete:** không soft-weight trong backend; outlier đã vào estimator frame trước vẫn có thể ảnh hưởng ngắn hạn.
 6. **Ngưỡng kích hoạt (v1 cố định → v2 auto):** v1 dùng `ρ_on` cố định; trên `parking_lot` (§2d) noise-floor cao làm gate ARM 34–78%. **v2 (§2e) auto-calibrate `ρ_on` theo per-scene floor** (EMA bất đối xứng) ⇒ `ρ_on` tự co giãn 0.10→0.20 và `parking_lot` ARM giảm còn 12–22%. **Giải quyết Limitation này.** Tham số còn lại của công thức auto (`mult`, `margin`, biên clamp) vẫn là hằng số chọn offline.
@@ -442,7 +453,7 @@ Chạy lại **toàn bộ** pipeline (baseline/always-on/adaptive × 4 mức + d
 
 > **Kết luận tổng quát hóa (đưa vào Discussion + Limitations):** đóng góp có **phạm vi điều kiện**, không phổ quát — GeoDF-Adaptive cải thiện khi vật động (i) tạo bất nhất epipolar rõ và (ii) **không chiếm đa số scene** (thoả ở `city_day`, một phần `city_night`). `parking_lot` **xác nhận bằng thực nghiệm 2 limitation đã ghi**: (1) mật độ động cao làm lệch F; (6) ngưỡng cố định gây over-arming — **(6) đã giải quyết bằng auto-`ρ_on` (§2e, Hướng A)**; (1) vẫn là giới hạn cấu trúc.
 
-### 2e. Hai nâng cấp thuật toán (v2): (B) auto-`ρ_on` + (F) stereo cross-check
+### 2e. Nâng cấp thuật toán: auto-`ρ_on`, stereo cross-check, và stereo 3D motion consistency
 
 Hai giới hạn ở §2d được **hiện thực hoá thành thuật toán** và đánh giá lại (cùng-session để khử nhiễu cho ATE). Các bảng bằng chứng v2 được giữ inline dưới đây; đây là nhánh thăm dò, không thuộc bộ artifact AECE đóng băng (script/summary so sánh v2 và `V2_COMPARISON.md` đã được gỡ khỏi worktree).
 
@@ -487,7 +498,29 @@ floor_t = EMA_asym(s_t)                       # sàn outlier-ratio của scene
 - **(F) stereo cross-check:** tăng **recall phát hiện +39–53%** nhưng **KHÔNG cải thiện ATE**, thậm chí **hại ở 3_high** (0.282→0.323). Đây là **kết quả âm về quỹ đạo**: recall cao **⇏** ATE tốt; chi phí false-positive (hard-delete kiểu OR) lấn át lợi ích ở mật độ động cao.
 - **EuRoC tĩnh (5 seq): không hồi quy** — v2 nằm trong **−3.4%…+0.7%** so với baseline.
 
-> **Chốt v2 / method đề xuất (Hướng A):** **GeoDF-Adaptive + auto-`ρ_on`, stereo OFF** là config chính (`adaptive`). Self-gating >> baseline (n=5). (B) adopt vì tổng quát hóa hyperparameter-free. (F) chỉ ablation (`adaptive_v2`). Fixed-ρ ablation: `adaptive_fixed` (peak ATE city_day 3_high khi đã tune).
+**(G) Stereo 3D motion consistency (current proposed).** Kết quả âm của (F)
+cho thấy OR thêm một nhánh epipolar 2D làm tăng recall nhưng không đủ
+geometry để bảo vệ trajectory. Bản hiện tại thay candidate gate chính bằng
+stereo 3D consistency: triangulate previous stereo track, estimate dominant
+rigid motion bằng PnP RANSAC, và flag point có current-left reprojection
+residual lớn. Temporal 2D-F vẫn được giữ làm fallback/support: 3D gate chỉ
+được arm khi 2D outlier ratio vượt `motion3d_min_2d_ratio=0.10`.
+
+**Recheck none/high, current config** (`results/recheck_motion3d_final_none_high_20260702_095554`):
+
+| Env/level | ATE baseline → adaptive | ΔATE | RPE baseline → adaptive | ΔRPE | active% |
+|---|---:|---:|---:|---:|---:|
+| `city_day/0_none` | 0.1203 → 0.1095 | +9.1% | 0.1117 → 0.1115 | +0.1% | 0.0 |
+| `city_day/3_high` | 0.3459 → 0.3060 | +11.6% | 0.1063 → 0.0731 | +31.3% | 3.9 |
+| `city_night/0_none` | 0.4165 → 0.4179 | -0.3% | 0.0411 → 0.0411 | -0.1% | 0.0 |
+| `city_night/3_high` | 0.8837 → 0.8840 | -0.0% | 0.0948 → 0.0948 | -0.0% | 0.0 |
+| `parking_lot/0_none` | 0.1671 → 0.1671 | +0.0% | 0.0275 → 0.0275 | +0.0% | 0.0 |
+| `parking_lot/3_high` | 0.1193 → 0.1547 | -29.6% | 0.0523 → 0.0383 | +26.9% | 19.1 |
+
+> **Chốt current / method đề xuất:** **GeoDF-Adaptive + auto-`ρ_on` + quality
+gate + temporal voting + stereo 3D motion consistency** là config chính
+(`adaptive`). (F) stereo cross-check chỉ giữ như ablation âm; fixed-ρ là
+ablation peak đã tune cho `city_day`.
 
 ### 3. Ablation
 
@@ -496,8 +529,8 @@ floor_t = EMA_asym(s_t)                       # sàn outlier-ratio của scene
 | 1 | VINS-Fusion baseline | `baseline` | no | no | no | — | — |
 | 2 | GeoDF always-on | `geodf_dump` | yes | yes | yes | always-on | — |
 | 3 | GeoDF-Adaptive (fixed ρ) | `adaptive_fixed` | yes | yes | yes | scene-aware | fixed 0.12 |
-| 4 | **GeoDF-Adaptive (PROPOSED)** | **`adaptive`** | yes | yes | yes | scene-aware | **auto** |
-| 5 | + stereo cross-check | `adaptive_v2` | yes | yes | yes | scene-aware | auto + (F) |
+| 4 | **GeoDF-Adaptive (PROPOSED)** | **`adaptive`** | yes, stereo 3D | yes | yes | scene-aware + quality + vote | **auto** |
+| 5 | + stereo cross-check | `adaptive_v2` | yes, 2D-F L/R | yes | yes | scene-aware | auto + (F) |
 
 Ablation chính: **always-on vs scene-aware** (cùng cổng kép + ratio guard) và **fixed-ρ vs auto-ρ** (tổng quát hóa). Chạy:
 - EuRoC: `METHODS="baseline alwayson adaptive adaptive_fixed" bash scripts/run_geodf_euroc.sh MH_01_easy adaptive --eval`

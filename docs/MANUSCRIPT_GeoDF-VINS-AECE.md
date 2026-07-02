@@ -26,9 +26,11 @@ Visual Odometry in Dynamic Scenes
 Dynamic objects violate the static-scene assumption used by feature-based
 visual-inertial odometry. This paper presents GeoDF-Adaptive, a geometry-based
 front-end dynamic feature rejection method for stereo-inertial VINS. The method
-uses temporal epipolar consistency, a Sampson residual dual gate, scene-aware
-activation, auto-calibrated activation thresholding, and track-level temporal
-voting. Unlike semantic approaches, GeoDF-Adaptive does not require an object
+uses stereo 3D motion consistency, PnP-RANSAC reprojection residuals, temporal
+epipolar support, scene-aware activation, auto-calibrated activation
+thresholding, quality-aware activation, track-level temporal voting, and guarded
+hard rejection. Unlike semantic
+approaches, GeoDF-Adaptive does not require an object
 detector, a segmentation model, or dataset-specific training. The method was
 implemented in a VINS-Fusion stereo-inertial pipeline and evaluated on the
 original EuRoC and VIODE datasets. On EuRoC, GeoDF-Adaptive preserved
@@ -74,7 +76,8 @@ contaminated geometric model when dynamic objects dominate the image.
 
 This paper investigates a geometry-only front-end filter, called
 GeoDF-Adaptive, for stereo-inertial VINS. The method uses temporal epipolar
-geometry to identify features that are inconsistent with rigid-scene motion.
+and stereo geometric evidence to identify features that are inconsistent with
+rigid-scene motion.
 Unlike always-on filtering, GeoDF-Adaptive self-activates only when a smoothed
 outlier signal exceeds an auto-calibrated scene threshold. Track-level temporal
 voting is then used to reduce transient false positives caused by two-frame
@@ -95,12 +98,15 @@ The main contributions are:
    residual dual gating.
 2. A scene-aware activation mechanism with an auto-calibrated `rho_on`
    threshold derived from the running epipolar outlier floor.
-3. A track-level temporal voting strategy that suppresses transient false
+3. A quality-aware activation gate that requires dynamic candidates to be both
+   sufficiently frequent and separated from the static background by Sampson
+   residual lift before hard deletion is armed.
+4. A track-level temporal voting strategy that suppresses transient false
    positives before hard feature deletion.
-4. A reproducible evaluation on EuRoC and VIODE, including ATE/RPE trajectory
+5. A reproducible evaluation on EuRoC and VIODE, including ATE/RPE trajectory
    metrics and feature-level detection metrics against VIODE dynamic
    segmentation masks.
-5. A limitation analysis showing that high dynamic-density scenes can still
+6. A limitation analysis showing that high dynamic-density scenes can still
    degrade the method when the fundamental matrix estimate is contaminated by
    large moving regions.
 
@@ -164,13 +170,30 @@ only this module is added and the stereo-inertial back-end is unmodified.
 
 **Figure 1.** GeoDF-Adaptive front-end pipeline and internal steps (a)-(f).
 
-### 3.1 Temporal Epipolar Consistency
+### 3.1 Stereo 3D Motion Consistency
 
-For a tracked feature correspondence between frame `t-1` and frame `t`, the
-left-camera image points are lifted to the normalized camera plane and mapped to
-the pseudo-pixel space used by the VINS front-end. A fundamental matrix `F` is
-estimated using RANSAC. For each tracked feature, the Sampson residual is
-computed as
+For a tracked stereo feature, GeoDF-Adaptive triangulates the previous-frame
+left/right observation using the calibrated stereo extrinsics. The resulting
+3D point in the previous left-camera frame is matched to the current left-camera
+observation. A dominant rigid motion is estimated with PnP RANSAC, and each
+track is scored by its current-frame reprojection residual:
+
+```text
+r_i = || project(K, R, t, P_i^{t-1}) - u_i^t ||
+```
+
+where `P_i^{t-1}` is the triangulated previous stereo point and `u_i^t` is the
+current left pseudo-pixel observation. A feature is considered a dynamic
+candidate when it is a stereo-3D correspondence and `r_i` exceeds the configured
+reprojection threshold. This 3D gate replaces the older 2D fundamental-matrix
+candidate gate whenever enough valid stereo correspondences are available.
+
+Temporal epipolar geometry remains in the method as a support and fallback
+signal. For a tracked feature correspondence between frame `t-1` and frame `t`,
+the left-camera image points are lifted to the normalized camera plane and
+mapped to the pseudo-pixel space used by the VINS front-end. A fundamental
+matrix `F` is estimated using RANSAC. For each tracked feature, the Sampson
+residual is computed as
 
 ```text
 e_i = ((x_i^T F x'_i)^2) /
@@ -178,10 +201,12 @@ e_i = ((x_i^T F x'_i)^2) /
 ```
 
 where `x_i` and `x'_i` are the current and previous homogeneous feature
-coordinates. A feature is considered a dynamic candidate only when it satisfies
-both conditions: it is a RANSAC outlier and its Sampson residual is above the
-configured threshold. This dual gate is used to avoid deleting features due to a
-single weak signal.
+coordinates. If the stereo-3D gate is unavailable, the fallback 2D candidate
+gate requires both conditions: the feature is a RANSAC outlier and its Sampson
+residual is above the configured threshold. In the stereo-3D mode, the
+frame-level activation additionally requires the 2D epipolar outlier ratio to
+exceed a small support threshold, preventing noisy stereo depth in static
+low-parallax scenes from arming hard rejection by itself.
 
 ### 3.2 Scene-Aware Activation
 
@@ -192,7 +217,7 @@ ratio. The rejection module is armed only when this signal exceeds a threshold
 running outlier floor for the current scene and computes
 
 ```text
-rho_on = clamp(floor * 1.8 + 0.05, 0.10, 0.40)
+rho_on = clamp(floor * 1.8 + 0.10, 0.14, 0.40)
 ```
 
 The floor uses asymmetric smoothing: it adapts down faster when the observed
@@ -200,13 +225,32 @@ outlier ratio decreases and increases slowly when the ratio rises. This prevents
 short dynamic bursts from inflating the static floor while allowing high-noise
 scenes to use a more conservative activation threshold.
 
+The activation decision also uses a quality gate. After the dual gate has
+formed the candidate set `C`, GeoDF-Adaptive computes
+
+```text
+candidate_ratio = |C| / N_scored
+background_scale = max(tau, median_sampson(background))
+residual_lift   = median_sampson(C) / background_scale
+quality_score   = clamp(candidate_ratio / r_min) *
+                  clamp(residual_lift / l_min)
+```
+
+where the background is the set of scored non-candidate tracks. The Sampson
+threshold `tau` is used as a denominator floor so near-zero static residuals do
+not artificially inflate the lift score. The quality score is smoothed by an
+EMA, and hard rejection is armed only when both the outlier-ratio signal and
+the quality signal pass their hysteresis gates. This prevents frames with a
+high RANSAC outlier ratio but weak candidate separation from deleting useful
+static tracks.
+
 ### 3.3 Track-Level Temporal Voting
 
 Two-frame epipolar geometry can generate transient false positives under fast
 rotation, low parallax, or weak texture. To reduce this effect, each feature ID
 maintains a dynamic-candidate streak. A feature is eligible for hard deletion
 only after being flagged for at least `k` consecutive frames. In the evaluated
-configuration, `k=2` and a 30-frame warm-up period is used.
+configuration, `k=3` and a 60-frame warm-up period is used.
 
 ### 3.4 Integration in Stereo-Inertial VINS
 
@@ -216,12 +260,15 @@ detection. This design keeps the estimator unchanged and makes the method easy
 to integrate into an existing VINS-Fusion style pipeline. A per-frame ratio
 guard additionally caps hard deletions at 40% of tracked features and never
 reduces the active set below a minimum feature count, so the estimator is never
-starved even if the gate over-fires.
+starved even if the gate over-fires. In the evaluated configuration, an
+additional per-frame cap of five hard deletions is used to avoid abrupt
+feature-set changes caused by a single contaminated fundamental matrix.
 
 ### 3.5 Parameter Settings
 
 All experiments used a single fixed configuration (no per-sequence tuning).
-The stereo temporal cross-check was disabled in the evaluated configuration.
+The stereo 3D motion-consistency gate was enabled in the current configuration;
+the older stereo temporal cross-check remains disabled.
 
 ### Table: GeoDF-Adaptive Parameters (Evaluated Configuration)
 
@@ -233,13 +280,22 @@ The stereo temporal cross-check was disabled in the evaluated configuration.
 | Min features kept | `min_feature_num` | 40 |
 | Outlier-ratio EMA factor | `activate_ema` | 0.15 |
 | Auto threshold multiplier | `auto_mult` | 1.8 |
-| Auto threshold margin | `auto_margin` | 0.05 |
-| Arm threshold clamp | rho_on range | [0.10, 0.40] |
+| Auto threshold margin | `auto_margin` | 0.10 |
+| Arm threshold clamp | rho_on range | [0.14, 0.40] |
 | Floor adapt-down / up rate | `floor_down` / `floor_up` | 0.02 / 0.004 |
 | Disarm hysteresis fraction | `deactivate_frac` | 0.6 |
-| Temporal voting frames | k (`vote_frames`) | 2 |
-| Warm-up frames | `warmup_frames` | 30 |
+| Quality gate | `quality_gate` | enabled |
+| Quality EMA factor | `quality_ema` | 0.15 |
+| Min candidate ratio | `min_candidate_ratio` | 0.05 |
+| Min residual lift | `min_residual_lift` | 2.5 |
+| Temporal voting frames | k (`vote_frames`) | 3 |
+| Warm-up frames | `warmup_frames` | 60 |
 | Max reject ratio (guard) | `max_reject_ratio` | 0.40 |
+| Max hard deletions per frame | `max_reject_per_frame` | 5 |
+| Stereo 3D motion gate | `motion3d_enable` | enabled |
+| PnP RANSAC reprojection threshold | `motion3d_residual_th` | 3.0 px |
+| Min stereo 3D correspondences | `motion3d_min_points` | 25 |
+| 2D support ratio for 3D activation | `motion3d_min_2d_ratio` | 0.10 |
 
 ## 4. Experimental Setup
 
@@ -255,6 +311,16 @@ The EuRoC evaluation used `MH_01_easy`, `MH_02_easy`, `MH_03_medium`,
 `MH_04_difficult`, and `MH_05_difficult`. The VIODE evaluation used three
 environments: `city_day`, `city_night`, and `parking_lot`. Each environment was
 evaluated under four dynamic levels: `0_none`, `1_low`, `2_mid`, and `3_high`.
+
+For a stronger journal version, the benchmark protocol includes the following
+front-end baselines and ablations, all using the same stereo-inertial backend:
+standard VINS-Fusion (`baseline`), always-on GeoDF hard rejection
+(`alwayson`), fixed activation threshold (`adaptive_fixed`), proposed method
+without the quality gate (`adaptive_no_quality`), proposed method without
+track-level temporal voting (`adaptive_no_vote`), and the full proposed method
+(`adaptive`). The purpose of these ablations is to isolate whether gains come
+from geometry-only hard rejection itself, scene-aware auto-thresholding,
+quality-aware activation, or temporal voting.
 
 ### 4.2 Metrics
 
@@ -410,7 +476,8 @@ hard/soft rejection.
 This paper presented GeoDF-Adaptive, a geometry-only dynamic feature rejection
 method for stereo-inertial visual odometry. The method combines temporal
 epipolar consistency, Sampson residual gating, scene-aware activation,
-auto-calibrated thresholding, and track-level temporal voting. Experiments on
+auto-calibrated thresholding, quality-aware activation, guarded hard rejection,
+and track-level temporal voting. Experiments on
 EuRoC and VIODE show that the method preserves static-scene performance and
 improves several moderate-dynamic VIODE cases. Feature-level evaluation using
 VIODE moving-vehicle masks confirms that rejected features are substantially

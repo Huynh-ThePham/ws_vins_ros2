@@ -111,6 +111,18 @@ struct VinsConfig
     // low (reliable geometry). 0 = always trust. In low-parallax scenes the floor
     // is high and the noisier right-view pair causes false rejections, so gate it.
     double geodf_stereo_floor_max = 0.0;
+    // Stereo 3D motion consistency: triangulate previous stereo tracks, estimate
+    // the dominant rigid motion with PnP RANSAC into the current left image, and
+    // flag tracks whose reprojection residual is inconsistent with that motion.
+    // This is preferred over 2D-F gating when enough stereo correspondences are
+    // available.
+    int geodf_motion3d_enable = 0;
+    int geodf_motion3d_min_points = 25;
+    double geodf_motion3d_min_depth = 0.2;
+    double geodf_motion3d_max_depth = 40.0;
+    double geodf_motion3d_residual_th = 3.0;
+    int geodf_motion3d_ransac_iters = 96;
+    double geodf_motion3d_min_2d_ratio = 0.0;
     std::string geodf_stats_path;
     std::string geodf_feat_path;
 

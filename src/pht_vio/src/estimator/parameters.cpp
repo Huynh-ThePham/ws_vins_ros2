@@ -179,6 +179,13 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_stereo_check = 0;
     geodf_stereo_sampson_th = 3.0;
     geodf_stereo_floor_max = 0.0;
+    geodf_motion3d_enable = 0;
+    geodf_motion3d_min_points = 25;
+    geodf_motion3d_min_depth = 0.2;
+    geodf_motion3d_max_depth = 40.0;
+    geodf_motion3d_residual_th = 3.0;
+    geodf_motion3d_ransac_iters = 96;
+    geodf_motion3d_min_2d_ratio = 0.0;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -247,6 +254,20 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_stereo_sampson_th = (double)fsSettings["geodf_stereo_sampson_th"];
     if (!fsSettings["geodf_stereo_floor_max"].empty())
         geodf_stereo_floor_max = (double)fsSettings["geodf_stereo_floor_max"];
+    if (!fsSettings["geodf_motion3d_enable"].empty())
+        geodf_motion3d_enable = (int)fsSettings["geodf_motion3d_enable"];
+    if (!fsSettings["geodf_motion3d_min_points"].empty())
+        geodf_motion3d_min_points = (int)fsSettings["geodf_motion3d_min_points"];
+    if (!fsSettings["geodf_motion3d_min_depth"].empty())
+        geodf_motion3d_min_depth = (double)fsSettings["geodf_motion3d_min_depth"];
+    if (!fsSettings["geodf_motion3d_max_depth"].empty())
+        geodf_motion3d_max_depth = (double)fsSettings["geodf_motion3d_max_depth"];
+    if (!fsSettings["geodf_motion3d_residual_th"].empty())
+        geodf_motion3d_residual_th = (double)fsSettings["geodf_motion3d_residual_th"];
+    if (!fsSettings["geodf_motion3d_ransac_iters"].empty())
+        geodf_motion3d_ransac_iters = (int)fsSettings["geodf_motion3d_ransac_iters"];
+    if (!fsSettings["geodf_motion3d_min_2d_ratio"].empty())
+        geodf_motion3d_min_2d_ratio = (double)fsSettings["geodf_motion3d_min_2d_ratio"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -256,7 +277,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                      "mean_sampson,median_sampson,max_sampson,guard_triggered,guard_capped,"
                      "activation_signal,frame_active,geo_ms,rho_on,outlier_floor,stereo_added,confirmed,"
                      "outlier_ratio,candidate_ratio,quality_score,quality_ema,residual_lift,"
-                     "median_candidate_sampson,median_background_sampson,reject_limit\n";
+                     "median_candidate_sampson,median_background_sampson,reject_limit,"
+                     "motion3d_valid,motion3d_outliers,motion3d_median_residual,motion3d_used\n";
         geo_stats.close();
         if (geodf_dump_features) {
             geodf_feat_path = output_folder + "/geo_df_features.csv";
@@ -287,7 +309,11 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " warmup_frames=" << geodf_warmup_frames
                         << " stereo_check=" << geodf_stereo_check
                         << " stereo_sampson_th=" << geodf_stereo_sampson_th
-                        << " stereo_floor_max=" << geodf_stereo_floor_max);
+                        << " stereo_floor_max=" << geodf_stereo_floor_max
+                        << " motion3d_enable=" << geodf_motion3d_enable
+                        << " motion3d_min_points=" << geodf_motion3d_min_points
+                        << " motion3d_residual_th=" << geodf_motion3d_residual_th
+                        << " motion3d_min_2d_ratio=" << geodf_motion3d_min_2d_ratio);
     }
 
     fsSettings.release();

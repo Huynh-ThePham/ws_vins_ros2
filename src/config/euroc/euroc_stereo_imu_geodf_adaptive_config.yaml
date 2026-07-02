@@ -79,7 +79,7 @@ geodf_min_track_cnt: 2
 geodf_min_feature_num: 40
 geodf_reject_ratio_max: 0.40
 geodf_ratio_guard: 1
-geodf_max_reject_per_frame: 3
+geodf_max_reject_per_frame: 5
 geodf_debug: 1
 geodf_dump_features: 0
 geodf_adaptive: 1
@@ -88,8 +88,8 @@ geodf_activate_ema: 0.15
 geodf_deactivate_frac: 0.6
 geodf_auto_rho: 1
 geodf_auto_mult: 1.8
-geodf_auto_margin: 0.05
-geodf_activate_ratio_min: 0.10
+geodf_auto_margin: 0.10
+geodf_activate_ratio_min: 0.14
 geodf_activate_ratio_max: 0.40
 geodf_auto_floor_down: 0.02
 geodf_auto_floor_up: 0.004
@@ -97,12 +97,19 @@ geodf_auto_floor_up: 0.004
 # their Sampson residuals separate from the static background.
 geodf_quality_gate: 1
 geodf_quality_ema: 0.15
-geodf_quality_min: 0.50
-geodf_min_candidate_ratio: 0.01
-geodf_min_residual_lift: 2.0
+geodf_quality_min: 0.85
+geodf_min_candidate_ratio: 0.05
+geodf_min_residual_lift: 2.5
 # Track-level temporal voting: delete only after >=k consecutive dynamic flags.
-geodf_vote_frames: 2
-geodf_warmup_frames: 30
+geodf_vote_frames: 3
+geodf_warmup_frames: 60
 geodf_stereo_check: 0
 geodf_stereo_sampson_th: 6.0
 geodf_stereo_floor_max: 0.045
+geodf_motion3d_enable: 1
+geodf_motion3d_min_points: 25
+geodf_motion3d_min_depth: 0.2
+geodf_motion3d_max_depth: 40.0
+geodf_motion3d_residual_th: 3.0
+geodf_motion3d_ransac_iters: 96
+geodf_motion3d_min_2d_ratio: 0.10

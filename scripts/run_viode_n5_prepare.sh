@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare N-repeat study on full VIODE (3 envs × 4 levels × baseline+adaptive).
+# Prepare N-repeat study on full VIODE.
 #
 # Does NOT run VIO trials — only prerequisites:
 #   - optional rebuild (REBUILD=1)
@@ -10,6 +10,7 @@
 # Usage:
 #   ./scripts/run_viode_n5_prepare.sh [N]
 # Env: VIODE_ROOT, REBUILD=1, SKIP_CONVERT=1, SKIP_GT=1
+#      METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive"
 set -eo pipefail
 
 N="${1:-5}"
@@ -19,7 +20,7 @@ source "${WS}/scripts/lib/geodf_common.sh"
 
 VIODE_ENVS=(city_day city_night parking_lot)
 ALL_LEVELS=(0_none 1_low 2_mid 3_high)
-METHODS=(baseline adaptive)
+read -r -a METHODS <<< "${METHODS:-baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive}"
 OUT_ROOT="${WS}/results/viode_repeat"
 LOG="${WS}/logs/viode_n5_prepare_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "$OUT_ROOT" "${WS}/logs" "${WS}/data/viode_ros2"
@@ -27,6 +28,7 @@ mkdir -p "$OUT_ROOT" "${WS}/logs" "${WS}/data/viode_ros2"
 exec > >(tee -a "$LOG") 2>&1
 echo "[viode-n5-prepare] log: $LOG"
 echo "[viode-n5-prepare] N=$N  trials_per_cell=$((N))  total_runs=$(( ${#VIODE_ENVS[@]} * ${#ALL_LEVELS[@]} * ${#METHODS[@]} * N ))"
+echo "[viode-n5-prepare] METHODS=${METHODS[*]}"
 
 if [ "${REBUILD:-0}" = "1" ]; then
     echo "[viode-n5-prepare] rebuilding pht_vio_ros (Release)..."

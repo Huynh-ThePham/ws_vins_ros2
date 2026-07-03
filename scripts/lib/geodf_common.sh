@@ -9,6 +9,7 @@ resolve_euroc_root() {
     local candidate
     for candidate in \
         "/media/theph/Data1/Research/Datasets/EuRoC" \
+        "/home/theph/ws_vins_ros2/data/euroc_benchmark" \
         "/media/theph/Data1/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/euroc"; do
@@ -62,16 +63,21 @@ geodf_method_to_mode() {
         baseline) echo stereo_imu ;;
         geodf|geodf_hard) echo stereo_imu_geodf ;;
         geodf_dump|alwayson) echo stereo_imu_geodf_dump ;;
-        # PROPOSED (Hướng A): scene-aware + auto-ρ_on (B), stereo OFF
-        adaptive|proposed|geodf_adaptive) echo stereo_imu_geodf_adaptive ;;
+        # PROPOSED (Hướng A): scene-aware + auto-ρ_on + stereo 3D motion consistency
+        adaptive|proposed|geodf_adaptive|adaptive_3d|new_adaptive) echo stereo_imu_geodf_adaptive ;;
+        # Ablation: same adaptive stack but 2D-F candidate gate only (motion3d OFF)
+        adaptive_2d|old_adaptive|2d_f) echo stereo_imu_geodf_adaptive_2d ;;
         # Ablation: fixed ρ_on=0.12 (oracle / dataset-tuned)
         adaptive_fixed|adaptive_v1|fixed_rho) echo stereo_imu_geodf_adaptive_fixed ;;
+        # Ablations for Q3 evidence: isolate quality-aware activation and temporal voting.
+        adaptive_no_quality|no_quality|noq) echo stereo_imu_geodf_adaptive_no_quality ;;
+        adaptive_no_vote|no_vote|novote) echo stereo_imu_geodf_adaptive_no_vote ;;
         adaptive_v2) echo stereo_imu_geodf_adaptive_v2 ;;
         adaptiveB|adaptive_b) echo stereo_imu_geodf_adaptive ;;  # same as proposed
         geodf_dump_v2|alwayson_v2) echo stereo_imu_geodf_dump_v2 ;;
         geodf_noguard) echo stereo_imu_geodf_noguard ;;
         *)
-            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_v2|geodf_dump_v2|geodf_noguard)" >&2
+            echo "Unknown GeoDF method: $1 (baseline|geodf_hard|alwayson|adaptive|adaptive_fixed|adaptive_no_quality|adaptive_no_vote|adaptive_v2|geodf_dump_v2|geodf_noguard)" >&2
             return 1
             ;;
     esac

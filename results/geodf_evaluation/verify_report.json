@@ -1,0 +1,400 @@
+{
+  "viode": {
+    "root": "/home/theph/ws_vins_ros2_paper1_adaptive/results/viode_repeat",
+    "n": 5,
+    "cells": {
+      "city_day_0_none_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_0_none_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_1_low_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_1_low_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_2_mid_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_2_mid_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_3_high_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_day_3_high_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_0_none_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_0_none_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_1_low_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_1_low_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_2_mid_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_2_mid_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_3_high_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "city_night_3_high_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_0_none_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_0_none_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_1_low_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_1_low_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_2_mid_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_2_mid_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_3_high_baseline": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      },
+      "parking_lot_3_high_adaptive": {
+        "trials": {
+          "1": [],
+          "2": [],
+          "3": [],
+          "4": [],
+          "5": []
+        },
+        "present": 5
+      }
+    },
+    "ok": 120,
+    "problem": 0,
+    "missing_trials": 0
+  },
+  "euroc": {
+    "root": "/home/theph/ws_vins_ros2_paper1_adaptive/results/euroc_repeat",
+    "n": 3,
+    "cells": {
+      "MH_01_easy_baseline": {
+        "trials": {
+          "1": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_01_easy_adaptive": {
+        "trials": {
+          "1": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 78.6% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_02_easy_baseline": {
+        "trials": {
+          "1": [
+            "low coverage 77.2% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 77.2% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 77.2% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_02_easy_adaptive": {
+        "trials": {
+          "1": [
+            "low coverage 77.0% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 77.0% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 77.2% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_03_medium_baseline": {
+        "trials": {
+          "1": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_03_medium_adaptive": {
+        "trials": {
+          "1": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 88.5% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_04_difficult_baseline": {
+        "trials": {
+          "1": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_04_difficult_adaptive": {
+        "trials": {
+          "1": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 86.6% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_05_difficult_baseline": {
+        "trials": {
+          "1": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      },
+      "MH_05_difficult_adaptive": {
+        "trials": {
+          "1": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ],
+          "2": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ],
+          "3": [
+            "low coverage 87.8% (<90% \u2014 possible divergence)"
+          ]
+        },
+        "present": 3
+      }
+    },
+    "ok": 0,
+    "problem": 30,
+    "missing_trials": 0
+  }
+}

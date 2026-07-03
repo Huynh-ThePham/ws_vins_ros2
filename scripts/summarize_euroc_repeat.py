@@ -8,6 +8,7 @@ import statistics as st
 
 EUROC_ROOT = "results/euroc_repeat"
 SEQS = ["MH_01_easy", "MH_02_easy", "MH_03_medium", "MH_04_difficult", "MH_05_difficult"]
+DEFAULT_METHODS = "baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive"
 
 
 def load(seqdir, key="ate_rmse_m"):
@@ -51,7 +52,11 @@ def main():
     ap.add_argument("--n", type=int, default=3)
     ap.add_argument("--out", default="results/geodf_evaluation/EUROC_REPEAT_N3.md")
     ap.add_argument("--out-json", default="results/geodf_evaluation/euroc_repeat_n3.json")
+    ap.add_argument("--methods", default=DEFAULT_METHODS,
+                    help="space-separated method names to include in the ablation table")
     args = ap.parse_args()
+    methods = args.methods.split()
+    ablation_methods = [m for m in methods if m not in ("baseline", "adaptive", "proposed")]
     bundle = {}
 
     L = [
@@ -77,6 +82,25 @@ def main():
         bundle[seq] = {"baseline_ate": b, "proposed_ate": a,
                        "baseline_rpe": rb, "proposed_rpe": ra, "improvement_pct": d}
 
+    if ablation_methods:
+        L += [
+            "\n## Static ablation baselines — ATE Δ% vs baseline\n",
+            "Ablations keep the same stereo-inertial backend and only alter the GeoDF front-end guard. "
+            "Empty cells mean the corresponding trials have not been generated in this worktree.\n",
+            "| seq | " + " | ".join(ablation_methods) + " | PROPOSED |",
+            "|---|" + "|".join("---" for _ in ablation_methods) + "|---|",
+        ]
+        for seq in SEQS:
+            b = rows[seq]["b"]
+            cells = []
+            for m in ablation_methods:
+                am = ms(load(f"{args.root}/{seq}_{m}"))
+                cells.append((f"{imp(b, am):+.1f}%" if am and b else "n/a"))
+                bundle[seq][f"{m}_ate"] = am
+                bundle[seq][f"{m}_improvement_pct"] = imp(b, am)
+            proposed = f"{rows[seq]['d']:+.1f}%" if rows[seq]["d"] is not None else "n/a"
+            L.append(f"| {seq} | " + " | ".join(cells) + f" | {proposed} |")
+
     L += [
         "\n## Repeatability — run-to-run ATE std\n",
         "| seq | baseline std | PROPOSED std | baseline range |",
@@ -88,12 +112,15 @@ def main():
             rng = f"[{b['lo']:.3f}, {b['hi']:.3f}]"
             L.append(f"| {seq} | {b['std']:.3f} | {a['std']:.3f} | {rng} |")
 
+    evaluated = sum(1 for r in rows.values() if r["d"] is not None)
     regressions = [
         seq for seq, r in rows.items()
         if r["d"] is not None and r["d"] < -5
     ]
     L.append("\n## Verdict\n")
-    if regressions:
+    if not evaluated:
+        L.append("- **NO DATA**: generate the repeat trials before using this table in a manuscript.")
+    elif regressions:
         L.append(f"- **FAIL**: PROPOSED regresses >5% on {', '.join(regressions)}")
     else:
         L.append("- **PASS**: no sequence exceeds 5% ATE regression vs baseline")

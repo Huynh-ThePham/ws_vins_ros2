@@ -1,0 +1,112 @@
+%YAML:1.0
+
+#common parameters
+#support: 1 imu 1 cam; 1 imu 2 cam: 2 cam; 
+imu: 1         
+num_of_cam: 2  
+
+imu_topic: "/imu0"
+image0_topic: "/cam0/image_raw"
+image1_topic: "/cam1/image_raw"
+output_path: "~/output/"
+
+cam0_calib: "cam0_mei.yaml"
+cam1_calib: "cam1_mei.yaml"
+image_width: 752
+image_height: 480
+   
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0
+
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+           0.999557249008, 0.0149672133247, 0.025715529948,  -0.064676986768,
+           -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+           0, 0, 0, 1]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [0.0125552670891, -0.999755099723, 0.0182237714554, -0.0198435579556,
+           0.999598781151, 0.0130119051815, 0.0251588363115, 0.0453689425024,
+          -0.0253898008918, 0.0179005838253, 0.999517347078, 0.00786212447038,
+          0, 0, 0, 1]
+
+#Multiple thread support
+multiple_thread: 1
+
+#feature traker paprameters
+max_cnt: 150
+min_dist: 30
+freq: 10
+F_threshold: 1.0
+show_track: 1
+flow_back: 1
+
+#optimization parameters
+max_solver_time: 0.04
+max_num_iterations: 8
+keyframe_parallax: 10.0
+
+#imu parameters
+acc_n: 0.1
+gyr_n: 0.01
+acc_w: 0.001
+gyr_w: 0.0001
+g_norm: 9.81007
+
+#unsynchronization parameters
+estimate_td: 0
+td: 0.0
+
+#loop closure parameters
+load_previous_pose_graph: 0
+pose_graph_save_path: "~/output/pose_graph/"
+save_image: 1
+
+# GeoDF-Adaptive 2D-F ablation (OLD): scene-gating + auto-ρ + quality + vote;
+# stereo 3D motion consistency OFF (temporal 2D-F candidate gate only).
+geodf_enable: 1
+geodf_hard_reject: 1
+geodf_ransac_th_px: 1.0
+geodf_sampson_th: 3.0
+geodf_min_track_cnt: 2
+geodf_min_feature_num: 40
+geodf_reject_ratio_max: 0.40
+geodf_ratio_guard: 1
+geodf_max_reject_per_frame: 5
+geodf_debug: 1
+geodf_dump_features: 0
+geodf_adaptive: 1
+geodf_activate_ratio: 0.12
+geodf_activate_ema: 0.15
+geodf_deactivate_frac: 0.6
+geodf_auto_rho: 1
+geodf_auto_mult: 1.8
+geodf_auto_margin: 0.10
+geodf_activate_ratio_min: 0.14
+geodf_activate_ratio_max: 0.40
+geodf_auto_floor_down: 0.02
+geodf_auto_floor_up: 0.004
+geodf_quality_gate: 1
+geodf_quality_ema: 0.15
+geodf_quality_min: 0.85
+geodf_min_candidate_ratio: 0.05
+geodf_min_residual_lift: 2.5
+geodf_vote_frames: 3
+geodf_warmup_frames: 60
+geodf_stereo_check: 0
+geodf_stereo_sampson_th: 6.0
+geodf_stereo_floor_max: 0.045
+geodf_motion3d_enable: 0
+geodf_motion3d_min_points: 25
+geodf_motion3d_min_depth: 0.2
+geodf_motion3d_max_depth: 40.0
+geodf_motion3d_residual_th: 3.0
+geodf_motion3d_ransac_iters: 96
+geodf_motion3d_min_2d_ratio: 0.10

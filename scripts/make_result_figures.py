@@ -97,7 +97,9 @@ def load_lifts():
     if os.path.isdir(det_root):
         for env in ENVS:
             for level in LEVELS:
-                p = os.path.join(det_root, f"{env}_{level}_geodf_dump", "detection_eval.json")
+                p = os.path.join(det_root, f"{env}_{level}_adaptive_dump", "detection_eval.json")
+                if not os.path.isfile(p):
+                    p = os.path.join(det_root, f"{env}_{level}_geodf_dump", "detection_eval.json")
                 d = _load_json(p)
                 if d and isinstance(d.get("precision_lift"), (int, float)):
                     out[f"{env}/{level}"] = d["precision_lift"]

@@ -1,232 +1,91 @@
-# GeoDF-Adaptive VINS: AECE Manuscript Draft
-
-Target journal: **Advances in Electrical and Computer Engineering (AECE)**,
-Stefan cel Mare University of Suceava. This draft is written as a source
-document to be converted into the official AECE Microsoft Word `.doc` template.
-
-AECE-specific constraints to respect:
-
-- Manuscript format: native Microsoft Word `.doc` using the AECE template.
-- Page count: even number of pages: 8, 10, or 12. Target 8 pages first.
-- Keywords: five keywords or phrases, alphabetically ordered.
-- Review: double-blind. Remove author names/affiliations from the submitted
-  review copy if the AECE submission workflow requires blind files.
-- References: include permanent links, preferably DOI/CrossRef links, where
-  available.
-- APC: 300 EUR for accepted papers, plus 25 EUR per page beyond 8 pages
-  according to the current AECE author information page.
-
-## Proposed Title
-
-GeoDF-Adaptive: Geometry-Based Dynamic Feature Rejection for Stereo-Inertial
-Visual Odometry in Dynamic Scenes
+# GeoDF-Adaptive: Geometry-Based Dynamic Feature Rejection for Stereo-Inertial Visual Odometry in Dynamic Scenes
 
 ## Abstract
 
-Dynamic objects violate the static-scene assumption used by feature-based
-visual-inertial odometry. This paper presents GeoDF-Adaptive, a geometry-based
-front-end dynamic feature rejection method for stereo-inertial VINS. The method
-uses stereo 3D motion consistency, PnP-RANSAC reprojection residuals, temporal
-epipolar support, scene-aware activation, auto-calibrated activation
-thresholding, quality-aware activation, track-level temporal voting, and guarded
-hard rejection. Unlike semantic
-approaches, GeoDF-Adaptive does not require an object
-detector, a segmentation model, or dataset-specific training. The method was
-implemented in a VINS-Fusion stereo-inertial pipeline and evaluated on the
-original EuRoC and VIODE datasets. On EuRoC, GeoDF-Adaptive preserved
-static-scene accuracy and improved ATE RMSE by 2.0% to 6.2% on all five tested
-sequences. On VIODE, it improved ATE in 7 of 12 evaluated environment-level
-conditions under a +/-3% decision band, including +24.5% on `city_day/3_high`
-and +41.3% on `city_night/0_none`. A feature-level evaluation using VIODE
-moving-vehicle segmentation masks showed that rejected features in `city_day`
-were 8.33x to 31.72x more likely to lie on dynamic objects than random tracked
-features, while the static-feature false positive rate stayed below 1%.
-However, high dynamic-density parking-lot scenes remained a limitation because
-large moving regions can contaminate the fundamental matrix estimate. The
-module is lightweight: its measured per-frame cost averaged 0.28 ms on a
-CPU-only host, about 0.56% of the 20 Hz frame budget. The results support
-GeoDF-Adaptive as a reproducible geometry-only baseline for dynamic-scene
-stereo-inertial visual odometry.
+Dynamic objects violate the static-scene assumption used by feature-based visual-inertial odometry (VIO). This paper presents GeoDF-Adaptive, a geometry-based front-end dynamic feature rejection method for stereo-inertial VINS-Fusion. The method combines stereo 3D motion consistency, PnP-RANSAC reprojection scoring, temporal epipolar support, scene-aware activation with auto-calibrated thresholding, quality-aware gating, track-level temporal voting, and ratio-guarded hard rejection. Unlike semantic approaches, GeoDF-Adaptive requires no object detector, segmentation model, or dataset-specific training, and leaves the stereo-inertial back-end unchanged.
+
+The method was implemented in a ROS 2 VINS-Fusion pipeline and evaluated on the original EuRoC and VIODE datasets. On EuRoC (N=3 repeats per sequence), GeoDF-Adaptive preserved static-scene accuracy: no sequence regressed beyond ±5% ATE, and `MH_02_easy` improved by +3.9%. On VIODE (N=5), GeoDF-Adaptive improved ATE in 3 of 12 environment-level conditions under a ±3% decision band, with the strongest gain on `city_day/3_high` (+14.8%). Six conditions remained within the band and three parking-lot conditions regressed when dynamic objects occupied large image regions. A stereo 3D gate ablation outperformed a temporal 2D fundamental-matrix gate on `city_day/3_high` by +9.5% ATE under the same activation stack. Feature-level evaluation against VIODE moving-vehicle masks showed that rejected features on `city_day/3_high` were 17.43× more likely to lie on dynamic objects than randomly tracked features, with static false-positive rate 0.03%. The module added a mean of 1.76 ms per frame on a CPU-only host (about 3.5% of the 20 Hz frame budget). The results support GeoDF-Adaptive as a reproducible, training-free front-end enhancement for dynamic-scene stereo-inertial odometry under moderate dynamic density.
 
 ## Keywords
 
-computer vision, dynamic feature rejection, sensor fusion, stereo-inertial
-odometry, visual odometry
+computer vision, dynamic feature rejection, sensor fusion, stereo-inertial odometry, visual odometry
 
 ## 1. Introduction
 
-Visual-inertial odometry (VIO) estimates camera motion by combining visual
-feature observations with inertial measurements. It is a core component in
-mobile robots, unmanned vehicles, augmented reality, and autonomous navigation
-systems. Many practical VIO front-ends, including feature-based stereo-inertial
-pipelines, rely on the assumption that most tracked visual features belong to a
-static rigid scene. This assumption is frequently violated in real or simulated
-traffic environments where moving vehicles, pedestrians, and other dynamic
-objects produce image motion that is inconsistent with camera ego-motion.
+Visual-inertial odometry (VIO) estimates platform motion by fusing visual feature tracks with inertial measurements. It is widely used in mobile robotics, unmanned aerial vehicles, and outdoor autonomous navigation. Feature-based stereo-inertial pipelines such as VINS-Fusion assume that most tracked points belong to a static rigid scene. In urban and traffic environments, moving vehicles and pedestrians violate this assumption and can degrade pose estimation when their features enter the visual-inertial optimizer.
 
-Dynamic-scene VIO is commonly addressed by semantic segmentation, object
-detection, motion segmentation, robust estimation, or combinations of these
-techniques. Semantic methods can be effective, but they introduce model
-dependency, computational load, and dataset or domain assumptions. In contrast,
-geometry-based methods remain attractive for applied engineering systems because
-they are reproducible, lightweight in design, and do not require model training.
-However, a purely geometric dynamic-feature filter must avoid two failure modes:
-removing useful static features in static scenes and over-trusting a
-contaminated geometric model when dynamic objects dominate the image.
+Existing responses include semantic segmentation, object detection, motion segmentation, and robust back-end estimation. Semantic methods can identify dynamic regions directly, but they depend on trained models, add computational cost, and may fail on unseen object classes or domains. Geometry-based filters are attractive for applied systems because they are model-free and easy to reproduce. However, always-on geometric outlier rejection can remove useful static features in low-dynamic scenes, while contaminated geometric models can fail when dynamic content dominates the image.
 
-This paper investigates a geometry-only front-end filter, called
-GeoDF-Adaptive, for stereo-inertial VINS. The method uses temporal epipolar
-and stereo geometric evidence to identify features that are inconsistent with
-rigid-scene motion.
-Unlike always-on filtering, GeoDF-Adaptive self-activates only when a smoothed
-outlier signal exceeds an auto-calibrated scene threshold. Track-level temporal
-voting is then used to reduce transient false positives caused by two-frame
-epipolar noise, fast rotation, or short-term low parallax.
+This paper presents GeoDF-Adaptive, a front-end module for stereo-inertial VINS that rejects geometrically inconsistent feature tracks before state estimation. The method uses stereo 3D motion consistency as the primary dynamic-candidate gate, with temporal epipolar geometry as support and fallback. Unlike always-on hard rejection, GeoDF-Adaptive arms deletion only when a smoothed frame outlier signal and a quality score indicate sustained dynamic inconsistency. Track-level temporal voting further suppresses transient false positives caused by fast rotation, weak texture, or short low-parallax intervals.
 
-The contribution of this work is not a universal state-of-the-art dynamic VIO
-system. Instead, it provides a focused engineering contribution: a simple
-geometry-only feature rejection module, integrated into a stereo-inertial VINS
-pipeline, and evaluated with both trajectory-level and feature-level metrics on
-published datasets. The feature-level evaluation is important because trajectory
-accuracy alone cannot reveal whether rejected points are actually located on
-moving objects.
+The contribution is intentionally scoped as an engineering baseline rather than a universal dynamic VIO system. Both trajectory-level metrics (ATE/RPE) and feature-level metrics against VIODE vehicle masks are reported so that accuracy gains can be related to whether rejected points actually lie on moving objects.
 
 The main contributions are:
 
-1. A geometry-only front-end dynamic feature rejection method for
-   stereo-inertial VINS using temporal fundamental matrix estimation and Sampson
-   residual dual gating.
-2. A scene-aware activation mechanism with an auto-calibrated `rho_on`
-   threshold derived from the running epipolar outlier floor.
-3. A quality-aware activation gate that requires dynamic candidates to be both
-   sufficiently frequent and separated from the static background by Sampson
-   residual lift before hard deletion is armed.
-4. A track-level temporal voting strategy that suppresses transient false
-   positives before hard feature deletion.
-5. A reproducible evaluation on EuRoC and VIODE, including ATE/RPE trajectory
-   metrics and feature-level detection metrics against VIODE dynamic
-   segmentation masks.
-6. A limitation analysis showing that high dynamic-density scenes can still
-   degrade the method when the fundamental matrix estimate is contaminated by
-   large moving regions.
+1. A training-free, front-end-only dynamic feature rejection module for stereo-inertial VINS based on stereo 3D motion consistency and temporal epipolar support.
+2. A scene-aware activation mechanism with auto-calibrated arm threshold `rho_on` estimated from the running epipolar outlier floor of the scene.
+3. A quality-aware activation gate and track-level temporal voting that reduce false deletion in static or weakly dynamic frames.
+4. A reproducible evaluation on EuRoC and VIODE with N-repeat trajectory benchmarking, stereo 3D versus 2D-F ablation, and feature-level detection analysis using published VIODE segmentation masks.
+5. An explicit limitation analysis for high dynamic-density scenes where geometric model contamination causes trajectory regression.
 
 ## 2. Related Work
 
-Feature-based VIO systems such as VINS-Fusion estimate camera motion by
-tracking image features and optimizing visual-inertial residuals. These systems
-are efficient and accurate in static or mostly static scenes, but they can be
-affected by dynamic features because those features violate the rigid-scene
-model used by geometric constraints and visual bundle adjustment.
+Feature-based VIO systems estimate camera motion by tracking image features and optimizing visual-inertial residuals. They perform well in static scenes but remain sensitive to dynamic features that violate rigid-scene constraints.
 
-Classical robust estimation methods, including RANSAC and epipolar outlier
-rejection, are often used to remove inconsistent correspondences. These
-approaches are attractive because they are model-free and do not require
-semantic labels. Nevertheless, they usually operate as generic outlier filters
-rather than as adaptive dynamic-object filters. If the rejection threshold is
-too low, useful static features are removed; if it is too high, moving-object
-features remain in the estimator.
+Classical robust estimation uses RANSAC and epipolar constraints to discard inconsistent correspondences. These methods are lightweight and model-free, but they typically operate as generic outlier filters rather than scene-adaptive dynamic-object filters. Always-on rejection can harm static-scene accuracy when false positives accumulate frame after frame.
 
-Semantic dynamic SLAM and VIO systems use object detectors or segmentation
-networks to identify potentially dynamic regions. Methods such as DynaSLAM and
-dynamic-object-aware VIO pipelines can remove features on cars or people more
-directly than pure geometry. Their advantage is stronger object-level reasoning,
-while their drawback is dependence on segmentation quality, computational
-resources, and category definitions. They may also fail on unseen dynamic
-classes or in image domains different from the training data.
+Semantic dynamic SLAM and VIO systems use detectors or segmentation networks to suppress features on cars, pedestrians, or other dynamic classes. Methods such as DynaSLAM provide strong object-level reasoning at the cost of model dependency and higher runtime. Back-end robust methods such as DynaVINS improve optimization under dynamics but modify the estimator itself.
 
-GeoDF-Adaptive is positioned between generic robust estimation and semantic
-dynamic filtering. It keeps the implementation in the VIO front-end and uses
-only geometric consistency. Its goal is not to replace semantic filtering in all
-cases, but to provide a reproducible engineering baseline for dynamic feature
-rejection when training-free operation and easy integration are preferred.
+GeoDF-Adaptive occupies a middle ground: it uses only geometric consistency, modifies only the front-end, and adds scene-aware activation so that rejection is deferred in static or low-dynamic conditions. Table 1 summarizes this positioning.
 
 ### Table 1. Positioning Against Related Approaches
 
-| Approach family | Uses semantics | Needs training/model | Front-end only | Main limitation |
-|---|---:|---:|---:|---|
-| Standard VINS-Fusion [1], [2] | no | no | yes | assumes mostly static scene |
-| Generic RANSAC outlier rejection [7], [8] | no | no | yes | not scene-aware |
-| Robust back-end dynamic VINS (DynaVINS) [6] | no | no | no | modifies back-end optimization |
-| Semantic dynamic SLAM/VIO (DynaSLAM) [5] | yes | yes | varies | detector/segmentation dependency |
-| GeoDF-Adaptive (this work) | no | no | yes | high dynamic density can corrupt F |
-
-Standard feature-based VINS [1], [2] assumes a mostly static scene. Generic
-robust estimation such as RANSAC [7] with epipolar/Sampson residuals [8]
-removes inconsistent correspondences but is not scene-aware. Back-end methods
-such as DynaVINS [6] add robustness inside the optimization, while semantic
-methods such as DynaSLAM [5] rely on a detector or segmentation network.
-GeoDF-Adaptive stays training-free and front-end only, trading object-level
-reasoning for reproducibility and easy integration.
+| Approach family | Uses semantics | Needs training/model | Front-end only | Scene-adaptive | Main limitation |
+|---|---:|---:|---:|---:|---|
+| Standard VINS-Fusion [1], [2] | no | no | yes | no | assumes mostly static scene |
+| Generic RANSAC / epipolar rejection [7], [8] | no | no | yes | no | not scene-aware |
+| Robust back-end dynamic VINS (DynaVINS) [6] | no | no | no | no | modifies back-end optimization |
+| Semantic dynamic SLAM/VIO (DynaSLAM) [5] | yes | yes | varies | no | detector/segmentation dependency |
+| GeoDF-Adaptive (this work) | no | no | yes | yes | high dynamic density can corrupt geometry |
 
 ## 3. Proposed Method
 
-GeoDF-Adaptive is inserted in the feature-tracking front-end after temporal KLT
-tracking and before feature masking and new feature detection [10]. It operates
-on features that have been tracked between two consecutive frames. Figure 1
-shows where the module sits in the pipeline and its internal steps (a)-(f);
-only this module is added and the stereo-inertial back-end is unmodified.
+GeoDF-Adaptive is inserted in the feature-tracking front-end after temporal KLT tracking and before feature masking and new feature detection [10]. Figure 1 shows the module in the pipeline. Only the front-end is modified; the stereo-inertial back-end is unchanged.
 
 ![Figure 1. GeoDF-Adaptive front-end pipeline. The proposed module is inserted after KLT tracking and before new feature detection; the stereo-inertial back-end is unchanged.](../results/geodf_evaluation/figures/pipeline_geodf_adaptive.png)
 
-**Figure 1.** GeoDF-Adaptive front-end pipeline and internal steps (a)-(f).
+**Figure 1.** GeoDF-Adaptive front-end pipeline (steps a–g inside the proposed module).
 
 ### 3.1 Stereo 3D Motion Consistency
 
-For a tracked stereo feature, GeoDF-Adaptive triangulates the previous-frame
-left/right observation using the calibrated stereo extrinsics. The resulting
-3D point in the previous left-camera frame is matched to the current left-camera
-observation. A dominant rigid motion is estimated with PnP RANSAC, and each
-track is scored by its current-frame reprojection residual:
+For a tracked stereo feature, GeoDF-Adaptive triangulates the previous-frame left/right observation using calibrated stereo extrinsics. The resulting 3D point in the previous left-camera frame is projected into the current left image. A dominant rigid motion is estimated with PnP RANSAC, and each track is scored by its reprojection residual:
 
 ```text
 r_i = || project(K, R, t, P_i^{t-1}) - u_i^t ||
 ```
 
-where `P_i^{t-1}` is the triangulated previous stereo point and `u_i^t` is the
-current left pseudo-pixel observation. A feature is considered a dynamic
-candidate when it is a stereo-3D correspondence and `r_i` exceeds the configured
-reprojection threshold. This 3D gate replaces the older 2D fundamental-matrix
-candidate gate whenever enough valid stereo correspondences are available.
+where `P_i^{t-1}` is the triangulated previous stereo point and `u_i^t` is the current left observation. A feature becomes a dynamic candidate when `r_i` exceeds the configured threshold and sufficient stereo correspondences are available.
 
-Temporal epipolar geometry remains in the method as a support and fallback
-signal. For a tracked feature correspondence between frame `t-1` and frame `t`,
-the left-camera image points are lifted to the normalized camera plane and
-mapped to the pseudo-pixel space used by the VINS front-end. A fundamental
-matrix `F` is estimated using RANSAC. For each tracked feature, the Sampson
-residual is computed as
+Temporal epipolar geometry remains as support and fallback. A fundamental matrix `F` is estimated with RANSAC on temporal left-camera correspondences, and the Sampson residual is computed as
 
 ```text
 e_i = ((x_i^T F x'_i)^2) /
       ((F x'_i)_1^2 + (F x'_i)_2^2 + (F^T x_i)_1^2 + (F^T x_i)_2^2)
 ```
 
-where `x_i` and `x'_i` are the current and previous homogeneous feature
-coordinates. If the stereo-3D gate is unavailable, the fallback 2D candidate
-gate requires both conditions: the feature is a RANSAC outlier and its Sampson
-residual is above the configured threshold. In the stereo-3D mode, the
-frame-level activation additionally requires the 2D epipolar outlier ratio to
-exceed a small support threshold, preventing noisy stereo depth in static
-low-parallax scenes from arming hard rejection by itself.
+If the stereo-3D gate is unavailable, the 2D fallback requires both RANSAC outlier status and `e_i` above threshold. In stereo-3D mode, frame activation additionally requires the 2D epipolar outlier ratio to exceed a small support threshold so that noisy short-baseline depth alone cannot arm hard rejection.
 
 ### 3.2 Scene-Aware Activation
 
-Always-on rejection can damage static or low-dynamic scenes. Therefore,
-GeoDF-Adaptive maintains an exponential moving average of the frame outlier
-ratio. The rejection module is armed only when this signal exceeds a threshold
-`rho_on`. Instead of using a fixed threshold, the proposed method estimates a
-running outlier floor for the current scene and computes
+Always-on rejection can damage static scenes. GeoDF-Adaptive therefore maintains an exponential moving average of the frame outlier ratio and arms hard deletion only when this signal exceeds an adaptive threshold. The arm threshold is computed from a running outlier floor:
 
 ```text
 rho_on = clamp(floor * 1.8 + 0.10, 0.14, 0.40)
 ```
 
-The floor uses asymmetric smoothing: it adapts down faster when the observed
-outlier ratio decreases and increases slowly when the ratio rises. This prevents
-short dynamic bursts from inflating the static floor while allowing high-noise
-scenes to use a more conservative activation threshold.
+The floor uses asymmetric smoothing: it decreases quickly when the scene becomes static and increases slowly when outlier ratio rises, reducing over-arming in noisy environments.
 
-The activation decision also uses a quality gate. After the dual gate has
-formed the candidate set `C`, GeoDF-Adaptive computes
+A quality gate further requires dynamic candidates to be sufficiently frequent and separated from the static background:
 
 ```text
 candidate_ratio = |C| / N_scored
@@ -236,41 +95,17 @@ quality_score   = clamp(candidate_ratio / r_min) *
                   clamp(residual_lift / l_min)
 ```
 
-where the background is the set of scored non-candidate tracks. The Sampson
-threshold `tau` is used as a denominator floor so near-zero static residuals do
-not artificially inflate the lift score. The quality score is smoothed by an
-EMA, and hard rejection is armed only when both the outlier-ratio signal and
-the quality signal pass their hysteresis gates. This prevents frames with a
-high RANSAC outlier ratio but weak candidate separation from deleting useful
-static tracks.
+Hard rejection is armed only when both the outlier-ratio signal and the smoothed quality score pass hysteresis gates.
 
-### 3.3 Track-Level Temporal Voting
+### 3.3 Track-Level Temporal Voting and Guarded Hard Rejection
 
-Two-frame epipolar geometry can generate transient false positives under fast
-rotation, low parallax, or weak texture. To reduce this effect, each feature ID
-maintains a dynamic-candidate streak. A feature is eligible for hard deletion
-only after being flagged for at least `k` consecutive frames. In the evaluated
-configuration, `k=3` and a 60-frame warm-up period is used.
+Each feature ID maintains a dynamic-candidate streak. Hard deletion requires at least `k=3` consecutive flagged frames after a 60-frame warm-up. A ratio guard caps deletions at 40% of tracked features per frame, preserves a minimum feature count, and limits hard deletions to five features per frame to avoid abrupt feature-set collapse.
 
-### 3.4 Integration in Stereo-Inertial VINS
+### 3.4 Parameter Settings
 
-GeoDF-Adaptive does not modify the back-end visual-inertial optimization. It
-only removes selected feature tracks from the front-end before new feature
-detection. This design keeps the estimator unchanged and makes the method easy
-to integrate into an existing VINS-Fusion style pipeline. A per-frame ratio
-guard additionally caps hard deletions at 40% of tracked features and never
-reduces the active set below a minimum feature count, so the estimator is never
-starved even if the gate over-fires. In the evaluated configuration, an
-additional per-frame cap of five hard deletions is used to avoid abrupt
-feature-set changes caused by a single contaminated fundamental matrix.
+All experiments used one fixed configuration without per-sequence tuning. Table 6 lists the evaluated parameters.
 
-### 3.5 Parameter Settings
-
-All experiments used a single fixed configuration (no per-sequence tuning).
-The stereo 3D motion-consistency gate was enabled in the current configuration;
-the older stereo temporal cross-check remains disabled.
-
-### Table: GeoDF-Adaptive Parameters (Evaluated Configuration)
+### Table 6. GeoDF-Adaptive Parameters (Evaluated Configuration)
 
 | Parameter | Symbol / key | Value |
 |---|---|---:|
@@ -299,268 +134,151 @@ the older stereo temporal cross-check remains disabled.
 
 ## 4. Experimental Setup
 
-The method was evaluated on two datasets. EuRoC [3] was used as a static-scene
-safety test because it contains indoor stereo-inertial sequences with accurate
-ground truth. VIODE [4] was used as the dynamic-scene benchmark because it
-provides stereo-inertial data, trajectory ground truth, and segmentation masks
-for moving vehicles.
+### 4.1 Datasets and Protocol
 
-### 4.1 Datasets
+EuRoC [3] was used as a static-scene safety benchmark on Machine Hall sequences `MH_01_easy` through `MH_05_difficult`. VIODE [4] was used as the dynamic-scene benchmark on `city_day`, `city_night`, and `parking_lot`, each at four dynamic levels: `0_none`, `1_low`, `2_mid`, and `3_high`.
 
-The EuRoC evaluation used `MH_01_easy`, `MH_02_easy`, `MH_03_medium`,
-`MH_04_difficult`, and `MH_05_difficult`. The VIODE evaluation used three
-environments: `city_day`, `city_night`, and `parking_lot`. Each environment was
-evaluated under four dynamic levels: `0_none`, `1_low`, `2_mid`, and `3_high`.
+Three front-end configurations were compared on VIODE with the same stereo-inertial back-end:
 
-For a stronger journal version, the benchmark protocol includes the following
-front-end baselines and ablations, all using the same stereo-inertial backend:
-standard VINS-Fusion (`baseline`), always-on GeoDF hard rejection
-(`alwayson`), fixed activation threshold (`adaptive_fixed`), proposed method
-without the quality gate (`adaptive_no_quality`), proposed method without
-track-level temporal voting (`adaptive_no_vote`), and the full proposed method
-(`adaptive`). The purpose of these ablations is to isolate whether gains come
-from geometry-only hard rejection itself, scene-aware auto-thresholding,
-quality-aware activation, or temporal voting.
+- `baseline`: standard VINS-Fusion feature tracking without GeoDF;
+- `adaptive_2d`: GeoDF-Adaptive with temporal 2D fundamental-matrix gating;
+- `adaptive`: GeoDF-Adaptive with stereo 3D motion-consistency gating (proposed).
+
+Each VIODE cell was repeated five times within the same software build. EuRoC baseline and proposed runs were repeated three times per sequence. Trajectory decisions used a ±3% ATE improvement band for VIODE and a ±5% no-regression criterion for EuRoC static safety.
 
 ### 4.2 Metrics
 
-Trajectory accuracy was measured using ATE RMSE and RPE RMSE in metres,
-computed with the `evo` evaluation toolkit [9] after SE(3) alignment to ground
-truth. For
-VIODE, each reported value is the mean and standard deviation over five runs
-within the same build. EuRoC static safety used repeated baseline and adaptive
-runs as summarized in the project artifacts.
-
-Feature-level detection was evaluated by matching tracked feature coordinates to
-the nearest VIODE segmentation mask within 30 ms. A feature was labelled dynamic
-when it fell inside a `vehicle_dynamic_*` mask. The main detection metrics were
-precision lift, recall, and static false-positive rate.
+Trajectory accuracy was measured using ATE RMSE and RPE RMSE in metres with the `evo` toolkit [9] after SE(3) Umeyama alignment. Feature-level evaluation matched feature coordinates to the nearest VIODE segmentation mask within 30 ms; points inside `vehicle_dynamic_*` masks were labelled dynamic. Reported detection metrics were precision lift, recall, and static false-positive rate.
 
 ### 4.3 Implementation and Runtime Measurement
 
-The method was implemented in C++ inside a VINS-Fusion style stereo-inertial
-pipeline (ROS 2). All experiments used a single consistent build. The
-per-frame cost of the GeoDF-Adaptive module was logged for every processed
-frame using the same in-pipeline timer (`t_geo`) so that the reported overhead
-reflects the deployed code path rather than a separate micro-benchmark. Runtime
-statistics were aggregated over all VIODE adaptive trials
-(60 runs, 74,994 logged frames). The host machine was an Intel Xeon
-W-11955M CPU (8 cores, 16 threads, 2.60 GHz) with 64 GB RAM, CPU-only, with no
-GPU acceleration used by the front-end.
+The method was implemented in C++ inside a VINS-Fusion stereo-inertial ROS 2 pipeline. Runtime was logged in-pipeline as `geo_ms` for every processed frame. Statistics were aggregated over 75,012 logged frames from 60 VIODE adaptive trials. Experiments ran on an Intel Xeon W-11955M CPU (8 cores, 16 threads, 2.60 GHz) with 64 GB RAM; no GPU was used in the front-end.
 
 ## 5. Results and Discussion
 
 ### 5.1 VIODE Trajectory Results
 
-Table 2 summarizes the VIODE ATE/RPE results. GeoDF-Adaptive improved ATE in 7
-of 12 conditions under a +/-3% decision band. The strongest gains were observed
-in `city_day/3_high` and `city_night/0_none`.
+Table 2 summarizes VIODE ATE results. GeoDF-Adaptive improved ATE in 3 of 12 conditions under the ±3% band, remained neutral in 6 conditions, and regressed in 3 parking-lot conditions. The strongest improvement was on `city_day/3_high` (+14.8%), where baseline ATE was 0.344 ± 0.003 m and proposed ATE was 0.293 ± 0.000 m. Non-parametric testing on per-trial ATE values indicated a significant improvement on this cell (Mann-Whitney U, p = 0.012). The three parking-lot regressions were also statistically significant under the same test, confirming that high dynamic density is a structured failure mode rather than random noise.
 
-### Table 2. VIODE N=5 Trajectory Summary
+Secondary gains appeared on `city_day/0_none` (+7.7%) and `city_night/0_none` (+5.8%), both within or near the decision band. Most low- and mid-dynamic cells remained within ±3%, indicating that scene-aware activation preserved baseline behaviour when hard rejection was unnecessary.
+
+### Table 2. VIODE N=5 Trajectory Summary (ATE RMSE, metres)
 
 | Environment | Level | Baseline ATE | Proposed ATE | Improvement |
 |---|---|---:|---:|---:|
-| city_day | 0_none | 0.110 +/- 0.001 | 0.120 +/- 0.000 | -9.7% |
-| city_day | 1_low | 0.138 +/- 0.001 | 0.148 +/- 0.014 | -6.8% |
-| city_day | 2_mid | 0.166 +/- 0.000 | 0.152 +/- 0.009 | +8.1% |
-| city_day | 3_high | 0.409 +/- 0.052 | 0.309 +/- 0.000 | +24.5% |
-| city_night | 0_none | 0.420 +/- 0.002 | 0.246 +/- 0.000 | +41.3% |
-| city_night | 1_low | 0.504 +/- 0.009 | 0.538 +/- 0.036 | -6.7% |
-| city_night | 2_mid | 0.502 +/- 0.010 | 0.460 +/- 0.000 | +8.5% |
-| city_night | 3_high | 0.875 +/- 0.018 | 0.835 +/- 0.026 | +4.6% |
-| parking_lot | 0_none | 0.167 +/- 0.000 | 0.147 +/- 0.003 | +12.1% |
-| parking_lot | 1_low | 0.118 +/- 0.000 | 0.106 +/- 0.000 | +9.7% |
-| parking_lot | 2_mid | 0.144 +/- 0.000 | 0.197 +/- 0.013 | -36.4% |
-| parking_lot | 3_high | 0.119 +/- 0.000 | 0.172 +/- 0.000 | -44.3% |
+| city_day | 0_none | 0.118 ± 0.018 | 0.109 ± 0.000 | +7.7% |
+| city_day | 1_low | 0.139 ± 0.000 | 0.139 ± 0.000 | −0.2% |
+| city_day | 2_mid | 0.166 ± 0.001 | 0.166 ± 0.000 | −0.2% |
+| city_day | 3_high | 0.344 ± 0.003 | 0.293 ± 0.000 | +14.8% |
+| city_night | 0_none | 0.418 ± 0.000 | 0.394 ± 0.049 | +5.8% |
+| city_night | 1_low | 0.505 ± 0.009 | 0.500 ± 0.000 | +0.9% |
+| city_night | 2_mid | 0.497 ± 0.000 | 0.502 ± 0.010 | −1.0% |
+| city_night | 3_high | 0.884 ± 0.000 | 0.884 ± 0.000 | +0.0% |
+| parking_lot | 0_none | 0.167 ± 0.000 | 0.167 ± 0.000 | −0.1% |
+| parking_lot | 1_low | 0.118 ± 0.000 | 0.125 ± 0.000 | −6.1% |
+| parking_lot | 2_mid | 0.144 ± 0.000 | 0.152 ± 0.000 | −5.6% |
+| parking_lot | 3_high | 0.119 ± 0.000 | 0.148 ± 0.000 | −23.8% |
 
-These results show that the method is conditionally effective rather than
-universally superior. It helps when dynamic features produce clear geometric
-inconsistency and do not dominate the image. It can degrade when the dynamic
-object density is high enough to contaminate the fundamental matrix estimate.
-Figure 2 visualizes the per-condition ATE change against the +/-3% decision
-band.
+Table 2b compares the proposed stereo 3D gate with the older 2D-F gate under the same activation stack. On `city_day/3_high`, stereo 3D reduced ATE from 0.324 m to 0.293 m (+9.5% relative to 2D-F). On `parking_lot/2_mid`, stereo 3D also outperformed 2D-F (+30.5%), showing that the 3D gate can mitigate false activation caused by epipolar contamination even though absolute trajectory accuracy still regressed relative to baseline on several parking-lot cells.
 
-![Figure 2. VIODE N=5 ATE improvement per environment-level condition. Solid bars improve, hatched bars regress; the shaded region is the +/-3% decision band.](../results/geodf_evaluation/figures/viode_ate_delta_n5_gray.png)
+### Table 2b. Stereo 3D vs 2D-F Gate Ablation (N=5, ATE RMSE, metres)
 
-**Figure 2.** VIODE N=5 ATE improvement of GeoDF-Adaptive over the baseline
-(CD = city_day, CN = city_night, PL = parking_lot; 0-3 dynamic levels).
+| Environment | Level | 2D-F ATE | Stereo 3D ATE | 3D vs 2D-F |
+|---|---|---:|---:|---:|
+| city_day | 0_none | 0.109 ± 0.000 | 0.109 ± 0.000 | +0.0% |
+| city_day | 1_low | 0.139 ± 0.000 | 0.139 ± 0.000 | +0.1% |
+| city_day | 2_mid | 0.167 ± 0.002 | 0.166 ± 0.000 | +0.7% |
+| city_day | 3_high | 0.324 ± 0.005 | 0.293 ± 0.000 | +9.5% |
+| city_night | 0_none | 0.418 ± 0.000 | 0.394 ± 0.049 | +5.8% |
+| city_night | 1_low | 0.500 ± 0.000 | 0.500 ± 0.000 | +0.0% |
+| city_night | 2_mid | 0.497 ± 0.000 | 0.502 ± 0.010 | −1.0% |
+| city_night | 3_high | 0.884 ± 0.000 | 0.884 ± 0.000 | +0.0% |
+| parking_lot | 0_none | 0.167 ± 0.000 | 0.167 ± 0.000 | +0.0% |
+| parking_lot | 1_low | 0.101 ± 0.000 | 0.125 ± 0.000 | −23.7% |
+| parking_lot | 2_mid | 0.219 ± 0.007 | 0.152 ± 0.000 | +30.5% |
+| parking_lot | 3_high | 0.140 ± 0.003 | 0.148 ± 0.000 | −5.6% |
+
+Figure 2 visualizes the per-condition ATE change against the ±3% decision band.
+
+![Figure 2. VIODE N=5 ATE improvement per environment-level condition. Solid bars improve, hatched bars regress; the shaded region is the ±3% decision band.](../results/geodf_evaluation/figures/viode_ate_delta_n5_gray.png)
+
+**Figure 2.** VIODE N=5 ATE improvement of GeoDF-Adaptive over baseline (CD = city_day, CN = city_night, PL = parking_lot).
 
 ### 5.2 EuRoC Static Safety
 
-Static-scene safety is important because a dynamic-feature filter should not
-harm odometry in environments where dynamic objects are absent. On EuRoC,
-GeoDF-Adaptive improved all five tested sequences by 2.0% to 6.2%, indicating
-that scene-aware activation did not introduce a static-scene regression.
+Table 3 reports EuRoC results. GeoDF-Adaptive did not exceed the ±5% static-safety regression limit on any sequence. `MH_02_easy` improved by +3.9% ATE. Because repeated runs within the same build were nearly deterministic, the main EuRoC conclusion is absence of static-scene harm rather than large universal improvement.
 
-### Table 3. EuRoC Static Safety
+### Table 3. EuRoC Static Safety (N=3, ATE RMSE, metres)
 
 | Sequence | Baseline ATE | Proposed ATE | Improvement |
 |---|---:|---:|---:|
-| MH_01_easy | 0.185 +/- 0.007 | 0.177 +/- 0.000 | +4.3% |
-| MH_02_easy | 0.169 +/- 0.000 | 0.165 +/- 0.005 | +2.0% |
-| MH_03_medium | 0.292 +/- 0.000 | 0.274 +/- 0.000 | +6.2% |
-| MH_04_difficult | 0.447 +/- 0.000 | 0.436 +/- 0.007 | +2.3% |
-| MH_05_difficult | 0.298 +/- 0.000 | 0.290 +/- 0.009 | +2.6% |
+| MH_01_easy | 0.180 ± 0.000 | 0.180 ± 0.000 | +0.0% |
+| MH_02_easy | 0.169 ± 0.000 | 0.162 ± 0.005 | +3.9% |
+| MH_03_medium | 0.292 ± 0.000 | 0.292 ± 0.000 | +0.0% |
+| MH_04_difficult | 0.447 ± 0.000 | 0.447 ± 0.000 | +0.0% |
+| MH_05_difficult | 0.298 ± 0.000 | 0.298 ± 0.000 | +0.0% |
 
 ### 5.3 Feature-Level Dynamic Detection
 
-Trajectory metrics alone cannot prove that a filter is removing dynamic-object
-features. Therefore, the rejected features were compared against VIODE
-moving-vehicle segmentation masks. On `city_day`, rejected features were 8.33x
-to 31.72x more likely to fall on moving vehicles than randomly selected tracked
-features, while the static false-positive rate stayed below 1%.
+Trajectory metrics alone cannot verify that rejected features belong to moving objects. Dedicated dump runs with the stereo 3D gate were therefore compared against VIODE moving-vehicle masks (Table 4). On `city_day/3_high`, rejected features were 17.43× more likely to fall on moving vehicles than randomly selected tracked features, with static false-positive rate 0.03%. Lift remained above 1× on parking-lot cells but decreased as dynamic base rate increased, explaining why trajectory accuracy can regress even when some dynamic features are identified.
 
-### Table 4. VIODE Dynamic Feature Detection
+### Table 4. VIODE Dynamic Feature Detection (stereo 3D gate)
 
 | Environment | Level | Dynamic base rate | Precision lift | Static FPR |
 |---|---|---:|---:|---:|
-| city_day | 1_low | 0.08% | 31.72x | 0.59% |
-| city_day | 2_mid | 1.24% | 12.14x | 0.59% |
-| city_day | 3_high | 4.10% | 8.33x | 0.71% |
-| city_night | 2_mid | 2.0% | 3.02x | 0.8% |
-| city_night | 3_high | 4.9% | 2.89x | 0.7% |
-| parking_lot | 2_mid | 10.7% | 1.48x | 2.8% |
-| parking_lot | 3_high | 14.0% | 1.42x | 3.0% |
+| city_day | 3_high | 4.27% | 17.43× | 0.03% |
+| parking_lot | 1_low | 0.78% | 78.11× | 0.06% |
+| parking_lot | 2_mid | 10.42% | 6.36× | 0.19% |
+| parking_lot | 3_high | 13.73% | 4.96× | 0.17% |
 
-![Figure 3. Dynamic-feature detection lift on VIODE GT masks. Bars above the dashed line (lift = 1x) indicate rejections concentrated on moving vehicles more than random sampling.](../results/geodf_evaluation/figures/viode_detection_lift_gray.png)
+![Figure 3. Dynamic-feature detection lift on VIODE GT masks. Bars above the dashed line (lift = 1×) indicate rejections concentrated on moving vehicles more than random sampling.](../results/geodf_evaluation/figures/viode_detection_lift_gray.png)
 
-**Figure 3.** Dynamic-feature detection lift on VIODE moving-vehicle masks. A
-lift of 1x equals random sampling; higher is better.
-
-The detection results explain both the success and the failure cases. In
-`city_day`, the filter strongly concentrates rejections on moving vehicles. In
-`parking_lot`, the dynamic base rate is much higher and the lift drops to about
-1.4x. This indicates that the geometric separation between static and dynamic
-features becomes weak when large moving regions affect the fundamental matrix.
+**Figure 3.** Dynamic-feature detection lift on VIODE moving-vehicle masks.
 
 ### 5.4 Computational Overhead
 
-Because the module is intended as a lightweight front-end addition, its runtime
-cost was measured directly in the deployed pipeline. Over 74,994 logged frames
-across all VIODE adaptive trials, the GeoDF-Adaptive step took a mean of
-0.28 ms per frame (median 0.24 ms, 95th percentile 0.53 ms, 99th percentile
-0.83 ms). At the 20 Hz image rate of the evaluated sequences, this corresponds
-to about 0.56% of the 50 ms per-frame budget. The scene-aware gate kept the
-hard-rejection path active on only 10.3% of frames, so on static or
-low-dynamic stretches the dominant cost is a single fundamental matrix
-estimation and Sampson scoring pass, while full rejection and temporal voting
-run only when the smoothed outlier signal arms the module. These measurements
-support describing GeoDF-Adaptive as a low-overhead, CPU-only front-end module
-rather than relying on a qualitative claim.
+Table 5 reports runtime on VIODE adaptive trials. The mean GeoDF-Adaptive cost was 1.76 ms per frame (median 1.65 ms, 95th percentile 2.57 ms), corresponding to about 3.5% of the 50 ms budget at 20 Hz. Hard rejection was armed on only 2.4% of frames, so most frames paid mainly for geometric scoring rather than full deletion.
 
 ### Table 5. Measured GeoDF-Adaptive Runtime (VIODE, CPU-only)
 
 | Metric | Value |
 |---|---:|
-| Mean per-frame cost | 0.28 ms |
-| Median per-frame cost | 0.24 ms |
-| 95th percentile | 0.53 ms |
-| 99th percentile | 0.83 ms |
-| Fraction of 50 ms (20 Hz) budget | 0.56% |
-| Frames with rejection armed | 10.3% |
-| Logged frames | 74,994 (60 trials) |
+| Mean per-frame cost | 1.76 ms |
+| Median per-frame cost | 1.65 ms |
+| 95th percentile | 2.57 ms |
+| 99th percentile | 3.64 ms |
+| Fraction of 50 ms (20 Hz) budget | 3.52% |
+| Frames with rejection armed | 2.4% |
+| Logged frames | 75,012 (60 trials) |
 
 ### 5.5 Limitation Analysis
 
-The main limitation is the majority-rigid assumption behind fundamental matrix
-estimation. If dynamic features occupy large regions of the image, the estimated
-model can be biased toward moving objects. In this case, the dual gate may
-delete useful static features or fail to identify the correct dynamic set. The
-`parking_lot` results confirm this limitation. Future work should combine the
-current scene-aware activation with IMU-compensated epipolar scoring,
-progressive or weighted fundamental matrix estimation, and scene-adaptive
-hard/soft rejection.
+GeoDF-Adaptive is most effective when dynamic objects create clear geometric inconsistency but do not dominate the scene. `city_day/3_high` satisfies this condition and yields the main trajectory gain. In `parking_lot`, large moving regions increase dynamic base rate above 10% and weaken the rigid-scene assumption behind both 2D and 3D gates. The parking-lot regressions therefore represent a structural limitation rather than an implementation artefact.
+
+Future work may combine the current front-end with IMU-compensated epipolar scoring, progressive model estimation, and soft-weighted back-end down-weighting instead of hard deletion.
 
 ## 6. Conclusion
 
-This paper presented GeoDF-Adaptive, a geometry-only dynamic feature rejection
-method for stereo-inertial visual odometry. The method combines temporal
-epipolar consistency, Sampson residual gating, scene-aware activation,
-auto-calibrated thresholding, quality-aware activation, guarded hard rejection,
-and track-level temporal voting. Experiments on
-EuRoC and VIODE show that the method preserves static-scene performance and
-improves several moderate-dynamic VIODE cases. Feature-level evaluation using
-VIODE moving-vehicle masks confirms that rejected features are substantially
-more likely to belong to moving objects in favourable scenes. The method is not
-universal, and high dynamic-density parking-lot scenes remain a limitation. The
-results support GeoDF-Adaptive as a reproducible geometry-only baseline for
-applied dynamic-scene VIO research.
+This paper presented GeoDF-Adaptive, a geometry-only dynamic feature rejection module for stereo-inertial VINS. The method integrates stereo 3D motion consistency, temporal epipolar support, scene-aware activation, quality-aware gating, temporal voting, and guarded hard rejection in the front-end while leaving the back-end unchanged. On VIODE, it improved ATE in 3 of 12 conditions under a ±3% band, with a +14.8% gain on `city_day/3_high`. On EuRoC, it preserved static-scene accuracy with no sequence regressing beyond ±5%. Feature-level evaluation confirmed that rejected points align with moving vehicles on favourable cells, while high dynamic-density parking-lot scenes remain a limitation. GeoDF-Adaptive is therefore best viewed as a reproducible, training-free enhancement for moderate-dynamic outdoor stereo-inertial odometry rather than a universal dynamic VIO solution.
 
 ## References
 
-(IEEE numbered style, as used by AECE. DOIs verified; format the final list in
-the AECE `.doc` template. The `evo` tool [9] has no DOI and is cited as a
-software repository.)
+[1] T. Qin, P. Li, and S. Shen, "VINS-Mono: A robust and versatile monocular visual-inertial state estimator," *IEEE Transactions on Robotics*, vol. 34, no. 4, pp. 1004-1020, 2018. DOI: 10.1109/TRO.2018.2853729
 
-[1] T. Qin, P. Li, and S. Shen, "VINS-Mono: A robust and versatile monocular
-visual-inertial state estimator," *IEEE Transactions on Robotics*, vol. 34,
-no. 4, pp. 1004-1020, 2018. DOI: 10.1109/TRO.2018.2853729
+[2] T. Qin, J. Pan, S. Cao, and S. Shen, "A general optimization-based framework for local odometry estimation with multiple sensors," *arXiv preprint* arXiv:1901.03638, 2019.
 
-[2] T. Qin, J. Pan, S. Cao, and S. Shen, "A general optimization-based framework
-for local odometry estimation with multiple sensors," *arXiv preprint*
-arXiv:1901.03638, 2019.
+[3] M. Burri, J. Nikolic, P. Gohl, T. Schneider, J. Rehder, S. Omari, M. W. Achtelik, and R. Siegwart, "The EuRoC micro aerial vehicle datasets," *The International Journal of Robotics Research*, vol. 35, no. 10, pp. 1157-1163, 2016. DOI: 10.1177/0278364915620033
 
-[3] M. Burri, J. Nikolic, P. Gohl, T. Schneider, J. Rehder, S. Omari, M. W.
-Achtelik, and R. Siegwart, "The EuRoC micro aerial vehicle datasets,"
-*The International Journal of Robotics Research*, vol. 35, no. 10,
-pp. 1157-1163, 2016. DOI: 10.1177/0278364915620033
+[4] K. Minoda, F. Schilling, V. Wuest, D. Floreano, and T. Yairi, "VIODE: A simulated dataset to address the challenges of visual-inertial odometry in dynamic environments," *IEEE Robotics and Automation Letters*, vol. 6, no. 2, pp. 1343-1350, 2021. DOI: 10.1109/LRA.2021.3058073
 
-[4] K. Minoda, F. Schilling, V. Wuest, D. Floreano, and T. Yairi, "VIODE: A
-simulated dataset to address the challenges of visual-inertial odometry in
-dynamic environments," *IEEE Robotics and Automation Letters*, vol. 6, no. 2,
-pp. 1343-1350, 2021. DOI: 10.1109/LRA.2021.3058073
+[5] B. Bescos, J. M. Facil, J. Civera, and J. Neira, "DynaSLAM: Tracking, mapping, and inpainting in dynamic scenes," *IEEE Robotics and Automation Letters*, vol. 3, no. 4, pp. 4076-4083, 2018. DOI: 10.1109/LRA.2018.2860039
 
-[5] B. Bescos, J. M. Facil, J. Civera, and J. Neira, "DynaSLAM: Tracking,
-mapping, and inpainting in dynamic scenes," *IEEE Robotics and Automation
-Letters*, vol. 3, no. 4, pp. 4076-4083, 2018. DOI: 10.1109/LRA.2018.2860039
+[6] S. Song, H. Lim, A. J. Lee, and H. Myung, "DynaVINS: A visual-inertial SLAM for dynamic environments," *IEEE Robotics and Automation Letters*, vol. 7, no. 4, pp. 11523-11530, 2022. DOI: 10.1109/LRA.2022.3203231
 
-[6] S. Song, H. Lim, A. J. Lee, and H. Myung, "DynaVINS: A visual-inertial SLAM
-for dynamic environments," *IEEE Robotics and Automation Letters*, vol. 7,
-no. 4, pp. 11523-11530, 2022. DOI: 10.1109/LRA.2022.3203231
+[7] M. A. Fischler and R. C. Bolles, "Random sample consensus: A paradigm for model fitting with applications to image analysis and automated cartography," *Communications of the ACM*, vol. 24, no. 6, pp. 381-395, 1981. DOI: 10.1145/358669.358692
 
-[7] M. A. Fischler and R. C. Bolles, "Random sample consensus: A paradigm for
-model fitting with applications to image analysis and automated cartography,"
-*Communications of the ACM*, vol. 24, no. 6, pp. 381-395, 1981.
-DOI: 10.1145/358669.358692
+[8] R. Hartley and A. Zisserman, *Multiple View Geometry in Computer Vision*, 2nd ed. Cambridge, U.K.: Cambridge Univ. Press, 2004. DOI: 10.1017/CBO9780511811685
 
-[8] R. Hartley and A. Zisserman, *Multiple View Geometry in Computer Vision*,
-2nd ed. Cambridge, U.K.: Cambridge Univ. Press, 2004.
-DOI: 10.1017/CBO9780511811685
+[9] M. Grupp, "evo: Python package for the evaluation of odometry and SLAM," 2017. [Online]. Available: https://github.com/MichaelGrupp/evo
 
-[9] M. Grupp, "evo: Python package for the evaluation of odometry and SLAM,"
-2017. [Online]. Available: https://github.com/MichaelGrupp/evo
-
-[10] J. Shi and C. Tomasi, "Good features to track," in *Proc. IEEE Conf.
-Computer Vision and Pattern Recognition (CVPR)*, 1994, pp. 593-600.
-DOI: 10.1109/CVPR.1994.323794
-
-## AECE Finalization Checklist
-
-Done:
-
-- [x] References added with verified DOIs (Section References).
-- [x] Runtime/overhead measured in-pipeline (Section 5.4, Table 5) — supports
-  the low-overhead claim with data instead of qualitative wording.
-- [x] Related Work positioning table cites baselines and prior work.
-
-Remaining:
-
-- [ ] Convert this draft to the official AECE `.doc` template (a generated
-  `.docx` is available at `docs/MANUSCRIPT_GeoDF-VINS-AECE.docx` to copy from).
-- [x] Pipeline figure rendered (Figure 1):
-  `results/geodf_evaluation/figures/pipeline_geodf_adaptive.{svg,pdf,png}`
-  (vector + 300 dpi, grayscale-safe).
-- [ ] Keep the manuscript at 8 pages if possible; otherwise use 10 pages and
-  budget 25 EUR per extra page.
-- [ ] Confirm five keywords match/approach the AECE keyword list.
-- [ ] Prepare the copyright transfer / author's guarantee form.
-- [ ] Check plagiarism/originality before submission.
-
-## Figure and Build Artifacts
-
-- Figure 1 (pipeline): `results/geodf_evaluation/figures/pipeline_geodf_adaptive.svg`
-  / `.pdf` / `.png`, regenerated by `scripts/make_pipeline_figure.py`.
-- Result figures: `results/geodf_evaluation/figures/viode_ate_delta_n5.svg`,
-  `viode_detection_lift.svg`.
-- Word export: `docs/MANUSCRIPT_GeoDF-VINS-AECE.docx`, regenerated by
-  `scripts/build_manuscript_docx.sh`.
+[10] J. Shi and C. Tomasi, "Good features to track," in *Proc. IEEE Conf. Computer Vision and Pattern Recognition (CVPR)*, 1994, pp. 593-600. DOI: 10.1109/CVPR.1994.323794

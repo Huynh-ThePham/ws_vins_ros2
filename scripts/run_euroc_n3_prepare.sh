@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare N-repeat study on EuRoC Machine Hall (5 seqs × baseline+adaptive).
+# Prepare N-repeat study on EuRoC Machine Hall.
 #
 # Does NOT run VIO trials — only prerequisites:
 #   - optional rebuild (REBUILD=1)
@@ -9,6 +9,7 @@
 # Usage:
 #   ./scripts/run_euroc_n3_prepare.sh [N]
 # Env: EUROC_ROOT, REBUILD=1, SKIP_PREPARE=1
+#      METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive"
 set -eo pipefail
 
 N="${1:-3}"
@@ -17,7 +18,7 @@ WS="$(cd "$(dirname "$0")/.." && pwd)"
 source "${WS}/scripts/lib/geodf_common.sh"
 
 EUROC_SEQS=(MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult)
-METHODS=(baseline adaptive)
+read -r -a METHODS <<< "${METHODS:-baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive}"
 OUT_ROOT="${WS}/results/euroc_repeat"
 LOG="${WS}/logs/euroc_n3_prepare_$(date +%Y%m%d_%H%M%S).log"
 mkdir -p "$OUT_ROOT" "${WS}/logs" "${WS}/data/euroc_ros2"
@@ -25,6 +26,7 @@ mkdir -p "$OUT_ROOT" "${WS}/logs" "${WS}/data/euroc_ros2"
 exec > >(tee -a "$LOG") 2>&1
 echo "[euroc-n3-prepare] log: $LOG"
 echo "[euroc-n3-prepare] N=$N  total_runs=$(( ${#EUROC_SEQS[@]} * ${#METHODS[@]} * N ))"
+echo "[euroc-n3-prepare] METHODS=${METHODS[*]}"
 
 if [ "${REBUILD:-0}" = "1" ]; then
     echo "[euroc-n3-prepare] rebuilding pht_vio_ros (Release)..."

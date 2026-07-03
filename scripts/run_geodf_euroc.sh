@@ -10,6 +10,8 @@
 #   geodf_dump    -> same as alwayson
 #   adaptive      -> PROPOSED: scene-aware + auto-ρ_on (B), stereo OFF
 #   adaptive_fixed -> ablation: fixed ρ_on=0.12 (dataset-tuned oracle)
+#   adaptive_no_quality -> ablation: proposed without quality-aware activation
+#   adaptive_no_vote -> ablation: proposed without temporal voting / warm-up
 #   adaptive_v2   -> ablation: auto-ρ_on + stereo cross-check (F)
 #   geodf_noguard -> ablation without ratio guard
 set -eo pipefail

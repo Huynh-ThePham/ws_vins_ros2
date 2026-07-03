@@ -47,31 +47,8 @@ python3 scripts/summarize_runtime_from_repeat.py --root results/viode_repeat >/d
 python3 scripts/summarize_resources.py >/dev/null || echo "[WARN] resource summary"
 
 echo "[post] 6/9 detection eval (Table 4, if dumps exist)"
-if ls results/viode_detection/*_geodf_dump/detection_eval.json >/dev/null 2>&1; then
-    python3 - << 'PY'
-import glob, json
-from pathlib import Path
-rows = []
-for p in sorted(glob.glob("results/viode_detection/*_geodf_dump/detection_eval.json")):
-    d = json.loads(Path(p).read_text())
-    name = Path(p).parent.name.replace("_geodf_dump", "")
-    env, level = name.rsplit("_", 1) if name.count("_") >= 2 else (name, "")
-    rows.append((env, level, d))
-lines = ["# VIODE dynamic-feature detection (geodf_dump)", "",
-         "| env | level | dyn base-rate | precision | lift | recall | static-FPR |",
-         "|---|---|---:|---:|---:|---:|---:|"]
-for env, level, d in rows:
-    def f(k, pct=False, x=False):
-        v = d.get(k)
-        if not isinstance(v, (int, float)): return "n/a"
-        if x: return f"{v:.2f}x"
-        return f"{v*100:.2f}%" if pct else f"{v:.3f}"
-    lines.append(f"| {env} | {level} | {f('dynamic_base_rate',pct=True)} | "
-                 f"{f('precision',pct=True)} | {f('precision_lift',x=True)} | "
-                 f"{f('recall',pct=True)} | {f('static_fpr',pct=True)} |")
-Path("results/geodf_evaluation/DETECTION_EVAL_VIODE.md").write_text("\n".join(lines) + "\n")
-print(f"[ok] detection table: {len(rows)} cells")
-PY
+if ls results/viode_detection/*_adaptive_dump/detection_eval.json results/viode_detection/*_geodf_dump/detection_eval.json >/dev/null 2>&1; then
+    python3 scripts/summarize_detection_table.py
 else
     echo "[post] no detection dumps — run scripts/run_viode_detection_prepare.sh for Table 4/Fig 3"
 fi

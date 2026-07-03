@@ -172,16 +172,24 @@ Summaries: `results/euroc_post_refactor_summary.json`, `results/euroc_loop_post_
 Geometry-only front-end filter with **adaptive self-gating** (recommended for dynamic scenes). Branch naming policy: [docs/BRANCHING.md](docs/BRANCHING.md). Method details: [docs/PROPOSAL_GeoDF-VINS-Hard.md](docs/PROPOSAL_GeoDF-VINS-Hard.md).
 
 ```bash
-# EuRoC: single run (baseline | geodf_hard | alwayson | adaptive)
+# EuRoC: single run
+# methods: baseline | alwayson | adaptive_fixed | adaptive_no_quality |
+#          adaptive_no_vote | adaptive
 bash scripts/run_geodf_euroc.sh MH_01_easy adaptive 40 --eval
 
-# EuRoC static ablation + full study
-bash scripts/run_euroc_static_ablation.sh
-bash scripts/run_geodf_full_benchmark.sh all
+# Q3 ablation protocol (long): baseline + always-on + fixed-rho +
+# no-quality + no-vote + full proposed
+METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive" \
+  bash scripts/run_euroc_n3_prepare.sh 3
+METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive" \
+  bash scripts/run_euroc_n3.sh 3
 
 # VIODE real-dynamic (ROS1 bag auto-converted to ros2_bag)
 export VIODE_ROOT=/path/to/viode
-bash scripts/run_geodf_viode.sh "0_none 1_low 2_mid 3_high" "baseline geodf_dump adaptive"
+METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive" \
+  bash scripts/run_viode_n5_prepare.sh 5
+METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive" \
+  bash scripts/run_viode_n5.sh 5
 
 # Everything (EuRoC + VIODE)
 bash scripts/run_geodf_benchmark_all.sh all

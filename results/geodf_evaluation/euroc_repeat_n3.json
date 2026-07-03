@@ -1,0 +1,217 @@
+{
+  "MH_01_easy": {
+    "baseline_ate": {
+      "n": 3,
+      "mean": 0.1800176666666667,
+      "std": 1.2472191289258945e-06,
+      "median": 0.180018,
+      "lo": 0.180016,
+      "hi": 0.180019
+    },
+    "proposed_ate": {
+      "n": 3,
+      "mean": 0.18000966666666668,
+      "std": 4.893760199365387e-05,
+      "median": 0.180018,
+      "lo": 0.179946,
+      "hi": 0.180065
+    },
+    "baseline_rpe": {
+      "n": 3,
+      "mean": 0.04498866666666667,
+      "std": 4.7140452079150315e-07,
+      "median": 0.044989,
+      "lo": 0.044988,
+      "hi": 0.044989
+    },
+    "proposed_rpe": {
+      "n": 3,
+      "mean": 0.044988,
+      "std": 6.164414002969513e-06,
+      "median": 0.044989,
+      "lo": 0.04498,
+      "hi": 0.044995
+    },
+    "improvement_pct": 0.004444008273266513,
+    "alwayson_ate": null,
+    "alwayson_improvement_pct": null,
+    "adaptive_fixed_ate": null,
+    "adaptive_fixed_improvement_pct": null,
+    "adaptive_no_quality_ate": null,
+    "adaptive_no_quality_improvement_pct": null,
+    "adaptive_no_vote_ate": null,
+    "adaptive_no_vote_improvement_pct": null
+  },
+  "MH_02_easy": {
+    "baseline_ate": {
+      "n": 3,
+      "mean": 0.168735,
+      "std": 3.5590260840139963e-06,
+      "median": 0.168737,
+      "lo": 0.16873,
+      "hi": 0.168738
+    },
+    "proposed_ate": {
+      "n": 3,
+      "mean": 0.162123,
+      "std": 0.004676835682381838,
+      "median": 0.158837,
+      "lo": 0.158795,
+      "hi": 0.168737
+    },
+    "baseline_rpe": {
+      "n": 3,
+      "mean": 0.03932,
+      "std": 2.828427124749019e-06,
+      "median": 0.039322,
+      "lo": 0.039316,
+      "hi": 0.039322
+    },
+    "proposed_rpe": {
+      "n": 3,
+      "mean": 0.04162333333333333,
+      "std": 0.001627301515461169,
+      "median": 0.042766,
+      "lo": 0.039322,
+      "hi": 0.042782
+    },
+    "improvement_pct": 3.918570539603525,
+    "alwayson_ate": null,
+    "alwayson_improvement_pct": null,
+    "adaptive_fixed_ate": null,
+    "adaptive_fixed_improvement_pct": null,
+    "adaptive_no_quality_ate": null,
+    "adaptive_no_quality_improvement_pct": null,
+    "adaptive_no_vote_ate": null,
+    "adaptive_no_vote_improvement_pct": null
+  },
+  "MH_03_medium": {
+    "baseline_ate": {
+      "n": 3,
+      "mean": 0.2915956666666667,
+      "std": 4.7140452080458726e-07,
+      "median": 0.291596,
+      "lo": 0.291595,
+      "hi": 0.291596
+    },
+    "proposed_ate": {
+      "n": 3,
+      "mean": 0.291622,
+      "std": 2.6870057685081245e-05,
+      "median": 0.291611,
+      "lo": 0.291596,
+      "hi": 0.291659
+    },
+    "baseline_rpe": {
+      "n": 3,
+      "mean": 0.049915,
+      "std": 0.0,
+      "median": 0.049915,
+      "lo": 0.049915,
+      "hi": 0.049915
+    },
+    "proposed_rpe": {
+      "n": 3,
+      "mean": 0.049882666666666665,
+      "std": 4.21926797231723e-05,
+      "median": 0.049912,
+      "lo": 0.049823,
+      "hi": 0.049913
+    },
+    "improvement_pct": -0.00903076977594371,
+    "alwayson_ate": null,
+    "alwayson_improvement_pct": null,
+    "adaptive_fixed_ate": null,
+    "adaptive_fixed_improvement_pct": null,
+    "adaptive_no_quality_ate": null,
+    "adaptive_no_quality_improvement_pct": null,
+    "adaptive_no_vote_ate": null,
+    "adaptive_no_vote_improvement_pct": null
+  },
+  "MH_04_difficult": {
+    "baseline_ate": {
+      "n": 3,
+      "mean": 0.44651066666666667,
+      "std": 1.247219128935785e-06,
+      "median": 0.446511,
+      "lo": 0.446509,
+      "hi": 0.446512
+    },
+    "proposed_ate": {
+      "n": 3,
+      "mean": 0.4465093333333333,
+      "std": 3.0912061651763073e-06,
+      "median": 0.446511,
+      "lo": 0.446505,
+      "hi": 0.446512
+    },
+    "baseline_rpe": {
+      "n": 3,
+      "mean": 0.065216,
+      "std": 8.164965809285426e-07,
+      "median": 0.065216,
+      "lo": 0.065215,
+      "hi": 0.065217
+    },
+    "proposed_rpe": {
+      "n": 3,
+      "mean": 0.065219,
+      "std": 2.828427124749019e-06,
+      "median": 0.065217,
+      "lo": 0.065217,
+      "hi": 0.065223
+    },
+    "improvement_pct": 0.0002986117539603019,
+    "alwayson_ate": null,
+    "alwayson_improvement_pct": null,
+    "adaptive_fixed_ate": null,
+    "adaptive_fixed_improvement_pct": null,
+    "adaptive_no_quality_ate": null,
+    "adaptive_no_quality_improvement_pct": null,
+    "adaptive_no_vote_ate": null,
+    "adaptive_no_vote_improvement_pct": null
+  },
+  "MH_05_difficult": {
+    "baseline_ate": {
+      "n": 3,
+      "mean": 0.298127,
+      "std": 0.0,
+      "median": 0.298127,
+      "lo": 0.298127,
+      "hi": 0.298127
+    },
+    "proposed_ate": {
+      "n": 3,
+      "mean": 0.298107,
+      "std": 1.5577761927389054e-05,
+      "median": 0.298105,
+      "lo": 0.298089,
+      "hi": 0.298127
+    },
+    "baseline_rpe": {
+      "n": 3,
+      "mean": 0.057269,
+      "std": 0.0,
+      "median": 0.057269,
+      "lo": 0.057269,
+      "hi": 0.057269
+    },
+    "proposed_rpe": {
+      "n": 3,
+      "mean": 0.057265,
+      "std": 2.9439202887757503e-06,
+      "median": 0.057264,
+      "lo": 0.057262,
+      "hi": 0.057269
+    },
+    "improvement_pct": 0.006708550382878603,
+    "alwayson_ate": null,
+    "alwayson_improvement_pct": null,
+    "adaptive_fixed_ate": null,
+    "adaptive_fixed_improvement_pct": null,
+    "adaptive_no_quality_ate": null,
+    "adaptive_no_quality_improvement_pct": null,
+    "adaptive_no_vote_ate": null,
+    "adaptive_no_vote_improvement_pct": null
+  }
+}

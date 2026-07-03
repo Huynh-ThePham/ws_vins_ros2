@@ -47,7 +47,11 @@ for level in $LEVELS; do
             echo "=== ${VIODE_ENV}_${level}_${method} trial ${i}/${N} (mode=$mode) ==="
             killall -9 pht_vio_node 2>/dev/null || true
             sleep 1
-            run_pht_vio_benchmark "$RUN_CFG" "$out" "$bag_ros2" 0 1.0
+            run_pht_vio_benchmark "$RUN_CFG" "$out" "$bag_ros2" 0 1.0 || {
+                echo "[warn] benchmark failed ${VIODE_ENV}_${level}_${method} trial ${i}"
+                rm -rf "${out}/eval"
+                continue
+            }
             python3 "${WS}/scripts/evaluate_trajectory.py" \
                 "${out}/vio.csv" "$gt" "${out}/eval" --no-plot \
                 --run-name "${VIODE_ENV}_${level}_${method}_t${i}" || echo "[warn] eval failed"

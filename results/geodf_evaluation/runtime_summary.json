@@ -1,0 +1,10 @@
+{
+  "trials": 60,
+  "frames": 75012,
+  "mean_geo_ms": 1.7598967921399242,
+  "median_geo_ms": 1.653885,
+  "p95_geo_ms": 2.567040499999999,
+  "p99_geo_ms": 3.640385299999998,
+  "pct_of_50ms_budget": 3.5197935842798485,
+  "frames_rejection_armed_pct": 2.392950461259532
+}

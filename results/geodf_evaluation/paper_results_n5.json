@@ -1,0 +1,521 @@
+{
+  "viode": {
+    "city_day/0_none": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.118493,
+        "std": 0.01805850013705457,
+        "median": 0.109463,
+        "lo": 0.109462,
+        "hi": 0.15461
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.10938,
+        "std": 7.869180389341849e-05,
+        "median": 0.109364,
+        "lo": 0.109249,
+        "hi": 0.109463
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0940636,
+        "std": 0.03487080030971471,
+        "median": 0.111496,
+        "lo": 0.024322,
+        "hi": 0.111508
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.1114932,
+        "std": 3.4292856398930802e-06,
+        "median": 0.111496,
+        "lo": 0.111489,
+        "hi": 0.111496
+      },
+      "improvement_pct": 7.690749664537143,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_day/1_low": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.1390456,
+        "std": 0.00032493482423403137,
+        "median": 0.139266,
+        "lo": 0.138429,
+        "hi": 0.139266
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.13927599999999998,
+        "std": 3.0482782025265675e-05,
+        "median": 0.139266,
+        "lo": 0.139252,
+        "hi": 0.139336
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.1257278,
+        "std": 2.610287340505263e-05,
+        "median": 0.125715,
+        "lo": 0.125714,
+        "hi": 0.12578
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.1257168,
+        "std": 3.6551333765030684e-06,
+        "median": 0.125715,
+        "lo": 0.125714,
+        "hi": 0.125724
+      },
+      "improvement_pct": -0.16570103620682117,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_day/2_mid": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.1656188,
+        "std": 0.0006301166241260381,
+        "median": 0.165962,
+        "lo": 0.164362,
+        "hi": 0.165964
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.1659636,
+        "std": 3.8556970835371196e-05,
+        "median": 0.165941,
+        "lo": 0.165934,
+        "hi": 0.166038
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0324948,
+        "std": 1.4386104406684398e-05,
+        "median": 0.032486,
+        "lo": 0.032484,
+        "hi": 0.032522
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.0324844,
+        "std": 8.000000000008001e-07,
+        "median": 0.032485,
+        "lo": 0.032483,
+        "hi": 0.032485
+      },
+      "improvement_pct": -0.20818892541183634,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_day/3_high": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.3443614,
+        "std": 0.0026637289351583915,
+        "median": 0.345745,
+        "lo": 0.339076,
+        "hi": 0.345996
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.2934036,
+        "std": 0.0004928068993023524,
+        "median": 0.293651,
+        "lo": 0.292418,
+        "hi": 0.293652
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.10578,
+        "std": 0.001021743803504579,
+        "median": 0.106299,
+        "lo": 0.103737,
+        "hi": 0.106308
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.1147076,
+        "std": 4.898979485571256e-07,
+        "median": 0.114708,
+        "lo": 0.114707,
+        "hi": 0.114708
+      },
+      "improvement_pct": 14.797767694056303,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_night/0_none": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.417846,
+        "std": 4.0531469255386395e-05,
+        "median": 0.417866,
+        "lo": 0.417765,
+        "hi": 0.417869
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.3935268,
+        "std": 0.04871696871275963,
+        "median": 0.417866,
+        "lo": 0.296093,
+        "hi": 0.418028
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.041101399999999996,
+        "std": 1.2000000000012002e-06,
+        "median": 0.041102,
+        "lo": 0.041099,
+        "hi": 0.041102
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.040146,
+        "std": 0.0019135022341246436,
+        "median": 0.041102,
+        "lo": 0.036319,
+        "hi": 0.041108
+      },
+      "improvement_pct": 5.820134690771238,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_night/1_low": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.5046288,
+        "std": 0.009282213731648302,
+        "median": 0.500026,
+        "lo": 0.499901,
+        "hi": 0.523193
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.5000171999999999,
+        "std": 1.7599999999995396e-05,
+        "median": 0.500026,
+        "lo": 0.499982,
+        "hi": 0.500026
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0549564,
+        "std": 0.0017533020960462005,
+        "median": 0.054078,
+        "lo": 0.054078,
+        "hi": 0.058463
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.0540784,
+        "std": 8.000000000008001e-07,
+        "median": 0.054078,
+        "lo": 0.054078,
+        "hi": 0.05408
+      },
+      "improvement_pct": 0.9138598510429943,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_night/2_mid": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.4971218,
+        "std": 3.2590796246782414e-05,
+        "median": 0.497097,
+        "lo": 0.497094,
+        "hi": 0.497173
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.5021988000000001,
+        "std": 0.010203600000000002,
+        "median": 0.497097,
+        "lo": 0.497097,
+        "hi": 0.522606
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0485476,
+        "std": 6.343500610863451e-06,
+        "median": 0.048548,
+        "lo": 0.048537,
+        "hi": 0.048557
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.048783,
+        "std": 0.00047000000000000096,
+        "median": 0.048548,
+        "lo": 0.048548,
+        "hi": 0.049723
+      },
+      "improvement_pct": -1.0212788898012626,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "city_night/3_high": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.8842668,
+        "std": 0.00021854098013874702,
+        "median": 0.884363,
+        "lo": 0.884015,
+        "hi": 0.884575
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.884148,
+        "std": 0.0001585761646654397,
+        "median": 0.884019,
+        "lo": 0.884019,
+        "hi": 0.884363
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0948594,
+        "std": 1.8542923178394308e-05,
+        "median": 0.094868,
+        "lo": 0.094838,
+        "hi": 0.094885
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.0948498,
+        "std": 1.445544879967149e-05,
+        "median": 0.094838,
+        "lo": 0.094838,
+        "hi": 0.094868
+      },
+      "improvement_pct": 0.013434859252883236,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "parking_lot/0_none": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.167125,
+        "std": 0.0,
+        "median": 0.167125,
+        "lo": 0.167125,
+        "hi": 0.167125
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.1672664,
+        "std": 0.0002903402142315103,
+        "median": 0.167125,
+        "lo": 0.167112,
+        "hi": 0.167847
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.027484,
+        "std": 0.0,
+        "median": 0.027484,
+        "lo": 0.027484,
+        "hi": 0.027484
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.027500200000000002,
+        "std": 3.290227955628567e-05,
+        "median": 0.027484,
+        "lo": 0.027483,
+        "hi": 0.027566
+      },
+      "improvement_pct": -0.08460732984294016,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "parking_lot/1_low": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.1175908,
+        "std": 4.435042277137977e-05,
+        "median": 0.117576,
+        "lo": 0.117549,
+        "hi": 0.117677
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.1248222,
+        "std": 2.399999999996849e-06,
+        "median": 0.124821,
+        "lo": 0.124821,
+        "hi": 0.124827
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.0240666,
+        "std": 1.9703806738800408e-05,
+        "median": 0.024057,
+        "lo": 0.024056,
+        "hi": 0.024106
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.023582,
+        "std": 1.999999999999225e-06,
+        "median": 0.023583,
+        "lo": 0.023578,
+        "hi": 0.023583
+      },
+      "improvement_pct": -6.149630753426288,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "parking_lot/2_mid": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.144273,
+        "std": 0.0,
+        "median": 0.144273,
+        "lo": 0.144273,
+        "hi": 0.144273
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.152287,
+        "std": 0.0,
+        "median": 0.152287,
+        "lo": 0.152287,
+        "hi": 0.152287
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.035599,
+        "std": 0.0,
+        "median": 0.035599,
+        "lo": 0.035599,
+        "hi": 0.035599
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.035954,
+        "std": 0.0,
+        "median": 0.035954,
+        "lo": 0.035954,
+        "hi": 0.035954
+      },
+      "improvement_pct": -5.554746903440002,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    },
+    "parking_lot/3_high": {
+      "baseline_ate": {
+        "n": 5,
+        "mean": 0.1193298,
+        "std": 4.0000000000040005e-07,
+        "median": 0.11933,
+        "lo": 0.119329,
+        "hi": 0.11933
+      },
+      "proposed_ate": {
+        "n": 5,
+        "mean": 0.1477712,
+        "std": 2.2842066456426837e-05,
+        "median": 0.147773,
+        "lo": 0.147733,
+        "hi": 0.147805
+      },
+      "baseline_rpe": {
+        "n": 5,
+        "mean": 0.052331,
+        "std": 0.0,
+        "median": 0.052331,
+        "lo": 0.052331,
+        "hi": 0.052331
+      },
+      "proposed_rpe": {
+        "n": 5,
+        "mean": 0.038356799999999996,
+        "std": 3.9191835884519055e-06,
+        "median": 0.038359,
+        "lo": 0.038349,
+        "hi": 0.038359
+      },
+      "improvement_pct": -23.834281126759613,
+      "alwayson_ate": null,
+      "alwayson_improvement_pct": null,
+      "adaptive_fixed_ate": null,
+      "adaptive_fixed_improvement_pct": null,
+      "adaptive_no_quality_ate": null,
+      "adaptive_no_quality_improvement_pct": null,
+      "adaptive_no_vote_ate": null,
+      "adaptive_no_vote_improvement_pct": null
+    }
+  },
+  "euroc": {}
+}

@@ -5,6 +5,7 @@
 #
 # Usage: ./scripts/run_viode_n5.sh [N]
 # Env: VIODE_ROOT, FORCE=1 (redo existing trials), SKIP_SUMMARY=1
+#      METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive"
 set -eo pipefail
 
 N="${1:-5}"
@@ -17,6 +18,7 @@ source "${WS}/scripts/lib/geodf_common.sh"
 
 VIODE_ENVS=(city_day city_night parking_lot)
 ALL_LEVELS="0_none 1_low 2_mid 3_high"
+METHODS="${METHODS:-baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG="${WS}/logs/viode_n5_${STAMP}.log"
 mkdir -p "${WS}/logs" "${WS}/results/viode_repeat" "${WS}/results/geodf_evaluation"
@@ -24,7 +26,9 @@ mkdir -p "${WS}/logs" "${WS}/results/viode_repeat" "${WS}/results/geodf_evaluati
 exec > >(tee -a "$LOG") 2>&1
 echo "[viode-n5] === start N=$N stamp=$STAMP ==="
 echo "[viode-n5] log: $LOG"
-echo "[viode-n5] FORCE=$FORCE  total_runs=$(( 3 * 4 * 2 * N ))"
+method_count="$(wc -w <<< "$METHODS")"
+echo "[viode-n5] METHODS=$METHODS"
+echo "[viode-n5] FORCE=$FORCE  total_runs=$(( 3 * 4 * method_count * N ))"
 
 python3 "${WS}/scripts/capture_provenance.py" \
     --study-dir "${WS}/results/viode_repeat" --study "viode_n5" \
@@ -39,13 +43,14 @@ fi
 
 for env in "${VIODE_ENVS[@]}"; do
     echo "[viode-n5] === env=$env ==="
-    VIODE_ENV="$env" bash "${WS}/scripts/run_geodf_repeat.sh" "$ALL_LEVELS" "baseline adaptive" "$N"
+    VIODE_ENV="$env" bash "${WS}/scripts/run_geodf_repeat.sh" "$ALL_LEVELS" "$METHODS" "$N"
 done
 
 if [ "${SKIP_SUMMARY:-0}" != "1" ]; then
     echo "[viode-n5] === summarizing ==="
     python3 "${WS}/scripts/summarize_n5_final.py" \
         --viode-only \
+        --methods "$METHODS" \
         --out "${WS}/results/geodf_evaluation/PAPER_RESULTS_N5.md"
     python3 "${WS}/scripts/viode_n5_manifest.py" update --root "${WS}/results/viode_repeat" --n "$N"
 fi

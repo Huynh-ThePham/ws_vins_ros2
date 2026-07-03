@@ -5,6 +5,7 @@
 #
 # Usage: ./scripts/run_euroc_n3.sh [N]
 # Env: EUROC_ROOT, FORCE=1 (redo existing trials), SKIP_SUMMARY=1
+#      METHODS="baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive"
 set -eo pipefail
 
 N="${1:-3}"
@@ -16,6 +17,7 @@ export EUROC_ROOT="${EUROC_ROOT:-/media/theph/Data1/Research/Datasets/EuRoC}"
 source "${WS}/scripts/lib/geodf_common.sh"
 
 EUROC_SEQS=(MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult)
+METHODS="${METHODS:-baseline alwayson adaptive_fixed adaptive_no_quality adaptive_no_vote adaptive}"
 STAMP="$(date +%Y%m%d_%H%M%S)"
 LOG="${WS}/logs/euroc_n3_${STAMP}.log"
 OUT="${WS}/results/euroc_repeat"
@@ -24,7 +26,9 @@ mkdir -p "${WS}/logs" "$OUT" "${WS}/results/geodf_evaluation"
 exec > >(tee -a "$LOG") 2>&1
 echo "[euroc-n3] === start N=$N stamp=$STAMP ==="
 echo "[euroc-n3] log: $LOG"
-echo "[euroc-n3] FORCE=$FORCE  total_runs=$(( 5 * 2 * N ))"
+method_count="$(wc -w <<< "$METHODS")"
+echo "[euroc-n3] METHODS=$METHODS"
+echo "[euroc-n3] FORCE=$FORCE  total_runs=$(( 5 * method_count * N ))"
 
 python3 "${WS}/scripts/capture_provenance.py" \
     --study-dir "${WS}/results/euroc_repeat" --study "euroc_n3" \
@@ -50,7 +54,7 @@ for seq in "${EUROC_SEQS[@]}"; do
         continue
     fi
 
-    for method in baseline adaptive; do
+    for method in $METHODS; do
         mode="$(geodf_method_to_mode "$method")"
         run_cfg="${EUROC_CFG}/euroc_${mode}_config_n3_${seq}.yaml"
         for i in $(seq 1 "$N"); do
@@ -81,6 +85,7 @@ if [ "${SKIP_SUMMARY:-0}" != "1" ]; then
     echo "[euroc-n3] === summarizing ==="
     python3 "${WS}/scripts/summarize_euroc_repeat.py" \
         --root "$OUT" --n "$N" \
+        --methods "$METHODS" \
         --out "${WS}/results/geodf_evaluation/EUROC_REPEAT_N3.md"
     python3 "${WS}/scripts/euroc_n3_manifest.py" update --root "$OUT" --n "$N"
 fi

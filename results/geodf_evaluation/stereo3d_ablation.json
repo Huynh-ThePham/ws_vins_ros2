@@ -1,0 +1,236 @@
+{
+  "viode": {
+    "city_day_0_none": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.15461,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.109378,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.109463,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 29.200569174050834,
+      "delta_3d_vs_2d_pct": -0.07771215418091548
+    },
+    "city_day_1_low": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.138429,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.138708,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.139259,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -0.5995853470009878,
+      "delta_3d_vs_2d_pct": -0.397237361940188
+    },
+    "city_day_2_mid": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.165843,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.165912,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.166038,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -0.11758108572565663,
+      "delta_3d_vs_2d_pct": -0.0759438738608342
+    },
+    "city_day_3_high": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.339076,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.32186,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.293645,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 13.398471139213628,
+      "delta_3d_vs_2d_pct": 8.766233766233764
+    },
+    "city_night_0_none": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.417866,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.417866,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.296093,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 29.141638707145358,
+      "delta_3d_vs_2d_pct": 29.141638707145358
+    },
+    "city_night_1_low": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.500026,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.500025,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.500026,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 0.0,
+      "delta_3d_vs_2d_pct": -0.00019999000048352247
+    },
+    "city_night_2_mid": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.497097,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.497097,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.522606,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -5.131594034967019,
+      "delta_3d_vs_2d_pct": -5.131594034967019
+    },
+    "city_night_3_high": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.884575,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.884019,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.884363,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 0.02396631150552412,
+      "delta_3d_vs_2d_pct": -0.03891319077983742
+    },
+    "parking_lot_0_none": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.167125,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.167125,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.167125,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": 0.0,
+      "delta_3d_vs_2d_pct": 0.0
+    },
+    "parking_lot_1_low": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.117576,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.100852,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.124821,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -6.161971830985917,
+      "delta_3d_vs_2d_pct": -23.76650934041963
+    },
+    "parking_lot_2_mid": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.144273,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.212879,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.152287,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -5.554746903440002,
+      "delta_3d_vs_2d_pct": 28.463117545647997
+    },
+    "parking_lot_3_high": {
+      "baseline": {
+        "n": 1,
+        "mean": 0.11933,
+        "std": 0.0
+      },
+      "adaptive_2d": {
+        "n": 1,
+        "mean": 0.141435,
+        "std": 0.0
+      },
+      "adaptive": {
+        "n": 1,
+        "mean": 0.147773,
+        "std": 0.0
+      },
+      "delta_3d_vs_base_pct": -23.835581999497176,
+      "delta_3d_vs_2d_pct": -4.481210450030037
+    }
+  },
+  "verdict": {
+    "supported": true,
+    "claim": "Stereo 3D motion consistency improves dynamic VIO robustness over 2D-F gating while preserving static pass-through."
+  }
+}

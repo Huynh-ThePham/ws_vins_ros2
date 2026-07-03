@@ -713,9 +713,14 @@ void FeatureTracker::rejectGeoDynamic()
 
     const double frame_2d_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
+    const double motion3d_2d_support_ratio =
+        geo_activation_active
+            ? cfg.geodf_motion3d_min_2d_ratio
+            : std::max(cfg.geodf_motion3d_min_2d_ratio,
+                       cfg.geodf_motion3d_arm_2d_ratio);
     const bool motion3d_supported =
-        !motion3d_used || cfg.geodf_motion3d_min_2d_ratio <= 0.0 ||
-        frame_2d_outlier_ratio >= cfg.geodf_motion3d_min_2d_ratio;
+        !motion3d_used || motion3d_2d_support_ratio <= 0.0 ||
+        frame_2d_outlier_ratio >= motion3d_2d_support_ratio;
     const double frame_outlier_ratio =
         (motion3d_used && !motion3d_supported)
             ? 0.0

@@ -186,6 +186,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_motion3d_residual_th = 3.0;
     geodf_motion3d_ransac_iters = 96;
     geodf_motion3d_min_2d_ratio = 0.0;
+    geodf_motion3d_arm_2d_ratio = 0.0;
     if (!fsSettings["geodf_enable"].empty())
         geodf_enable = (int)fsSettings["geodf_enable"];
     if (!fsSettings["geodf_hard_reject"].empty())
@@ -268,6 +269,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         geodf_motion3d_ransac_iters = (int)fsSettings["geodf_motion3d_ransac_iters"];
     if (!fsSettings["geodf_motion3d_min_2d_ratio"].empty())
         geodf_motion3d_min_2d_ratio = (double)fsSettings["geodf_motion3d_min_2d_ratio"];
+    if (!fsSettings["geodf_motion3d_arm_2d_ratio"].empty())
+        geodf_motion3d_arm_2d_ratio = (double)fsSettings["geodf_motion3d_arm_2d_ratio"];
 
     if (geodf_enable) {
         geodf_stats_path = output_folder + "/geo_df_stats.csv";
@@ -313,7 +316,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << " motion3d_enable=" << geodf_motion3d_enable
                         << " motion3d_min_points=" << geodf_motion3d_min_points
                         << " motion3d_residual_th=" << geodf_motion3d_residual_th
-                        << " motion3d_min_2d_ratio=" << geodf_motion3d_min_2d_ratio);
+                        << " motion3d_min_2d_ratio=" << geodf_motion3d_min_2d_ratio
+                        << " motion3d_arm_2d_ratio=" << geodf_motion3d_arm_2d_ratio);
     }
 
     fsSettings.release();

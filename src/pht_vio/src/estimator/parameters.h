@@ -123,6 +123,7 @@ struct VinsConfig
     double geodf_motion3d_residual_th = 3.0;
     int geodf_motion3d_ransac_iters = 96;
     double geodf_motion3d_min_2d_ratio = 0.0;
+    double geodf_motion3d_arm_2d_ratio = 0.0;
     std::string geodf_stats_path;
     std::string geodf_feat_path;
 

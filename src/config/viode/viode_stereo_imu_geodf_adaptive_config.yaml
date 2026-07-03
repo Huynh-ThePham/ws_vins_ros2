@@ -120,3 +120,4 @@ geodf_motion3d_max_depth: 40.0
 geodf_motion3d_residual_th: 3.0
 geodf_motion3d_ransac_iters: 96
 geodf_motion3d_min_2d_ratio: 0.10
+geodf_motion3d_arm_2d_ratio: 0.14

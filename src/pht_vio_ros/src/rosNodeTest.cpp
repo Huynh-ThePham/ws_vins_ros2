@@ -267,7 +267,7 @@ void imu_callback(const sensor_msgs::msg::Imu::SharedPtr imu_msg)
 
 void feature_callback(const sensor_msgs::msg::PointCloud::SharedPtr feature_msg)
 {
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+    map<int, vector<pair<int, FeatureObservation>>> featureFrame;
     for (unsigned int i = 0; i < feature_msg->points.size(); i++)
     {
         int feature_id = feature_msg->channels[0].values[i];
@@ -288,8 +288,8 @@ void feature_callback(const sensor_msgs::msg::PointCloud::SharedPtr feature_msg)
             //printf("receive pts gt %d %f %f %f\n", feature_id, gx, gy, gz);
         }
         assert(z == 1);
-        Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+        FeatureObservation xyz_uv_velocity;
+        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, 1.0;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
     double t = rclcpp::Time(feature_msg->header.stamp).seconds();

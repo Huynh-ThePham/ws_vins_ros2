@@ -137,6 +137,10 @@ def _stats_quality(run_dir: Path) -> tuple[int, str]:
         score += 100
     if "sem_policy_trigger_burst" in header:
         score += 10
+    if "geo_overlap_pool" in header:
+        score += 5
+    if "mean_backend_weight" in header:
+        score += 5
     if n_frames >= 500:
         score += 20
     elif n_frames >= 100:

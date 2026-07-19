@@ -35,8 +35,10 @@ class FrameSignals:
     sem_mask_trusted: bool
     dynamic_pixel_ratio: float
     sem_activation_ema: float
+    geo_valid: bool
     geo_frame_active: bool
-    geo_overlap_total: int
+    geo_overlap_pool: int
+    sem_raw_count: int
     sem_geo_overlap: float
     sem_geo_overlap_ema_logged: float | None
     sem_scene_active: bool
@@ -97,8 +99,12 @@ def load_frames(path: Path) -> list[FrameSignals]:
                     sem_mask_trusted=_truthy(row, "sem_mask_trusted"),
                     dynamic_pixel_ratio=_float(row, "dynamic_pixel_ratio"),
                     sem_activation_ema=_float(row, "sem_activation_ema"),
+                    geo_valid=_truthy(row, "geo_valid")
+                    if "geo_valid" in row
+                    else _truthy(row, "geo_frame_active"),
                     geo_frame_active=_truthy(row, "geo_frame_active"),
-                    geo_overlap_total=_int(row, "geo_candidates"),
+                    geo_overlap_pool=_int(row, "geo_overlap_pool", _int(row, "geo_candidates")),
+                    sem_raw_count=_int(row, "sem_candidates"),
                     sem_geo_overlap=_float(row, "sem_geo_overlap"),
                     sem_geo_overlap_ema_logged=logged_ema,
                     sem_scene_active=_truthy(row, "sem_scene_active"),
@@ -125,6 +131,7 @@ def replay_policy(frames: list[FrameSignals], params: PolicyParams) -> list[Poli
 
     for fr in frames:
         if not fr.mask_available or not fr.sem_mask_trusted:
+            hold = 0
             out.append(
                 PolicyFrame(
                     state=0,
@@ -139,10 +146,8 @@ def replay_policy(frames: list[FrameSignals], params: PolicyParams) -> list[Poli
             )
             continue
 
-        geo_overlap_total = 0
         sem_geo_overlap_last = 0.0
-        if fr.geo_frame_active:
-            geo_overlap_total = fr.geo_overlap_total
+        if fr.geo_valid:
             sem_geo_overlap_last = fr.sem_geo_overlap
 
         if use_logged_overlap_ema and fr.sem_geo_overlap_ema_logged is not None:
@@ -158,9 +163,10 @@ def replay_policy(frames: list[FrameSignals], params: PolicyParams) -> list[Poli
 
         semantic_burst = fr.dynamic_pixel_ratio >= params.burst_ratio
         semantic_strong = fr.sem_activation_ema >= params.strong_ratio
+        min_geo = max(1, params.min_geo_candidates)
         semantic_geo_agree = (
-            fr.geo_frame_active
-            and geo_overlap_total >= max(1, params.min_geo_candidates)
+            fr.geo_valid
+            and (fr.geo_overlap_pool >= min_geo or fr.sem_raw_count >= min_geo)
             and overlap_ema >= params.overlap_ratio
         )
 
@@ -170,7 +176,8 @@ def replay_policy(frames: list[FrameSignals], params: PolicyParams) -> list[Poli
             hold -= 1
 
         dynamic_assist = hold > 0
-        if semantic_strong or (dynamic_assist and fr.geo_frame_active):
+        geo_evidence = fr.geo_valid and fr.geo_overlap_pool > 0
+        if semantic_strong or semantic_geo_agree or (dynamic_assist and geo_evidence):
             state = 2
         elif dynamic_assist:
             state = 1

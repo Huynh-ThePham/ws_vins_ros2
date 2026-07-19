@@ -196,6 +196,15 @@ apply_sem_policy_params_if_needed() {
         echo "[error] SEM_POLICY_PARAMS_FILE not found: $SEM_POLICY_PARAMS_FILE" >&2
         exit 1
     fi
+    local audit_extra=()
+    if [ "${ALLOW_INCOMPLETE_TRAIN:-0}" = "1" ]; then
+        audit_extra+=(--allow-draft-selected)
+    fi
+    python3 "${WS}/scripts/audit_sem_geodf_protocol.py" \
+        --quiet \
+        --configs "$cfg" \
+        --selected-params "$SEM_POLICY_PARAMS_FILE" \
+        "${audit_extra[@]}"
     python3 "${WS}/scripts/apply_sem_policy_params.py" \
         --config "$cfg" \
         --params "$SEM_POLICY_PARAMS_FILE"
@@ -210,6 +219,15 @@ read_sem_policy_level() {
     local v
     v="$(grep -E '^sem_policy_dynamic_level:' "$cfg" | awk '{print $2}')"
     echo "${v:--1}"
+}
+
+audit_run_config() {
+    local cfg="$1" oracle="${2:-0}"
+    local extra=()
+    if [ "$oracle" = "1" ]; then
+        extra+=(--allow-oracle)
+    fi
+    python3 "${WS}/scripts/audit_sem_geodf_protocol.py" --quiet --configs "$cfg" "${extra[@]}"
 }
 
 euroc_bag_ready() {
@@ -243,6 +261,7 @@ run_one() {
         sed -i "s|output_path: \"~/output/\"|output_path: \"${out}/\"|" "$run_cfg"
         sed -i "s|pose_graph_save_path: \"~/output/pose_graph/\"|pose_graph_save_path: \"${out}/pose_graph/\"|" "$run_cfg"
         apply_sem_policy_params_if_needed "$method" "$run_cfg"
+        audit_run_config "$run_cfg" "0"
         echo "=== EuRoC $seq $method trial=$trial rate=$rate yolo=$use_yolo ==="
         killall -9 pht_vio_node mask_node 2>/dev/null || true
         sleep 1
@@ -280,6 +299,7 @@ run_one() {
             sed -i "s|^sem_policy_dynamic_level:.*|sem_policy_dynamic_level: ${policy_level}|" "$run_cfg"
             oracle_flag=1
         fi
+        audit_run_config "$run_cfg" "$oracle_flag"
         echo "=== VIODE $run_name rate=$rate yolo=$use_yolo bag=$bag_ros2 ==="
         killall -9 pht_vio_node mask_node 2>/dev/null || true
         sleep 1

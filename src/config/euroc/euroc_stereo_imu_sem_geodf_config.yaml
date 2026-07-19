@@ -63,6 +63,15 @@ sem_policy_hold_frames: 120
 sem_policy_overlap_ratio: 0.35
 sem_policy_overlap_ema: 0.20
 sem_policy_min_geo_candidates: 2
+# Online adaptive consensus residual weighting. Inputs are current semantic mask,
+# GeoDF epipolar evidence, online EMA/gates, and temporal vote state only.
+# No GT, scene label, ATE, or holdout result is read by the estimator.
+sem_geodf_backend_weight: 1
+sem_geodf_backend_min_weight: 0.25
+sem_geodf_backend_semantic_weight: 0.55
+sem_geodf_backend_geo_weight: 0.75
+sem_geodf_backend_agree_weight: 0.25
+sem_geodf_backend_recovery: 0.20
 sem_mask_max_age_ms: 150.0
 sem_use_latest_mask: 1
 sem_block_on_mask: 0

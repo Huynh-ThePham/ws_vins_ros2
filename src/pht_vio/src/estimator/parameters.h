@@ -21,6 +21,9 @@ using namespace std;
 const double FOCAL_LENGTH = 460.0;
 const int WINDOW_SIZE = 10;
 const int NUM_OF_F = 1000;
+const int FEATURE_OBS_SIZE = 8;
+
+using FeatureObservation = Eigen::Matrix<double, FEATURE_OBS_SIZE, 1>;
 
 struct VinsConfig
 {
@@ -140,6 +143,15 @@ struct VinsConfig
     double sem_policy_overlap_ratio = 0.35;
     double sem_policy_overlap_ema = 0.20;
     int sem_policy_min_geo_candidates = 2;
+    // Semantic-GeoDF consensus backend weighting. Hard rejection removes the
+    // highest-risk tracks first; suspicious tracks that survive the shared guard
+    // stay in the estimator with reduced visual residual weight.
+    int sem_geodf_backend_weight = 0;
+    double sem_geodf_backend_min_weight = 0.25;
+    double sem_geodf_backend_semantic_weight = 0.55;
+    double sem_geodf_backend_geo_weight = 0.75;
+    double sem_geodf_backend_agree_weight = 0.25;
+    double sem_geodf_backend_recovery = 0.20;
     // Real-time robustness: non-blocking mask sync + Geo-only fallback when mask missing/stale
     double sem_mask_max_age_ms = 150.0;
     int sem_use_latest_mask = 1;

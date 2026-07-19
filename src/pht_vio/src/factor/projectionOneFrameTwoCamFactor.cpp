@@ -1,8 +1,8 @@
 /*******************************************************
  * Copyright (C) 2019, Aerial Robotics Group, Hong Kong University of Science and Technology
- * 
+ *
  * This file is part of VINS.
- * 
+ *
  * Licensed under the GNU General Public License v3.0;
  * you may not use this file except in compliance with the License.
  *
@@ -10,16 +10,19 @@
  *******************************************************/
 
 #include "projectionOneFrameTwoCamFactor.h"
+#include <algorithm>
+#include <cmath>
 
 Eigen::Matrix2d ProjectionOneFrameTwoCamFactor::sqrt_info;
 double ProjectionOneFrameTwoCamFactor::sum_t;
 
 ProjectionOneFrameTwoCamFactor::ProjectionOneFrameTwoCamFactor(const Eigen::Vector3d &_pts_i, const Eigen::Vector3d &_pts_j,
                                                                const Eigen::Vector2d &_velocity_i, const Eigen::Vector2d &_velocity_j,
-                                                               const double _td_i, const double _td_j) : 
-                                                               pts_i(_pts_i), pts_j(_pts_j), 
+                                                               const double _td_i, const double _td_j, const double _weight) :
+                                                               pts_i(_pts_i), pts_j(_pts_j),
                                                                td_i(_td_i), td_j(_td_j)
 {
+    sqrt_weight = std::sqrt(std::min(1.0, std::max(0.0, _weight)));
     velocity_i.x() = _velocity_i.x();
     velocity_i.y() = _velocity_i.y();
     velocity_i.z() = 0;
@@ -63,14 +66,14 @@ bool ProjectionOneFrameTwoCamFactor::Evaluate(double const *const *parameters, d
     Eigen::Vector3d pts_camera_j = qic2.inverse() * (pts_imu_j - tic2);
     Eigen::Map<Eigen::Vector2d> residual(residuals);
 
-#ifdef UNIT_SPHERE_ERROR 
+#ifdef UNIT_SPHERE_ERROR
     residual =  tangent_base * (pts_camera_j.normalized() - pts_j_td.normalized());
 #else
     double dep_j = pts_camera_j.z();
     residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
 #endif
 
-    residual = sqrt_info * residual;
+    residual = sqrt_weight * (sqrt_info * residual);
 
     if (jacobians)
     {
@@ -92,13 +95,13 @@ bool ProjectionOneFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         reduce << 1. / dep_j, 0, -pts_camera_j(0) / (dep_j * dep_j),
             0, 1. / dep_j, -pts_camera_j(1) / (dep_j * dep_j);
 #endif
-        reduce = sqrt_info * reduce;
+        reduce = sqrt_weight * (sqrt_info * reduce);
 
         if (jacobians[0])
         {
             Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>> jacobian_ex_pose(jacobians[0]);
             Eigen::Matrix<double, 3, 6> jaco_ex;
-            jaco_ex.leftCols<3>() = ric2.transpose(); 
+            jaco_ex.leftCols<3>() = ric2.transpose();
             jaco_ex.rightCols<3>() = ric2.transpose() * ric * -Utility::skewSymmetric(pts_camera_i);
             jacobian_ex_pose.leftCols<6>() = reduce * jaco_ex;
             jacobian_ex_pose.rightCols<1>().setZero();
@@ -178,13 +181,13 @@ void ProjectionOneFrameTwoCamFactor::check(double **parameters)
 
 
     Eigen::Vector2d residual;
-#ifdef UNIT_SPHERE_ERROR 
+#ifdef UNIT_SPHERE_ERROR
     residual =  tangent_base * (pts_camera_j.normalized() - pts_j_td.normalized());
 #else
     double dep_j = pts_camera_j.z();
     residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
 #endif
-    residual = sqrt_info * residual;
+    residual = sqrt_weight * (sqrt_info * residual);
 
     puts("num");
     std::cout << residual.transpose() << std::endl;
@@ -232,7 +235,7 @@ void ProjectionOneFrameTwoCamFactor::check(double **parameters)
         Eigen::Vector3d pts_camera_j = qic2.inverse() * (pts_imu_j - tic2);
 
         Eigen::Vector2d tmp_residual;
-#ifdef UNIT_SPHERE_ERROR 
+#ifdef UNIT_SPHERE_ERROR
         tmp_residual =  tangent_base * (pts_camera_j.normalized() - pts_j_td.normalized());
 #else
         double dep_j = pts_camera_j.z();

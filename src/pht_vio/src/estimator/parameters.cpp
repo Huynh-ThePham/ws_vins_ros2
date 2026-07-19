@@ -6,6 +6,8 @@
 
 #include "parameters.h"
 
+#include <algorithm>
+
 static VinsConfig g_vins_config;
 
 VinsConfig &vinsConfig()
@@ -80,6 +82,23 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         sem_policy_overlap_ema = static_cast<double>(fsSettings["sem_policy_overlap_ema"]);
     if (!fsSettings["sem_policy_min_geo_candidates"].empty())
         sem_policy_min_geo_candidates = static_cast<int>(fsSettings["sem_policy_min_geo_candidates"]);
+    if (!fsSettings["sem_geodf_backend_weight"].empty())
+        sem_geodf_backend_weight = static_cast<int>(fsSettings["sem_geodf_backend_weight"]);
+    if (!fsSettings["sem_geodf_backend_min_weight"].empty())
+        sem_geodf_backend_min_weight = static_cast<double>(fsSettings["sem_geodf_backend_min_weight"]);
+    if (!fsSettings["sem_geodf_backend_semantic_weight"].empty())
+        sem_geodf_backend_semantic_weight = static_cast<double>(fsSettings["sem_geodf_backend_semantic_weight"]);
+    if (!fsSettings["sem_geodf_backend_geo_weight"].empty())
+        sem_geodf_backend_geo_weight = static_cast<double>(fsSettings["sem_geodf_backend_geo_weight"]);
+    if (!fsSettings["sem_geodf_backend_agree_weight"].empty())
+        sem_geodf_backend_agree_weight = static_cast<double>(fsSettings["sem_geodf_backend_agree_weight"]);
+    if (!fsSettings["sem_geodf_backend_recovery"].empty())
+        sem_geodf_backend_recovery = static_cast<double>(fsSettings["sem_geodf_backend_recovery"]);
+    sem_geodf_backend_min_weight = std::min(1.0, std::max(0.01, sem_geodf_backend_min_weight));
+    sem_geodf_backend_semantic_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_semantic_weight));
+    sem_geodf_backend_geo_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_geo_weight));
+    sem_geodf_backend_agree_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_agree_weight));
+    sem_geodf_backend_recovery = std::min(1.0, std::max(0.0, sem_geodf_backend_recovery));
     if (!fsSettings["sem_mask_max_age_ms"].empty())
         sem_mask_max_age_ms = static_cast<double>(fsSettings["sem_mask_max_age_ms"]);
     if (!fsSettings["sem_use_latest_mask"].empty())
@@ -327,10 +346,13 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         "sem_policy_state,sem_policy_hold,sem_geo_overlap,"
                         "sem_geo_overlap_ema,sem_policy_hard_reject,"
                         "sem_policy_trigger_burst,sem_policy_trigger_strong,"
-                        "sem_policy_trigger_overlap\n";
+                        "sem_policy_trigger_overlap,weighted_tracks,mean_backend_weight,"
+                        "geo_valid,geo_raw_candidates,geo_overlap_pool,"
+                        "min_backend_weight,mean_backend_target\n";
         fusion_stats.close();
         ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
-                        << sem_adaptive_policy << ")");
+                        << sem_adaptive_policy
+                        << ", backend_weight=" << sem_geodf_backend_weight << ")");
     }
 
     fsSettings.release();

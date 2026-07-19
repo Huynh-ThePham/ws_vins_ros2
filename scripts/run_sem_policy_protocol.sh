@@ -97,6 +97,16 @@ run_holdout() {
         echo "        Run ./scripts/run_sem_policy_protocol.sh tune first." >&2
         exit 1
     fi
+    local audit_extra=()
+    if [ "${ALLOW_INCOMPLETE_TRAIN:-0}" = "1" ]; then
+        audit_extra+=(--allow-draft-selected)
+    fi
+    python3 scripts/audit_sem_geodf_protocol.py \
+        --quiet \
+        --configs src/config/euroc/euroc_stereo_imu_sem_geodf_config.yaml \
+                  src/config/viode/viode_stereo_imu_sem_geodf_config.yaml \
+        --selected-params "$SELECTED_PARAMS_FILE" \
+        "${audit_extra[@]}"
     if python3 - "$SELECTED_PARAMS_FILE" <<'PY'
 from pathlib import Path
 import sys

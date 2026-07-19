@@ -14,7 +14,7 @@
 
 **Adaptive gated union (OR) dynamic rejection** — not AND fusion. Each branch has its own scene gate; candidates are unioned under one shared ratio guard, while the semantic soft-mask path is adapted to estimated dynamic level.
 
-Semantic–geo overlap uses **GeoDF confirmed candidates** only when the GeoDF scene gate is active (`geo.frame_active`), avoiding feedback from raw RANSAC outliers.
+Semantic–geo overlap uses **raw GeoDF candidates** (`geo.raw_candidates`, falling back to `geo.confirmed` only when raw is empty) and no longer requires the GeoDF scene gate (`geo.frame_active`). Overlap is **bidirectional**: `sem_geo_overlap_last = max(geo→sem, sem→geo)`, where `geo→sem` is the fraction of the geo pool that is semantic-dynamic and `sem→geo` is the fraction of semantic-raw tracks inside the geo pool. This keeps the overlap trigger alive when GeoDF and YOLO fire on different-sized track sets. The candidate-count guard passes when either the geo pool or the semantic-raw count reaches `sem_policy_min_geo_candidates`.
 
 ## Fusion mode (`rejectSemGeoFused`)
 
@@ -30,11 +30,12 @@ prev tracks ──► GeoDF-Adaptive gate (EMA epipolar outlier ratio)
      │        └─► hard reject if geo.confirmed (dual-gate + vote)
      │
      └─► gated union (OR) ──► applyTrackRejection (shared ratio guard)
+              └─► adaptive consensus residual weights for suspicious survivors
 ```
 
 | Branch | Signal | Arms when | Hard reject |
 |--------|--------|-----------|-------------|
-| Semantic | YOLO dynamic pixel ratio + semantic-geo overlap on **geo.confirmed** | Adaptive policy state > static-safe **and** `sem_scene_active` | Dynamic mask pixel + `sem_vote_frames` (default 2) |
+| Semantic | YOLO dynamic pixel ratio + bidirectional semantic-geo overlap on **geo.raw_candidates** | Adaptive policy state > static-safe **and** `sem_scene_active` | Dynamic mask pixel + `sem_vote_frames` (default 2) |
 | GeoDF | Epipolar outlier ratio | GeoDF-Adaptive auto-ρ + hysteresis | RANSAC∧Sampson + `geodf_vote_frames` |
 
 All semantic paths (`sad_sem`, `sequential`, `sem_geodf`) share the same **vote-based** semantic candidate confirmation (`confirmSemanticCandidates`).
@@ -43,16 +44,30 @@ All semantic paths (`sad_sem`, `sequential`, `sem_geodf`) share the same **vote-
 
 | Mechanism | Adaptive policy (`sem_adaptive_policy: 1`) | Ablation (`sem_mask_gated: 1`) |
 |-----------|--------------------------------------------|----------------------------------|
-| **Hard cull** (existing tracks) | Off in static-safe; on in dynamic-assist/strong when `sem_scene_active` | Gated by `sem_scene_active` |
+| **Hard cull** (existing tracks) | Off in static-safe; from dynamic-assist onward (state ≥ 1) vote-confirmed semantic tracks enter the shared reject set when `sem_scene_active`; any suspicious tracks that survive the ratio/min-feature guard are down-weighted in the backend | Gated by `sem_scene_active` |
 | **Soft mask** (`setMask`, new features) | Static-safe: `sem_scene_active`; dynamic-assist/strong: held after burst/overlap/strong EMA | Only when `sem_scene_active` |
+
+### Adaptive backend weighting (online)
+
+When `sem_geodf_backend_weight: 1`, each surviving feature observation carries a residual weight \(w_i \in [w_\min, 1]\) into the visual factors. The Ceres residual and Jacobian are multiplied by \(\sqrt{w_i}\), so the optimizer receives a proper weighted least-squares residual rather than an untracked post-hoc score.
+
+The target weight is computed only from online signals available at the current frame:
+
+- semantic raw/vote-confirmed mask hit;
+- GeoDF raw/confirmed candidate state;
+- normalized Sampson excess from the current epipolar estimate;
+- semantic/GeoDF scene confidence from EMA+hysteresis;
+- semantic-GeoDF overlap EMA.
+
+Recovery is per feature id (`sem_geodf_backend_recovery`) so a track that stops looking dynamic returns gradually to weight 1. The estimator does **not** read VIODE level, GT, ATE/RPE, hold-out metrics, or run summary files. Audit columns are appended to `sem_geodf_stats.csv`: `weighted_tracks`, `mean_backend_weight`, `geo_valid`, `geo_raw_candidates`, `geo_overlap_pool`, `min_backend_weight`, `mean_backend_target`.
 
 ### Adaptive dynamic-level policy (online)
 
 | State | Evidence | Behavior |
 |-------|----------|----------|
 | `0 static-safe` | No burst / weak overlap / weak strong EMA | Soft mask only when `sem_scene_active`; semantic hard reject off |
-| `1 dynamic-assist` | Burst, overlap on active GeoDF confirms, or hold timer | Soft mask held for `sem_policy_hold_frames` |
-| `2 strong-dynamic` | Strong semantic EMA or assist + active GeoDF frame | Full OR fusion armed when `sem_scene_active` |
+| `1 dynamic-assist` | Burst, bidirectional overlap on raw GeoDF candidates, or hold timer | Soft mask held for `sem_policy_hold_frames`; vote-confirmed semantic hard-culled when `sem_scene_active` |
+| `2 strong-dynamic` | Strong semantic EMA, semantic-geo agreement, or assist + usable raw geo evidence | Full OR fusion armed when `sem_scene_active` |
 
 Policy trigger reasons are logged per frame: `sem_policy_trigger_burst`, `sem_policy_trigger_strong`, `sem_policy_trigger_overlap`.
 
@@ -85,6 +100,12 @@ sem_policy_hold_frames: 120
 sem_policy_overlap_ratio: 0.35
 sem_policy_overlap_ema: 0.20
 sem_policy_min_geo_candidates: 2
+sem_geodf_backend_weight: 1
+sem_geodf_backend_min_weight: 0.25
+sem_geodf_backend_semantic_weight: 0.55
+sem_geodf_backend_geo_weight: 0.75
+sem_geodf_backend_agree_weight: 0.25
+sem_geodf_backend_recovery: 0.20
 
 geodf_adaptive: 1
 geodf_auto_rho: 1
@@ -140,6 +161,10 @@ ORACLE_ABLATION=1 SEM_POLICY_VIODE_LEVEL_OVERRIDE=1 \
 Summaries (QC-filtered, oracle excluded by default):
 
 ```bash
+python3 scripts/audit_sem_geodf_protocol.py \
+  --configs src/config/euroc/euroc_stereo_imu_sem_geodf_config.yaml \
+            src/config/viode/viode_stereo_imu_sem_geodf_config.yaml
+
 python3 scripts/summarize_sem_geodf_ablation.py \
   --root results/sem_geodf_ablation/fair1p0 \
   --out results/sem_geodf_ablation/fair1p0/ABLATION_SUMMARY.md

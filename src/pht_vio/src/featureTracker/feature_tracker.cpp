@@ -41,6 +41,18 @@ double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2
     return (num * num) / denom;
 }
 
+double clampDouble(double value, double lo, double hi)
+{
+    return std::min(hi, std::max(lo, value));
+}
+
+double normalizedExcess(double value, double threshold)
+{
+    if (threshold <= 1e-12 || value <= threshold)
+        return 0.0;
+    return clampDouble((value - threshold) / (value + threshold), 0.0, 1.0);
+}
+
 }  // namespace
 
 bool FeatureTracker::inBorder(const cv::Point2f &pt)
@@ -164,6 +176,10 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
                                                   const GeoDynamicAnalysis *geo)
 {
     auto &cfg = vinsConfig();
+    sem_policy_trigger_burst = 0;
+    sem_policy_trigger_strong = 0;
+    sem_policy_trigger_overlap = 0;
+
     if (!cfg.sem_adaptive_policy)
     {
         sem_policy_state = sem_scene_active ? 1 : 0;
@@ -219,25 +235,48 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
         return;
     }
 
-    int geo_overlap_hits = 0;
-    int geo_overlap_total = 0;
-    sem_policy_trigger_burst = 0;
-    sem_policy_trigger_strong = 0;
-    sem_policy_trigger_overlap = 0;
-    const bool geo_frame_active = geo && geo->valid && geo->frame_active;
-    if (geo_frame_active)
+    const bool geo_usable = geo && geo->valid;
+    // Overlap pool: prefer raw GeoDF candidates so agreement survives even when the
+    // frame gate is off (confirmed collapses to a tiny set after vote/warmup). Fall
+    // back to confirmed only when raw is empty.
+    const std::vector<int> *overlap_pool = nullptr;
+    if (geo_usable)
+        overlap_pool = !geo->raw_candidates.empty() ? &geo->raw_candidates : &geo->confirmed;
+
+    const int geo_pool_total = overlap_pool ? static_cast<int>(overlap_pool->size()) : 0;
+    int geo_to_sem_hits = 0;
+    std::set<int> pool_set;
+    if (overlap_pool)
     {
-        geo_overlap_total = static_cast<int>(geo->confirmed.size());
-        for (int idx : geo->confirmed)
+        for (int idx : *overlap_pool)
         {
+            pool_set.insert(idx);
             if (0 <= idx && idx < static_cast<int>(cur_pts.size()) && !isSemanticStatic(cur_pts[idx]))
-                geo_overlap_hits++;
+                geo_to_sem_hits++;
         }
     }
 
-    sem_geo_overlap_last = geo_overlap_total > 0
-                               ? static_cast<double>(geo_overlap_hits) / geo_overlap_total
-                               : 0.0;
+    // Reverse agreement: fraction of current semantic-raw tracks that also fall in
+    // the geo pool. Bidirectional max keeps the trigger alive when GeoDF and YOLO
+    // fire on different-sized sets.
+    int sem_raw_count = 0;
+    int sem_to_geo_hits = 0;
+    for (int i = 0; i < static_cast<int>(cur_pts.size()); i++)
+    {
+        if (isSemanticStatic(cur_pts[i]))
+            continue;
+        sem_raw_count++;
+        if (pool_set.find(i) != pool_set.end())
+            sem_to_geo_hits++;
+    }
+
+    const double geo_to_sem = geo_pool_total > 0
+                                  ? static_cast<double>(geo_to_sem_hits) / geo_pool_total
+                                  : 0.0;
+    const double sem_to_geo = sem_raw_count > 0
+                                  ? static_cast<double>(sem_to_geo_hits) / sem_raw_count
+                                  : 0.0;
+    sem_geo_overlap_last = std::max(geo_to_sem, sem_to_geo);
     if (sem_geo_overlap_ema < 0.0)
         sem_geo_overlap_ema = sem_geo_overlap_last;
     else
@@ -246,9 +285,10 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
 
     const bool semantic_burst = dynamic_pixel_ratio >= cfg.sem_policy_burst_ratio;
     const bool semantic_strong = sem_activation_ema >= cfg.sem_policy_strong_ratio;
+    const int min_geo = std::max(1, cfg.sem_policy_min_geo_candidates);
     const bool semantic_geo_agree =
-        geo_frame_active &&
-        geo_overlap_total >= std::max(1, cfg.sem_policy_min_geo_candidates) &&
+        geo_usable &&
+        (geo_pool_total >= min_geo || sem_raw_count >= min_geo) &&
         sem_geo_overlap_ema >= cfg.sem_policy_overlap_ratio;
 
     sem_policy_trigger_burst = semantic_burst ? 1 : 0;
@@ -261,7 +301,8 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
         sem_policy_hold--;
 
     const bool dynamic_assist = sem_policy_hold > 0;
-    if (semantic_strong || (dynamic_assist && geo_frame_active))
+    const bool geo_evidence = geo_usable && geo_pool_total > 0;
+    if (semantic_strong || semantic_geo_agree || (dynamic_assist && geo_evidence))
         sem_policy_state = 2;  // strong-dynamic: full OR fusion remains armed.
     else if (dynamic_assist)
         sem_policy_state = 1;  // dynamic-assist: hold soft mask across intermittent motion.
@@ -457,7 +498,7 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
     return sqrt(dx * dx + dy * dy);
 }
 
-map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
+map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
 {
     TicToc t_r;
     cur_time = _cur_time;
@@ -653,7 +694,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     for(size_t i = 0; i < cur_pts.size(); i++)
         prevLeftPtsMap[ids[i]] = cur_pts[i];
 
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> featureFrame;
+    map<int, vector<pair<int, FeatureObservation>>> featureFrame;
     for (size_t i = 0; i < ids.size(); i++)
     {
         int feature_id = ids[i];
@@ -668,8 +709,12 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         double velocity_x, velocity_y;
         velocity_x = pts_velocity[i].x;
         velocity_y = pts_velocity[i].y;
-        Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+        double weight = 1.0;
+        const auto weight_it = sem_geodf_feature_weights.find(feature_id);
+        if (weight_it != sem_geodf_feature_weights.end())
+            weight = weight_it->second;
+        FeatureObservation xyz_uv_velocity;
+        xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
     }
 
@@ -689,8 +734,12 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             double velocity_x, velocity_y;
             velocity_x = right_pts_velocity[i].x;
             velocity_y = right_pts_velocity[i].y;
-            Eigen::Matrix<double, 7, 1> xyz_uv_velocity;
-            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y;
+            double weight = 1.0;
+            const auto weight_it = sem_geodf_feature_weights.find(feature_id);
+            if (weight_it != sem_geodf_feature_weights.end())
+                weight = weight_it->second;
+            FeatureObservation xyz_uv_velocity;
+            xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
             featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
         }
     }
@@ -1110,16 +1159,37 @@ void FeatureTracker::rejectSemGeoFused()
     std::set<int> fused_set;
     int sem_candidates = 0;
     int sem_confirmed = 0;
+    std::vector<int> sem_raw;
+    std::vector<int> sem_confirmed_idx;
     const bool sem_hard_reject = applySemanticHardReject();
-    if (sem_hard_reject && mask_available && sem_mask_trusted)
+    if (mask_available && sem_mask_trusted)
     {
-        std::vector<int> sem_raw;
         collectSemanticRawCandidates(sem_raw);
         sem_candidates = static_cast<int>(sem_raw.size());
-        std::vector<int> confirmed;
-        sem_confirmed = confirmSemanticCandidates(sem_raw, confirmed, true);
-        for (int idx : confirmed)
-            fused_set.insert(idx);
+        sem_confirmed = confirmSemanticCandidates(sem_raw, sem_confirmed_idx, sem_hard_reject);
+        if (sem_hard_reject)
+        {
+            std::set<int> geo_confirmed_set;
+            if (geo_ok && geo.frame_active)
+                geo_confirmed_set.insert(geo.confirmed.begin(), geo.confirmed.end());
+
+            for (int idx : sem_confirmed_idx)
+            {
+                const bool geo_agree = geo_confirmed_set.find(idx) != geo_confirmed_set.end();
+                // From dynamic-assist (state >= 1) onward, vote-confirmed
+                // semantic tracks enter the shared reject set. The ratio/min-feature
+                // guard may still keep some of them alive, so backend weights are
+                // computed for all suspicious survivors below.
+                if (!cfg.sem_geodf_backend_weight || sem_policy_state >= 1 || geo_agree)
+                    fused_set.insert(idx);
+            }
+        }
+        else
+        {
+            sem_dyn_streak.clear();
+            sem_confirmed = 0;
+            sem_confirmed_idx.clear();
+        }
     }
     else
     {
@@ -1132,6 +1202,110 @@ void FeatureTracker::rejectSemGeoFused()
         geo_candidates = static_cast<int>(geo.confirmed.size());
         for (int idx : geo.confirmed)
             fused_set.insert(idx);
+    }
+
+    int weighted_tracks = 0;
+    double weight_sum = 0.0;
+    double target_weight_sum = 0.0;
+    double min_weight_seen = 1.0;
+    if (cfg.sem_geodf_backend_weight)
+    {
+        std::set<int> sem_raw_set(sem_raw.begin(), sem_raw.end());
+        std::set<int> sem_confirmed_set(sem_confirmed_idx.begin(), sem_confirmed_idx.end());
+        std::set<int> geo_raw_set;
+        std::set<int> geo_confirmed_set;
+        if (geo_ok)
+        {
+            geo_raw_set.insert(geo.raw_candidates.begin(), geo.raw_candidates.end());
+        }
+        if (geo_ok && geo.frame_active)
+            geo_confirmed_set.insert(geo.confirmed.begin(), geo.confirmed.end());
+
+        const double sem_scene_conf =
+            sem_scene_active
+                ? 1.0
+                : clampDouble(sem_activation_ema / std::max(1e-6, cfg.sem_activate_ratio), 0.0, 1.0);
+        const double sem_policy_conf =
+            cfg.sem_adaptive_policy ? clampDouble(static_cast<double>(sem_policy_state) / 2.0, 0.0, 1.0)
+                                    : sem_scene_conf;
+        const double sem_conf = std::max(sem_scene_conf, sem_policy_conf);
+
+        const double geo_scene_conf =
+            (geo_ok && geo.frame_active)
+                ? 1.0
+                : (geo_ok ? clampDouble(geo_activation_ema / std::max(1e-6, geo.rho_on), 0.0, 1.0) : 0.0);
+        const double overlap_conf = clampDouble(sem_geo_overlap_ema, 0.0, 1.0);
+
+        std::map<int, double> next_weights;
+        for (int i = 0; i < total; i++)
+        {
+            const bool sem_hit = sem_raw_set.find(i) != sem_raw_set.end();
+            const bool sem_confirmed_hit = sem_confirmed_set.find(i) != sem_confirmed_set.end();
+            const bool geo_raw_hit = geo_raw_set.find(i) != geo_raw_set.end();
+            const bool geo_confirmed_hit = geo_confirmed_set.find(i) != geo_confirmed_set.end();
+
+            double geo_error_conf = 0.0;
+            if (geo_ok && static_cast<int>(geo.errors.size()) == total)
+            {
+                geo_error_conf = normalizedExcess(geo.errors[i], cfg.geodf_sampson_th);
+                if (i < static_cast<int>(geo.right_valid.size()) && geo.right_valid[i] &&
+                    i < static_cast<int>(geo.right_err.size()))
+                {
+                    geo_error_conf = std::max(
+                        geo_error_conf,
+                        normalizedExcess(geo.right_err[i], cfg.geodf_stereo_sampson_th));
+                }
+            }
+            if (geo_confirmed_hit)
+                geo_error_conf = std::max(geo_error_conf, 1.0);
+
+            const double sem_risk =
+                sem_hit
+                    ? (1.0 - cfg.sem_geodf_backend_semantic_weight) *
+                          (sem_confirmed_hit ? 1.0 : sem_conf)
+                    : 0.0;
+            const double geo_risk =
+                (geo_raw_hit || geo_confirmed_hit)
+                    ? (1.0 - cfg.sem_geodf_backend_geo_weight) *
+                          std::max(geo_scene_conf, geo_error_conf)
+                    : 0.0;
+            const double consensus_risk =
+                (sem_hit && (geo_raw_hit || geo_confirmed_hit))
+                    ? (1.0 - cfg.sem_geodf_backend_agree_weight) *
+                          std::max(overlap_conf, std::min(sem_conf, std::max(geo_scene_conf, geo_error_conf)))
+                    : 0.0;
+
+            const double combined_risk =
+                1.0 - (1.0 - sem_risk) * (1.0 - geo_risk) * (1.0 - consensus_risk);
+            double target = 1.0 - combined_risk;
+            if (sem_confirmed_hit)
+                target = std::min(target, cfg.sem_geodf_backend_semantic_weight);
+            if (geo_confirmed_hit)
+                target = std::min(target, cfg.sem_geodf_backend_geo_weight);
+            if (sem_confirmed_hit && geo_confirmed_hit)
+                target = std::min(target, cfg.sem_geodf_backend_agree_weight);
+            target = clampDouble(target, cfg.sem_geodf_backend_min_weight, 1.0);
+
+            double weight = target;
+            const auto prev = sem_geodf_feature_weights.find(ids[i]);
+            if (prev != sem_geodf_feature_weights.end() && target > prev->second)
+                weight = prev->second + cfg.sem_geodf_backend_recovery * (target - prev->second);
+            next_weights[ids[i]] = clampDouble(weight, cfg.sem_geodf_backend_min_weight, 1.0);
+            if (next_weights[ids[i]] < 0.999)
+                weighted_tracks++;
+            weight_sum += next_weights[ids[i]];
+            target_weight_sum += target;
+            min_weight_seen = std::min(min_weight_seen, next_weights[ids[i]]);
+        }
+        sem_geodf_feature_weights.swap(next_weights);
+    }
+    else
+    {
+        sem_geodf_feature_weights.clear();
+        weighted_tracks = 0;
+        weight_sum = static_cast<double>(total);
+        target_weight_sum = static_cast<double>(total);
+        min_weight_seen = 1.0;
     }
 
     std::vector<int> fused(fused_set.begin(), fused_set.end());
@@ -1151,6 +1325,9 @@ void FeatureTracker::rejectSemGeoFused()
 
     if (!cfg.sem_geodf_stats_path.empty())
     {
+        const int geo_raw_candidates = geo_ok ? static_cast<int>(geo.raw_candidates.size()) : 0;
+        const int geo_overlap_pool =
+            geo_ok ? static_cast<int>((!geo.raw_candidates.empty() ? geo.raw_candidates : geo.confirmed).size()) : 0;
         std::ofstream fusion_stats(cfg.sem_geodf_stats_path, std::ios::app);
         const double ratio = total > 0 ? static_cast<double>(rejected) / total : 0.0;
         fusion_stats << static_cast<long long>(cur_time * 1e9) << ","
@@ -1167,7 +1344,11 @@ void FeatureTracker::rejectSemGeoFused()
                      << sem_geo_overlap_last << "," << sem_geo_overlap_ema << ","
                      << (sem_hard_reject ? 1 : 0) << ","
                      << sem_policy_trigger_burst << "," << sem_policy_trigger_strong << ","
-                     << sem_policy_trigger_overlap << "\n";
+                     << sem_policy_trigger_overlap << "," << weighted_tracks << ","
+                     << (total > 0 ? weight_sum / total : 1.0) << ","
+                     << (geo_ok ? 1 : 0) << "," << geo_raw_candidates << ","
+                     << geo_overlap_pool << "," << min_weight_seen << ","
+                     << (total > 0 ? target_weight_sum / total : 1.0) << "\n";
     }
 }
 

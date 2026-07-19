@@ -37,7 +37,7 @@ class FeatureTracker
 {
 public:
     FeatureTracker();
-    map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat(), double _sem_mask_lag_ms = -1.0);
+    map<int, vector<pair<int, FeatureObservation>>> trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1 = cv::Mat(), const cv::Mat &_sem_mask = cv::Mat(), double _sem_mask_lag_ms = -1.0);
     void setMask();
     void rejectSemanticDynamic();
     void rejectSemGeoFused();
@@ -121,6 +121,10 @@ public:
     int sem_policy_trigger_burst = 0;
     int sem_policy_trigger_strong = 0;
     int sem_policy_trigger_overlap = 0;
+    // Feature id -> visual residual weight exported to the estimator. Tracks
+    // that are semantically/geometrically suspicious but not hard-deleted are
+    // kept with reduced influence in the backend.
+    std::map<int, double> sem_geodf_feature_weights;
 
     struct GeoDynamicAnalysis
     {

@@ -115,15 +115,19 @@ viode_sem_policy_level() {
 
 link_euroc_ros2_bag() {
     local seq="$1"
-    local dst
+    local dst src
     dst="$(resolve_euroc_ros2_bag "$seq" "$WS")"
     mkdir -p "$(dirname "$dst")"
     [ -f "${dst}/metadata.yaml" ] && return 0
-    local src="/media/theph/Data1/Research/raw_datasets/euroc/machine_hall/${seq}/ros2_bag"
-    if [ -f "${src}/metadata.yaml" ]; then
-        ln -sfn "$src" "$dst"
-        return 0
-    fi
+    for src in \
+        "/home/theph/ws_vins_ros2/data/euroc_ros2/${seq}/ros2_bag" \
+        "/media/theph/Data1/ws_research_datasets/Datasets/EuRoC/machine_hall/${seq}/ros2_bag" \
+        "/media/theph/Data1/Research/raw_datasets/euroc/machine_hall/${seq}/ros2_bag"; do
+        if [ -f "${src}/metadata.yaml" ]; then
+            ln -sfn "$src" "$dst"
+            return 0
+        fi
+    done
     bash "${WS}/scripts/euroc_prepare.sh" "$seq"
 }
 

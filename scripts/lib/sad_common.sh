@@ -8,6 +8,8 @@ resolve_euroc_root() {
     fi
     local candidate
     for candidate in \
+        "/media/theph/Data1/ws_research_datasets/Datasets/EuRoC" \
+        "/home/theph/ws_vins_ros2/data/euroc_benchmark" \
         "/media/theph/Data1/Research/Datasets/EuRoC" \
         "/media/theph/Data1/ws_research_datasets/raw_datasets/euroc" \
         "/media/theph/Data/ws_research_datasets/raw_datasets/euroc" \
@@ -27,6 +29,7 @@ resolve_viode_root() {
     fi
     local candidate env="${VIODE_ENV:-city_day}"
     for candidate in \
+        "/media/theph/Data1/ws_research_datasets/Datasets/Viode" \
         "/media/theph/Data1/Research/Datasets/Viode" \
         "/media/theph/Data1/ws_research_datasets/viode" \
         "/media/theph/Data/ws_research_datasets/viode"; do

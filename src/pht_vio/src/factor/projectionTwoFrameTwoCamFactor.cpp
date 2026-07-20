@@ -159,8 +159,10 @@ bool ProjectionTwoFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         if (jacobians[5])
         {
             Eigen::Map<Eigen::Vector2d> jacobian_td(jacobians[5]);
+            // Both terms must carry sqrt_weight to stay consistent with the
+            // sqrt_weight-scaled residual (proper weighted least squares).
             jacobian_td = reduce * ric2.transpose() * Rj.transpose() * Ri * ric * velocity_i / inv_dep_i * -1.0  +
-                          sqrt_info * velocity_j.head(2);
+                          sqrt_weight * (sqrt_info * velocity_j.head(2));
         }
     }
     sum_t += tic_toc.toc();

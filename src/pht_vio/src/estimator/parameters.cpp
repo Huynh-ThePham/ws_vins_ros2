@@ -178,6 +178,77 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         calibration_min_tracked_features =
             static_cast<int>(fsSettings["calibration_min_tracked_features"]);
 
+    if (!fsSettings["sem_policy_overlap_metric"].empty())
+        fsSettings["sem_policy_overlap_metric"] >> sem_policy_overlap_metric;
+    if (!fsSettings["sem_policy_min_sem_candidates"].empty())
+        sem_policy_min_sem_candidates =
+            static_cast<int>(fsSettings["sem_policy_min_sem_candidates"]);
+    if (!fsSettings["sem_policy_min_intersection"].empty())
+        sem_policy_min_intersection =
+            static_cast<int>(fsSettings["sem_policy_min_intersection"]);
+    if (!fsSettings["sem_policy_overlap_support_saturation"].empty())
+        sem_policy_overlap_support_saturation =
+            static_cast<int>(fsSettings["sem_policy_overlap_support_saturation"]);
+    if (!fsSettings["sem_policy_assist_hold_s"].empty())
+        sem_policy_assist_hold_s = static_cast<double>(fsSettings["sem_policy_assist_hold_s"]);
+    if (!fsSettings["sem_policy_strong_hold_s"].empty())
+        sem_policy_strong_hold_s = static_cast<double>(fsSettings["sem_policy_strong_hold_s"]);
+    if (!fsSettings["sem_policy_min_state_dwell_s"].empty())
+        sem_policy_min_state_dwell_s =
+            static_cast<double>(fsSettings["sem_policy_min_state_dwell_s"]);
+    if (!fsSettings["sem_health_mask_saturation_ratio"].empty())
+        sem_health_mask_saturation_ratio =
+            static_cast<double>(fsSettings["sem_health_mask_saturation_ratio"]);
+    if (!fsSettings["sem_health_min_semantic"].empty())
+        sem_health_min_semantic = static_cast<double>(fsSettings["sem_health_min_semantic"]);
+    if (!fsSettings["sem_health_min_geometric"].empty())
+        sem_health_min_geometric = static_cast<double>(fsSettings["sem_health_min_geometric"]);
+    if (!fsSettings["sem_health_min_observability"].empty())
+        sem_health_min_observability =
+            static_cast<double>(fsSettings["sem_health_min_observability"]);
+    if (!fsSettings["sem_health_redundancy_target"].empty())
+        sem_health_redundancy_target =
+            static_cast<int>(fsSettings["sem_health_redundancy_target"]);
+    if (!fsSettings["sem_health_parallax_target_px"].empty())
+        sem_health_parallax_target_px =
+            static_cast<double>(fsSettings["sem_health_parallax_target_px"]);
+    if (!fsSettings["sem_health_min_tracks_for_hard_reject"].empty())
+        sem_health_min_tracks_for_hard_reject =
+            static_cast<int>(fsSettings["sem_health_min_tracks_for_hard_reject"]);
+    if (!fsSettings["sem_lifecycle_enable"].empty())
+        sem_lifecycle_enable = static_cast<int>(fsSettings["sem_lifecycle_enable"]);
+    if (!fsSettings["sem_lifecycle_suspect_frames"].empty())
+        sem_lifecycle_suspect_frames =
+            static_cast<int>(fsSettings["sem_lifecycle_suspect_frames"]);
+    if (!fsSettings["sem_lifecycle_downweight_frames"].empty())
+        sem_lifecycle_downweight_frames =
+            static_cast<int>(fsSettings["sem_lifecycle_downweight_frames"]);
+    if (!fsSettings["sem_lifecycle_hard_reject_risk"].empty())
+        sem_lifecycle_hard_reject_risk =
+            static_cast<double>(fsSettings["sem_lifecycle_hard_reject_risk"]);
+    if (!fsSettings["sem_lifecycle_require_agreement"].empty())
+        sem_lifecycle_require_agreement =
+            static_cast<int>(fsSettings["sem_lifecycle_require_agreement"]);
+    if (!fsSettings["sem_lifecycle_recover_dwell_s"].empty())
+        sem_lifecycle_recover_dwell_s =
+            static_cast<double>(fsSettings["sem_lifecycle_recover_dwell_s"]);
+
+    if (!fsSettings["geodf_min_grid_occupancy"].empty())
+        geodf_min_grid_occupancy = static_cast<double>(fsSettings["geodf_min_grid_occupancy"]);
+    if (!fsSettings["geodf_min_median_parallax_px"].empty())
+        geodf_min_median_parallax_px =
+            static_cast<double>(fsSettings["geodf_min_median_parallax_px"]);
+    if (!fsSettings["geodf_max_design_condition_number"].empty())
+        geodf_max_design_condition_number =
+            static_cast<double>(fsSettings["geodf_max_design_condition_number"]);
+    if (!fsSettings["geodf_min_ransac_inliers"].empty())
+        geodf_min_ransac_inliers = static_cast<int>(fsSettings["geodf_min_ransac_inliers"]);
+    if (!fsSettings["geodf_min_ransac_inlier_ratio"].empty())
+        geodf_min_ransac_inlier_ratio =
+            static_cast<double>(fsSettings["geodf_min_ransac_inlier_ratio"]);
+    if (!fsSettings["geodf_max_mover_share"].empty())
+        geodf_max_mover_share = static_cast<double>(fsSettings["geodf_max_mover_share"]);
+
     if (!fsSettings["stereo_validity_enable"].empty())
         stereo_validity_enable = static_cast<int>(fsSettings["stereo_validity_enable"]);
     if (!fsSettings["stereo_lr_cycle_max_px"].empty())
@@ -239,6 +310,39 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::min(1000.0, std::max(0.0, calibration_min_parallax_px));
     calibration_min_tracked_features =
         std::min(NUM_OF_F, std::max(0, calibration_min_tracked_features));
+    sem_policy_min_sem_candidates = std::max(0, sem_policy_min_sem_candidates);
+    sem_policy_min_intersection = std::max(0, sem_policy_min_intersection);
+    sem_policy_overlap_support_saturation =
+        std::max(1, sem_policy_overlap_support_saturation);
+    sem_policy_assist_hold_s = std::min(600.0, std::max(0.0, sem_policy_assist_hold_s));
+    sem_policy_strong_hold_s = std::min(600.0, std::max(0.0, sem_policy_strong_hold_s));
+    sem_policy_min_state_dwell_s =
+        std::min(60.0, std::max(0.0, sem_policy_min_state_dwell_s));
+    sem_health_mask_saturation_ratio =
+        std::min(1.0, std::max(0.0, sem_health_mask_saturation_ratio));
+    sem_health_min_semantic = std::min(1.0, std::max(0.0, sem_health_min_semantic));
+    sem_health_min_geometric = std::min(1.0, std::max(0.0, sem_health_min_geometric));
+    sem_health_min_observability = std::min(1.0, std::max(0.0, sem_health_min_observability));
+    sem_health_redundancy_target = std::max(1, sem_health_redundancy_target);
+    sem_health_parallax_target_px = std::max(1e-6, sem_health_parallax_target_px);
+    sem_health_min_tracks_for_hard_reject =
+        std::min(NUM_OF_F, std::max(0, sem_health_min_tracks_for_hard_reject));
+    sem_lifecycle_enable = sem_lifecycle_enable ? 1 : 0;
+    sem_lifecycle_suspect_frames = std::max(1, sem_lifecycle_suspect_frames);
+    sem_lifecycle_downweight_frames =
+        std::max(sem_lifecycle_suspect_frames, sem_lifecycle_downweight_frames);
+    sem_lifecycle_hard_reject_risk =
+        std::min(1.0, std::max(0.0, sem_lifecycle_hard_reject_risk));
+    sem_lifecycle_require_agreement = sem_lifecycle_require_agreement ? 1 : 0;
+    sem_lifecycle_recover_dwell_s =
+        std::min(60.0, std::max(0.0, sem_lifecycle_recover_dwell_s));
+    geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
+    geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
+    geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);
+    geodf_min_ransac_inliers = std::max(0, geodf_min_ransac_inliers);
+    geodf_min_ransac_inlier_ratio =
+        std::min(1.0, std::max(0.0, geodf_min_ransac_inlier_ratio));
+    geodf_max_mover_share = std::min(1.0, std::max(0.0, geodf_max_mover_share));
     stereo_validity_enable = stereo_validity_enable ? 1 : 0;
     stereo_lr_cycle_max_px = std::min(100.0, std::max(0.05, stereo_lr_cycle_max_px));
     stereo_epipolar_max_px = std::min(100.0, std::max(0.05, stereo_epipolar_max_px));
@@ -491,7 +595,17 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         // budget, so pre-guard and post-guard are logged apart.
                         "weighted_candidates_pre_guard,weighted_survivors_post_guard,"
                         "rejected_weighted_tracks,mean_target_weight_pre_guard,"
-                        "mean_applied_weight_post_guard,min_survivor_weight\n";
+                        "mean_applied_weight_post_guard,min_survivor_weight,"
+                        // P1.1 overlap support, P1.3 health, P1.4 lifecycle,
+                        // P1.7 geometry degeneracy.
+                        "overlap_support,overlap_has_support,"
+                        "health_semantic,health_geometric,health_observability,"
+                        "lifecycle_trusted,lifecycle_suspect,lifecycle_downweighted,"
+                        "lifecycle_rejected,lifecycle_recovering,"
+                        "lifecycle_downgraded_rejections,lifecycle_blocked_health,"
+                        "lifecycle_blocked_observability,lifecycle_blocked_redundancy,"
+                        "geometry_health,geometry_cause,geometry_conditioning,"
+                        "median_parallax_px,grid_occupancy\n";
         fusion_stats.close();
     }
 

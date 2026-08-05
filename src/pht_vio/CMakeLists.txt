@@ -62,6 +62,10 @@ if(BUILD_TESTING)
     adaptive_factor_quality
     failure_detection
     stereo_validity
+    sem_geodf_overlap
+    sem_geodf_policy_fsm
+    sem_geodf_track_lifecycle
+    geodf_degeneracy
   )
   foreach(test_name IN LISTS PHT_VIO_HEADER_TESTS)
     add_executable(test_${test_name} test/test_${test_name}.cpp)

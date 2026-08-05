@@ -24,6 +24,8 @@
 #include "camodocal/camera_models/PinholeCamera.h"
 #include "../estimator/parameters.h"
 #include "stereo_validity.h"
+#include "sem_policy.h"
+#include "geodf_degeneracy.h"
 #include <pht_slam_common/tic_toc.hpp>
 
 using namespace std;
@@ -137,6 +139,21 @@ public:
     bool sem_policy_hard_reject_active = false;
     double sem_geo_overlap_ema = -1.0;
     double sem_geo_overlap_last = 0.0;
+    // P1.1: support behind the overlap number, so a coincidence between two tiny
+    // candidate sets can be told apart from real agreement in the logs.
+    double sem_geo_overlap_support = 0.0;
+    bool sem_geo_overlap_has_support = false;
+    // P1.2: timestamp-driven scene policy. Replaces the frame-counted hold.
+    sem_policy::PolicyFsm sem_policy_fsm;
+    // P1.3/P1.4: health measured separately from the action it authorises, and a
+    // per-track lifecycle so hard rejection needs risk AND redundancy AND
+    // observability rather than evidence alone.
+    sem_policy::Health sem_policy_health;
+    sem_policy::LifecycleManager sem_track_lifecycle;
+    // P1.7: GeoDF may not hard-reject or count as strong agreement on a degenerate
+    // fundamental matrix.
+    geodf_degeneracy::Result geo_degeneracy;
+    long long geo_hard_reject_suppressed_frames = 0;
     int sem_policy_trigger_burst = 0;
     int sem_policy_trigger_strong = 0;
     int sem_policy_trigger_overlap = 0;
@@ -163,6 +180,13 @@ public:
         double max_sampson = 0.0;
         double rho_on = 0.0;
         double geo_ms = 0.0;
+        // P1.7 degeneracy verdict for this frame (geodf_degeneracy::Health / ::Cause).
+        int degeneracy_health = 0;
+        int degeneracy_cause = 0;
+        double geometry_conditioning = 0.0;
+        double geometry_inlier_ratio = 0.0;
+        double median_parallax_px = 0.0;
+        double grid_occupancy = 0.0;
         std::vector<int> confirmed;
         std::vector<int> raw_candidates;
         std::vector<double> errors;

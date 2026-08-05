@@ -108,6 +108,24 @@ sem_policy_hold_frames: 180
 sem_policy_assist_hold_s: 1.5
 sem_policy_strong_hold_s: 1.0
 sem_policy_min_state_dwell_s: 0.3
+# Per-track lifecycle (P1.4). Hard rejection is irreversible, so it needs
+# sustained evidence AND risk AND agreement AND health AND observability AND
+# redundancy. Ablatable as policy row P5.
+sem_lifecycle_enable: 1
+sem_lifecycle_suspect_frames: 1
+sem_lifecycle_downweight_frames: 2
+sem_lifecycle_hard_reject_risk: 0.60
+sem_lifecycle_require_agreement: 1
+sem_lifecycle_recover_dwell_s: 0.5
+# Health thresholds (P1.3). An unhealthy expert may not hard-reject; low
+# observability downgrades deletion to down-weighting.
+sem_health_mask_saturation_ratio: 0.60
+sem_health_min_semantic: 0.35
+sem_health_min_geometric: 0.35
+sem_health_min_observability: 0.35
+sem_health_redundancy_target: 60
+sem_health_parallax_target_px: 3.0
+sem_health_min_tracks_for_hard_reject: 40
 
 # ------------------------------------------- backend residual weighting w_i ---
 # Off for B0 and for U (union without weighting). Owned by `union_weight` and
@@ -155,6 +173,7 @@ geodf_min_median_parallax_px: 1.0
 geodf_max_design_condition_number: 1.0e6
 geodf_min_ransac_inliers: 20
 geodf_min_ransac_inlier_ratio: 0.35
+geodf_max_mover_share: 0.60
 
 # ------------------------------------------- stereo physical validity (P1.5) ---
 # Shared contract: the same validated stereo matches feed the backend factors and

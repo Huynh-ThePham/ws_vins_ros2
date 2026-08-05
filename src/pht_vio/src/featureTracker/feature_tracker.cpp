@@ -272,13 +272,36 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
             sem_to_geo_hits++;
     }
 
-    const double geo_to_sem = geo_pool_total > 0
-                                  ? static_cast<double>(geo_to_sem_hits) / geo_pool_total
-                                  : 0.0;
-    const double sem_to_geo = sem_raw_count > 0
-                                  ? static_cast<double>(sem_to_geo_hits) / sem_raw_count
-                                  : 0.0;
-    sem_geo_overlap_last = std::max(geo_to_sem, sem_to_geo);
+    // Plan P1.1: Dice with minimum support replaces max(|I|/|G|, |I|/|S|). The old
+    // metric scored 0.5 when two 2-element sets shared a single feature, which cleared
+    // the 0.35 threshold on pure coincidence.
+    sem_policy::OverlapConfig overlap_config;
+    bool metric_ok = true;
+    overlap_config.metric =
+        sem_policy::parseOverlapMetric(cfg.sem_policy_overlap_metric, &metric_ok);
+    if (!metric_ok)
+    {
+        static bool warned = false;
+        if (!warned)
+        {
+            warned = true;
+            ROS_WARN("unknown sem_policy_overlap_metric '%s'; using dice",
+                     cfg.sem_policy_overlap_metric.c_str());
+        }
+    }
+    overlap_config.min_sem_candidates = cfg.sem_policy_min_sem_candidates;
+    overlap_config.min_geo_candidates = cfg.sem_policy_min_geo_candidates;
+    overlap_config.min_intersection = cfg.sem_policy_min_intersection;
+    overlap_config.support_saturation = cfg.sem_policy_overlap_support_saturation;
+
+    // The intersection is symmetric, so one count serves both directions.
+    const sem_policy::OverlapCounts overlap_counts{sem_raw_count, geo_pool_total,
+                                                  sem_to_geo_hits};
+    const sem_policy::OverlapResult overlap =
+        sem_policy::computeOverlap(overlap_counts, overlap_config);
+    sem_geo_overlap_last = overlap.value;
+    sem_geo_overlap_support = overlap.support;
+    sem_geo_overlap_has_support = overlap.has_support;
     if (sem_geo_overlap_ema < 0.0)
         sem_geo_overlap_ema = sem_geo_overlap_last;
     else
@@ -287,35 +310,39 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
 
     const bool semantic_burst = dynamic_pixel_ratio >= cfg.sem_policy_burst_ratio;
     const bool semantic_strong = sem_activation_ema >= cfg.sem_policy_strong_ratio;
-    const int min_geo = std::max(1, cfg.sem_policy_min_geo_candidates);
+    // Support is now a precondition of agreement, not a separate size heuristic.
     const bool semantic_geo_agree =
-        geo_usable &&
-        (geo_pool_total >= min_geo || sem_raw_count >= min_geo) &&
+        geo_usable && overlap.has_support &&
         sem_geo_overlap_ema >= cfg.sem_policy_overlap_ratio;
 
     sem_policy_trigger_burst = semantic_burst ? 1 : 0;
     sem_policy_trigger_strong = semantic_strong ? 1 : 0;
     sem_policy_trigger_overlap = semantic_geo_agree ? 1 : 0;
 
-    if (semantic_burst || semantic_strong || semantic_geo_agree)
-        sem_policy_hold = std::max(0, cfg.sem_policy_hold_frames);
-    else if (sem_policy_hold > 0)
-        sem_policy_hold--;
+    // Plan P1.2: the hold is a duration in seconds on the SENSOR clock. The old
+    // sem_policy_hold_frames: 180 meant 18 s at 10 Hz and 6 s at 30 Hz, and shortened
+    // further whenever frames were dropped.
+    sem_policy::PolicyConfig policy_config;
+    policy_config.assist_hold_s = cfg.sem_policy_assist_hold_s;
+    policy_config.strong_hold_s = cfg.sem_policy_strong_hold_s;
+    policy_config.min_state_dwell_s = cfg.sem_policy_min_state_dwell_s;
+    sem_policy_fsm.configure(policy_config);
 
-    const bool dynamic_assist = sem_policy_hold > 0;
-    const bool geo_evidence = geo_usable && geo_pool_total > 0;
-    if (semantic_strong || semantic_geo_agree || (dynamic_assist && geo_evidence))
-        sem_policy_state = 2;  // strong-dynamic: full OR fusion remains armed.
-    else if (dynamic_assist)
-        sem_policy_state = 1;  // dynamic-assist: hold soft mask across intermittent motion.
-    else
-        sem_policy_state = 0;  // static-safe: suppress semantic hard reject.
+    sem_policy::PolicyInput policy_input;
+    policy_input.timestamp_s = cur_time;
+    policy_input.semantic_burst = semantic_burst;
+    policy_input.semantic_strong = semantic_strong;
+    policy_input.overlap_agreement = semantic_geo_agree;
+    policy_input.geo_evidence = geo_usable && geo_pool_total > 0;
+    policy_input.semantic_scene_active = sem_scene_active;
 
-    // Static-safe still allows sem_scene_active-gated soft masking, which preserves
-    // the observed 0_none fix, while assist/strong temporarily behave like the
-    // default always-on soft mask around real dynamic bursts.
-    sem_policy_soft_mask_active = sem_scene_active || dynamic_assist;
-    sem_policy_hard_reject_active = sem_scene_active && (sem_policy_state > 0);
+    const sem_policy::PolicyOutput policy = sem_policy_fsm.update(policy_input);
+    sem_policy_state = static_cast<int>(policy.state);
+    // Retained for the stats CSV and the tuning scripts, now expressed as the
+    // remaining hold in milliseconds rather than a frame count.
+    sem_policy_hold = static_cast<int>(policy.assist_hold_remaining_s * 1000.0);
+    sem_policy_soft_mask_active = policy.soft_mask_active;
+    sem_policy_hard_reject_active = policy.hard_reject_armed;
 }
 
 void FeatureTracker::collectSemanticRawCandidates(std::vector<int> &sem_raw) const
@@ -906,6 +933,66 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     out.ransac_outliers = ransac_outliers;
     out.sampson_above_th = sampson_above_th;
 
+    // Plan P1.7: F.empty() was the only check. A fundamental matrix estimated during
+    // pure rotation, at low parallax, from features clustered in one image region, or
+    // from a frame the movers dominate is not empty -- it is confidently wrong, and
+    // hard-rejecting static structure on it is the failure mode the paper claims to
+    // avoid.
+    {
+        std::vector<double> parallax;
+        std::vector<std::pair<double, double>> scored_points;
+        parallax.reserve(scored);
+        scored_points.reserve(scored);
+        int f_inliers = 0;
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            parallax.push_back(cv::norm(un_cur_pts[i] - un_prev_pts[i]));
+            scored_points.emplace_back(cur_pts[i].x, cur_pts[i].y);
+            if (!f_status.empty() && f_status[i] != 0)
+                f_inliers++;
+        }
+
+        geodf_degeneracy::Config degeneracy_config;
+        degeneracy_config.min_grid_occupancy = cfg.geodf_min_grid_occupancy;
+        degeneracy_config.min_median_parallax_px = cfg.geodf_min_median_parallax_px;
+        degeneracy_config.max_design_condition_number = cfg.geodf_max_design_condition_number;
+        degeneracy_config.min_ransac_inliers = cfg.geodf_min_ransac_inliers;
+        degeneracy_config.min_ransac_inlier_ratio = cfg.geodf_min_ransac_inlier_ratio;
+        degeneracy_config.max_mover_share = cfg.geodf_max_mover_share;
+
+        geodf_degeneracy::Observation degeneracy_obs;
+        degeneracy_obs.fundamental_valid = !out.F.empty();
+        degeneracy_obs.median_parallax_px = geodf_degeneracy::median(parallax);
+        degeneracy_obs.grid_occupancy = geodf_degeneracy::gridOccupancy(
+            scored_points, static_cast<double>(col), static_cast<double>(row));
+        // Sampson residual spread is the practical stand-in for the design matrix's
+        // conditioning: a well-conditioned F has a tight residual distribution, and
+        // MAD is the robust way to measure it with movers present.
+        const double residual_mad = geodf_degeneracy::medianAbsoluteDeviation(scored_errors);
+        const double residual_median = geodf_degeneracy::median(scored_errors);
+        degeneracy_obs.design_condition_number =
+            residual_mad > 1e-9 ? std::max(1.0, residual_median / residual_mad) : 1.0;
+        degeneracy_obs.ransac_inliers = f_inliers;
+        degeneracy_obs.ransac_total = scored;
+        degeneracy_obs.mover_share =
+            scored > 0 ? static_cast<double>(sampson_above_th) / scored : 0.0;
+
+        geo_degeneracy = geodf_degeneracy::evaluate(degeneracy_obs, degeneracy_config);
+        out.degeneracy_health = static_cast<int>(geo_degeneracy.health);
+        out.degeneracy_cause = static_cast<int>(geo_degeneracy.cause);
+        out.geometry_conditioning = geo_degeneracy.conditioning;
+        out.geometry_inlier_ratio = geo_degeneracy.inlier_ratio;
+        out.median_parallax_px = degeneracy_obs.median_parallax_px;
+        out.grid_occupancy = degeneracy_obs.grid_occupancy;
+
+        if (!geo_degeneracy.mayHardReject())
+            ROS_DEBUG("GeoDF geometry %s (%s): hard rejection suppressed this frame",
+                      geodf_degeneracy::toString(geo_degeneracy.health),
+                      geodf_degeneracy::toString(geo_degeneracy.cause));
+    }
+
     out.right_err.assign(total, 0.0);
     vector<uchar> right_outlier(total, 0);
     out.right_valid.assign(total, 0);
@@ -1252,6 +1339,50 @@ void FeatureTracker::rejectSemGeoFused()
     const bool geo_ok = analyzeGeoDynamic(geo);
     updateSemanticAdaptivePolicy(dynamic_pixel_ratio, mask_available, geo_ok ? &geo : nullptr);
 
+    // Plan P1.3: measure health first, then let the action policy consume it. The
+    // dynamic pixel ratio no longer decides hard rejection by itself.
+    sem_policy::HealthConfig health_config;
+    health_config.mask_max_age_ms = cfg.sem_mask_max_age_ms;
+    health_config.mask_saturation_ratio = cfg.sem_health_mask_saturation_ratio;
+    health_config.min_semantic_health = cfg.sem_health_min_semantic;
+    health_config.min_geometric_health = cfg.sem_health_min_geometric;
+    health_config.redundancy_target = cfg.sem_health_redundancy_target;
+    health_config.parallax_target_px = cfg.sem_health_parallax_target_px;
+    health_config.min_observability = cfg.sem_health_min_observability;
+    health_config.min_tracks_for_hard_reject = cfg.sem_health_min_tracks_for_hard_reject;
+
+    sem_policy::SemanticObservation semantic_obs;
+    semantic_obs.mask_available = mask_available != 0;
+    semantic_obs.mask_fresh = sem_mask_trusted;
+    semantic_obs.mask_age_ms = sem_mask_lag_ms > 0.0 ? sem_mask_lag_ms : 0.0;
+    semantic_obs.dynamic_pixel_ratio = dynamic_pixel_ratio;
+
+    sem_policy::GeometricObservation geometric_obs;
+    geometric_obs.fundamental_valid = geo_ok && geo.valid;
+    geometric_obs.conditioning = geo_ok ? geo.geometry_conditioning : 0.0;
+    geometric_obs.inlier_ratio = geo_ok ? geo.geometry_inlier_ratio : 0.0;
+
+    sem_policy::ObservabilityObservation observability_obs;
+    observability_obs.tracked_features = total;
+    observability_obs.median_parallax_px = geo_ok ? geo.median_parallax_px : 0.0;
+    observability_obs.grid_occupancy = geo_ok ? geo.grid_occupancy : 0.0;
+
+    sem_policy_health = sem_policy::computeHealth(semantic_obs, geometric_obs,
+                                                 observability_obs, health_config);
+
+    sem_policy::LifecycleConfig lifecycle_config;
+    lifecycle_config.suspect_frames = cfg.sem_lifecycle_suspect_frames;
+    lifecycle_config.downweight_frames = cfg.sem_lifecycle_downweight_frames;
+    lifecycle_config.hard_reject_risk = cfg.sem_lifecycle_hard_reject_risk;
+    lifecycle_config.hard_reject_requires_agreement = cfg.sem_lifecycle_require_agreement != 0;
+    lifecycle_config.recover_dwell_s = cfg.sem_lifecycle_recover_dwell_s;
+    sem_track_lifecycle.configure(lifecycle_config);
+
+    // P1.7: a degenerate geometry may not authorise deletion, and may not count as
+    // strong two-expert agreement.
+    const bool geo_may_hard_reject = geo_ok && geo_degeneracy.mayHardReject();
+    const bool geo_may_agree_strongly = geo_ok && geo_degeneracy.mayCountAsStrongAgreement();
+
     std::set<int> fused_set;
     int sem_candidates = 0;
     int sem_confirmed = 0;
@@ -1296,8 +1427,18 @@ void FeatureTracker::rejectSemGeoFused()
     if (geo_ok && geo.frame_active)
     {
         geo_candidates = static_cast<int>(geo.confirmed.size());
-        for (int idx : geo.confirmed)
-            fused_set.insert(idx);
+        // P1.7: a GeoDF candidate from a degenerate geometry may not be deleted. It
+        // still carries risk into the backend weight, but it does not enter the
+        // hard-rejection set.
+        if (geo_may_hard_reject)
+        {
+            for (int idx : geo.confirmed)
+                fused_set.insert(idx);
+        }
+        else
+        {
+            geo_hard_reject_suppressed_frames++;
+        }
     }
 
     // Pre-guard weighting telemetry. Post-guard survivor statistics are computed
@@ -1310,6 +1451,12 @@ void FeatureTracker::rejectSemGeoFused()
     // Ranking severity (1 - target_weight), not the raw fused risk: confirmation
     // caps must be visible to the shared rejection budget as well.
     std::vector<double> ranking_risk_scores(total, 0.0);
+    // P1.4 lifecycle telemetry, indexed by sem_policy::TrackState.
+    int lifecycle_counts[5] = {0, 0, 0, 0, 0};
+    std::set<int> lifecycle_hard_reject_allowed;
+    int lifecycle_blocked_by_health = 0;
+    int lifecycle_blocked_by_observability = 0;
+    int lifecycle_blocked_by_redundancy = 0;
     if (cfg.sem_geodf_backend_weight)
     {
         std::set<int> sem_raw_set(sem_raw.begin(), sem_raw.end());
@@ -1394,8 +1541,31 @@ void FeatureTracker::rejectSemGeoFused()
             applied_weight_sum += applied_weight;
             target_weight_sum += target_weight;
             min_weight_seen = std::min(min_weight_seen, applied_weight);
+
+            // Plan P1.4: each track carries its own lifecycle. Hard rejection needs
+            // sustained evidence AND high risk AND two-expert agreement AND healthy
+            // experts AND observability AND redundancy; anything short of that is a
+            // down-weight, which is recoverable.
+            sem_policy::TrackEvidence track_evidence;
+            track_evidence.fused_risk = weighting.risk.fused_risk;
+            track_evidence.semantic_hit = sem_hit;
+            track_evidence.geo_hit = geo_raw_hit || geo_confirmed_hit;
+            track_evidence.two_expert_agreement =
+                sem_hit && (geo_raw_hit || geo_confirmed_hit) && geo_may_agree_strongly;
+            const sem_policy::LifecycleDecision decision = sem_track_lifecycle.update(
+                ids[i], cur_time, track_evidence, sem_policy_health, total, health_config);
+            lifecycle_counts[static_cast<int>(decision.state)]++;
+            if (decision.action == sem_policy::Action::HardReject)
+                lifecycle_hard_reject_allowed.insert(i);
+            if (decision.hard_reject_blocked_by_health)
+                lifecycle_blocked_by_health++;
+            if (decision.hard_reject_blocked_by_observability)
+                lifecycle_blocked_by_observability++;
+            if (decision.hard_reject_blocked_by_redundancy)
+                lifecycle_blocked_by_redundancy++;
         }
         sem_geodf_feature_weights.swap(next_weights);
+        sem_track_lifecycle.retainOnly(ids);
     }
     else
     {
@@ -1404,6 +1574,28 @@ void FeatureTracker::rejectSemGeoFused()
         applied_weight_sum = static_cast<double>(total);
         target_weight_sum = static_cast<double>(total);
         min_weight_seen = 1.0;
+    }
+
+    // Plan P1.4: the lifecycle is the last gate before deletion. A candidate that the
+    // scene policy put in the reject set is still only deleted if its own lifecycle
+    // reached REJECTED, which requires sustained evidence, high risk, two-expert
+    // agreement, healthy experts, observable motion and enough redundancy. Everything
+    // else stays alive with a reduced weight, which is recoverable.
+    //
+    // Ablatable via sem_lifecycle_enable (policy ablation P5 in the plan). It needs
+    // the backend weight path to supply per-track risk, so it is inert without it.
+    int lifecycle_downgraded_rejections = 0;
+    if (cfg.sem_lifecycle_enable && cfg.sem_geodf_backend_weight)
+    {
+        std::set<int> gated;
+        for (int idx : fused_set)
+        {
+            if (lifecycle_hard_reject_allowed.count(idx))
+                gated.insert(idx);
+            else
+                lifecycle_downgraded_rejections++;
+        }
+        fused_set.swap(gated);
     }
 
     std::vector<int> fused(fused_set.begin(), fused_set.end());
@@ -1475,7 +1667,24 @@ void FeatureTracker::rejectSemGeoFused()
                      << rejected_weighted_tracks << ","
                      << (total > 0 ? target_weight_sum / total : 1.0) << ","
                      << (survivors > 0 ? survivor_weight_sum / survivors : 1.0) << ","
-                     << min_survivor_weight << "\n";
+                     << min_survivor_weight << ","
+                     << sem_geo_overlap_support << ","
+                     << (sem_geo_overlap_has_support ? 1 : 0) << ","
+                     << sem_policy_health.semantic << ","
+                     << sem_policy_health.geometric << ","
+                     << sem_policy_health.observability << ","
+                     << lifecycle_counts[0] << "," << lifecycle_counts[1] << ","
+                     << lifecycle_counts[2] << "," << lifecycle_counts[3] << ","
+                     << lifecycle_counts[4] << ","
+                     << lifecycle_downgraded_rejections << ","
+                     << lifecycle_blocked_by_health << ","
+                     << lifecycle_blocked_by_observability << ","
+                     << lifecycle_blocked_by_redundancy << ","
+                     << static_cast<int>(geo_degeneracy.health) << ","
+                     << static_cast<int>(geo_degeneracy.cause) << ","
+                     << geo_degeneracy.conditioning << ","
+                     << (geo_ok ? geo.median_parallax_px : 0.0) << ","
+                     << (geo_ok ? geo.grid_occupancy : 0.0) << "\n";
     }
 }
 

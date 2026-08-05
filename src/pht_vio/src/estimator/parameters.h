@@ -202,6 +202,47 @@ struct VinsConfig
     double calibration_min_parallax_px = 5.0;
     int calibration_min_tracked_features = 40;
 
+    // Policy correctness (plan P1.1-P1.4).
+    // Overlap metric and its minimum support. max(|I|/|G|, |I|/|S|) scored 0.5 when
+    // two 2-element sets shared one feature, arming the policy on coincidence.
+    std::string sem_policy_overlap_metric = "dice";
+    int sem_policy_min_sem_candidates = 4;
+    int sem_policy_min_intersection = 2;
+    int sem_policy_overlap_support_saturation = 8;
+    // Hold as a duration on the sensor clock. sem_policy_hold_frames is retained only
+    // so older configs still load; these values are what the FSM uses.
+    double sem_policy_assist_hold_s = 1.5;
+    double sem_policy_strong_hold_s = 1.0;
+    double sem_policy_min_state_dwell_s = 0.3;
+    // Health thresholds. An unhealthy expert may not hard-reject, and low
+    // observability downgrades deletion to down-weighting.
+    double sem_health_mask_saturation_ratio = 0.60;
+    double sem_health_min_semantic = 0.35;
+    double sem_health_min_geometric = 0.35;
+    double sem_health_min_observability = 0.35;
+    int sem_health_redundancy_target = 60;
+    double sem_health_parallax_target_px = 3.0;
+    int sem_health_min_tracks_for_hard_reject = 40;
+    // Per-track lifecycle. Enabled by default: hard rejection is the only
+    // irreversible action, so it must pass every guard. Ablatable (policy
+    // ablation P5). Inert without sem_geodf_backend_weight, which supplies risk.
+    int sem_lifecycle_enable = 1;
+    int sem_lifecycle_suspect_frames = 1;
+    int sem_lifecycle_downweight_frames = 2;
+    double sem_lifecycle_hard_reject_risk = 0.60;
+    int sem_lifecycle_require_agreement = 1;
+    double sem_lifecycle_recover_dwell_s = 0.5;
+
+    // GeoDF fundamental-matrix degeneracy guard (plan P1.7). Checking only F.empty()
+    // let a confidently wrong F from pure rotation or low parallax hard-reject static
+    // structure.
+    double geodf_min_grid_occupancy = 0.35;
+    double geodf_min_median_parallax_px = 1.0;
+    double geodf_max_design_condition_number = 1.0e6;
+    int geodf_min_ransac_inliers = 20;
+    double geodf_min_ransac_inlier_ratio = 0.35;
+    double geodf_max_mover_share = 0.60;
+
     // Stereo physical validity contract (plan P1.5/P1.6). One validated set of
     // stereo matches feeds the stereo factor, depth init, the right-camera GeoDF
     // branch and the backend weight evidence.

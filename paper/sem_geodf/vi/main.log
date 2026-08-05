@@ -1,0 +1,1627 @@
+**
+(main.tex
+LaTeX2e <2021-11-15> patch level 1
+L3 programming layer <2022-02-24> (ieeeaccess.cls (IEEEtran.cls
+Document Class: IEEEtran 2015/08/26 V1.8b by Michael Shell
+-- See the "IEEEtran_HOWTO" manual for usage information.
+-- http://www.michaelshell.org/tex/ieeetran/
+\@IEEEtrantmpdimenA=\dimen138
+\@IEEEtrantmpdimenB=\dimen139
+\@IEEEtrantmpdimenC=\dimen140
+\@IEEEtrantmpcountA=\count181
+\@IEEEtrantmpcountB=\count182
+\@IEEEtrantmpcountC=\count183
+\@IEEEtrantmptoksA=\toks16
+LaTeX Font Info:    Trying to load font information for TU+ptm on input line 50
+3.
+LaTeX Font Info:    No file TUptm.fd. on input line 503.
+
+LaTeX Font Warning: Font shape `TU/ptm/m/n' undefined
+(Font)              using `TU/lmr/m/n' instead on input line 503.
+
+-- Using 8.5in x 11in (letter) paper.
+-- Using DVI output.
+\@IEEEnormalsizeunitybaselineskip=\dimen141
+-- This is a 10 point document.
+\CLASSINFOnormalsizebaselineskip=\dimen142
+\CLASSINFOnormalsizeunitybaselineskip=\dimen143
+\IEEEnormaljot=\dimen144
+
+LaTeX Font Warning: Font shape `TU/ptm/bx/n' undefined
+(Font)              using `TU/ptm/m/n' instead on input line 1090.
+
+
+LaTeX Font Warning: Font shape `TU/ptm/m/it' undefined
+(Font)              using `TU/ptm/m/n' instead on input line 1090.
+
+
+LaTeX Font Warning: Font shape `TU/ptm/bx/it' undefined
+(Font)              using `TU/ptm/bx/n' instead on input line 1090.
+
+\IEEEquantizedlength=\dimen145
+\IEEEquantizedlengthdiff=\dimen146
+\IEEEquantizedtextheightdiff=\dimen147
+\IEEEilabelindentA=\dimen148
+\IEEEilabelindentB=\dimen149
+\IEEEilabelindent=\dimen150
+\IEEEelabelindent=\dimen151
+\IEEEdlabelindent=\dimen152
+\IEEElabelindent=\dimen153
+\IEEEiednormlabelsep=\dimen154
+\IEEEiedmathlabelsep=\dimen155
+\IEEEiedtopsep=\skip47
+\c@section=\count184
+\c@subsection=\count185
+\c@subsubsection=\count186
+\c@paragraph=\count187
+\c@IEEEsubequation=\count188
+\abovecaptionskip=\skip48
+\belowcaptionskip=\skip49
+\c@figure=\count189
+\c@table=\count190
+\@IEEEeqnnumcols=\count191
+\@IEEEeqncolcnt=\count192
+\@IEEEsubeqnnumrollback=\count193
+\@IEEEquantizeheightA=\dimen156
+\@IEEEquantizeheightB=\dimen157
+\@IEEEquantizeheightC=\dimen158
+\@IEEEquantizeprevdepth=\dimen159
+\@IEEEquantizemultiple=\count194
+\@IEEEquantizeboxA=\box50
+\@IEEEtmpitemindent=\dimen160
+\IEEEPARstartletwidth=\dimen161
+\c@IEEEbiography=\count195
+\@IEEEtranrubishbin=\box51
+) (ifpdf.sty
+Package: ifpdf 2019/10/25 v3.4 ifpdf legacy package. Use iftex instead.
+ (iftex.sty
+Package: iftex 2022/02/03 v1.0f TeX engine tests
+)) (xkeyval.sty
+Package: xkeyval 2020/11/20 v2.8 package option processing (HA)
+ (xkeyval (xkvutils
+\XKV@toks=\toks17
+\XKV@tempa@toks=\toks18
+ (keyval))
+\XKV@depth=\count196
+File: xkeyval.tex 2014/12/03 v2.7a key=value parser (HA)
+))
+\@draftversionrule=\dimen162
+
+(color.sty
+Package: color 2021/12/07 v1.3c Standard LaTeX Color (DPC)
+ (color.cfg
+File: color.cfg 2016/01/02 v1.6 sample color configuration
+)
+Package color Info: Driver file: xetex.def on input line 149.
+ (xetex.def
+File: xetex.def 2021/03/18 v5.0k Graphics/color driver for xetex
+))
+Package color Info: Redefining color black on input line 154.
+\figbox=\box52
+\titlewidth=\skip50
+\abstractwidth=\skip51
+\c@addrCtr=\count197
+\abstractbox=\box53
+\indexbox=\box54
+\absht=\dimen163
+\kwdht=\dimen164
+\@tempcntc=\count198
+\titlepgskip=\skip52
+\maketitlebox=\box55
+\c@biography=\count199
+) (cite.sty
+LaTeX Info: Redefining \cite on input line 302.
+LaTeX Info: Redefining \nocite on input line 332.
+Package: cite 2015/02/27  v 5.5
+) (amsmath.sty
+Package: amsmath 2021/10/15 v2.17l AMS math features
+\@mathmargin=\skip53
+
+For additional information on amsmath, use the `?' option.
+(amstext.sty
+Package: amstext 2021/08/26 v2.01 AMS text
+ (amsgen.sty
+File: amsgen.sty 1999/11/30 v2.0 generic functions
+\@emptytoks=\toks19
+\ex@=\dimen165
+)) (amsbsy.sty
+Package: amsbsy 1999/11/29 v1.2d Bold Symbols
+\pmbraise@=\dimen166
+) (amsopn.sty
+Package: amsopn 2021/08/26 v2.02 operator names
+)
+\inf@bad=\count266
+LaTeX Info: Redefining \frac on input line 234.
+\uproot@=\count267
+\leftroot@=\count268
+LaTeX Info: Redefining \overline on input line 399.
+\classnum@=\count269
+\DOTSCASE@=\count270
+LaTeX Info: Redefining \ldots on input line 496.
+LaTeX Info: Redefining \dots on input line 499.
+LaTeX Info: Redefining \cdots on input line 620.
+\Mathstrutbox@=\box56
+\strutbox@=\box57
+\big@size=\dimen167
+LaTeX Font Info:    Redeclaring font encoding OML on input line 743.
+LaTeX Font Info:    Redeclaring font encoding OMS on input line 744.
+\macc@depth=\count271
+\c@MaxMatrixCols=\count272
+\dotsspace@=\muskip16
+\c@parentequation=\count273
+\dspbrk@lvl=\count274
+\tag@help=\toks20
+\row@=\count275
+\column@=\count276
+\maxfields@=\count277
+\andhelp@=\toks21
+\eqnshift@=\dimen168
+\alignsep@=\dimen169
+\tagshift@=\dimen170
+\tagwidth@=\dimen171
+\totwidth@=\dimen172
+\lineht@=\dimen173
+\@envbody=\toks22
+\multlinegap=\skip54
+\multlinetaggap=\skip55
+\mathdisplay@stack=\toks23
+LaTeX Info: Redefining \[ on input line 2938.
+LaTeX Info: Redefining \] on input line 2939.
+) (amssymb.sty
+Package: amssymb 2013/01/14 v3.01 AMS font symbols
+
+(amsfonts.sty
+Package: amsfonts 2013/01/14 v3.01 Basic AMSFonts support
+\symAMSa=\mathgroup4
+\symAMSb=\mathgroup5
+LaTeX Font Info:    Redeclaring math symbol \hbar on input line 98.
+LaTeX Font Info:    Overwriting math alphabet `\mathfrak' in version `bold'
+(Font)                  U/euf/m/n --> U/euf/b/n on input line 106.
+)) (algorithm.sty
+Invalid UTF-8 byte or sequence at line 11 replaced by U+FFFD.
+Package: algorithm 2009/08/24 v0.1 Document Style `algorithm' - floating enviro
+nment
+ (float.sty
+Package: float 2001/11/08 v1.3d Float enhancements (AL)
+\c@float@type=\count278
+\float@exts=\toks24
+\float@box=\box58
+\@float@everytoks=\toks25
+\@floatcapt=\box59
+) (ifthen.sty
+Package: ifthen 2020/11/24 v1.1c Standard LaTeX ifthen package (DPC)
+)
+\@float@every@algorithm=\toks26
+\c@algorithm=\count279
+) (algpseudocode.sty
+Package: algpseudocode 
+
+(algorithmicx.sty
+Package: algorithmicx 2005/04/27 v1.2 Algorithmicx
+
+Document Style algorithmicx 1.2 - a greatly improved `algorithmic' style
+\c@ALG@line=\count280
+\c@ALG@rem=\count281
+\c@ALG@nested=\count282
+\ALG@tlm=\skip56
+\ALG@thistlm=\skip57
+\c@ALG@Lnr=\count283
+\c@ALG@blocknr=\count284
+\c@ALG@storecount=\count285
+\c@ALG@tmpcounter=\count286
+\ALG@tmplength=\skip58
+)
+Document Style - pseudocode environments for use with the `algorithmicx' style
+) (graphicx.sty
+Package: graphicx 2021/09/16 v1.2d Enhanced LaTeX Graphics (DPC,SPQR)
+ (graphics.sty
+Package: graphics 2021/03/04 v1.4d Standard LaTeX Graphics (DPC,SPQR)
+ (trig.sty
+Package: trig 2021/08/11 v1.11 sin cos tan (DPC)
+) (graphics.cfg
+File: graphics.cfg 2016/06/04 v1.11 sample graphics configuration
+)
+Package graphics Info: Driver file: xetex.def on input line 107.
+)
+\Gin@req@height=\dimen174
+\Gin@req@width=\dimen175
+) (textcomp.sty
+Package: textcomp 2020/02/02 v2.0n Standard LaTeX package
+)
+(booktabs.sty
+Package: booktabs 2020/01/12 v1.61803398 Publication quality tables
+\heavyrulewidth=\dimen176
+\lightrulewidth=\dimen177
+\cmidrulewidth=\dimen178
+\belowrulesep=\dimen179
+\belowbottomsep=\dimen180
+\aboverulesep=\dimen181
+\abovetopsep=\dimen182
+\cmidrulesep=\dimen183
+\cmidrulekern=\dimen184
+\defaultaddspace=\dimen185
+\@cmidla=\count287
+\@cmidlb=\count288
+\@aboverulesep=\dimen186
+\@belowrulesep=\dimen187
+\@thisruleclass=\count289
+\@lastruleclass=\count290
+\@thisrulewidth=\dimen188
+) (multirow.sty
+Package: multirow 2021/03/15 v2.8 Span multiple rows of a table
+\multirow@colwidth=\skip59
+\multirow@cntb=\count291
+\multirow@dima=\skip60
+\bigstrutjot=\dimen189
+) (array.sty
+Package: array 2021/10/04 v2.5f Tabular extension package (FMi)
+\col@sep=\dimen190
+\ar@mcellbox=\box60
+\extrarowheight=\dimen191
+\NC@list=\toks27
+\extratabsurround=\skip61
+\backup@length=\skip62
+\ar@cellbox=\box61
+) (url.sty
+\Urlmuskip=\muskip17
+Package: url 2013/09/16  ver 3.4  Verb mode for urls, etc.
+) (bm.sty
+Package: bm 2021/04/25 v1.2e Bold Symbol Support (DPC/FMi)
+\symboldoperators=\mathgroup6
+\symboldletters=\mathgroup7
+\symboldsymbols=\mathgroup8
+Package bm Info: No bold for \OMX/cmex/m/n, using \pmb.
+Package bm Info: No bold for \U/msa/m/n, using \pmb.
+Package bm Info: No bold for \U/msb/m/n, using \pmb.
+LaTeX Font Info:    Redeclaring math alphabet \mathbf on input line 149.
+) (xcolor.sty
+Package: xcolor 2021/10/31 v2.13 LaTeX color extensions (UK)
+
+(color.cfg
+File: color.cfg 2016/01/02 v1.6 sample color configuration
+)
+Package xcolor Info: Driver file: xetex.def on input line 227.
+LaTeX Info: Redefining \color on input line 711.
+Package xcolor Info: Model `cmy' substituted by `cmy0' on input line 1352.
+Package xcolor Info: Model `RGB' extended on input line 1368.
+Package xcolor Info: Model `HTML' substituted by `rgb' on input line 1370.
+Package xcolor Info: Model `Hsb' substituted by `hsb' on input line 1371.
+Package xcolor Info: Model `tHsb' substituted by `hsb' on input line 1372.
+Package xcolor Info: Model `HSB' substituted by `hsb' on input line 1373.
+Package xcolor Info: Model `Gray' substituted by `gray' on input line 1374.
+Package xcolor Info: Model `wave' substituted by `hsb' on input line 1375.
+) (fontspec.sty (xparse.sty (expl3.sty
+Package: expl3 2022-02-24 L3 programming layer (loader) 
+ (l3backend-xetex.def
+File: l3backend-xetex.def 2022-02-07 L3 backend support: XeTeX
+\c__kernel_sys_dvipdfmx_version_int=\count292
+\l__color_backend_stack_int=\count293
+\g__color_backend_stack_int=\count294
+\g__graphics_track_int=\count295
+\l__pdf_internal_box=\box62
+\g__pdf_backend_object_int=\count296
+\g__pdf_backend_annotation_int=\count297
+\g__pdf_backend_link_int=\count298
+))
+Package: xparse 2022-01-12 L3 Experimental document command parser
+)
+Package: fontspec 2022/01/15 v2.8a Font selection for XeLaTeX and LuaLaTeX
+
+(fontspec-xetex.sty
+Package: fontspec-xetex 2022/01/15 v2.8a Font selection for XeLaTeX and LuaLaTe
+X
+\l__fontspec_script_int=\count299
+\l__fontspec_language_int=\count300
+\l__fontspec_strnum_int=\count301
+\l__fontspec_tmp_int=\count302
+\l__fontspec_tmpa_int=\count303
+\l__fontspec_tmpb_int=\count304
+\l__fontspec_tmpc_int=\count305
+\l__fontspec_em_int=\count306
+\l__fontspec_emdef_int=\count307
+\l__fontspec_strong_int=\count308
+\l__fontspec_strongdef_int=\count309
+\l__fontspec_tmpa_dim=\dimen192
+\l__fontspec_tmpb_dim=\dimen193
+\l__fontspec_tmpc_dim=\dimen194
+ (fontenc.sty
+Package: fontenc 2021/04/29 v2.0v Standard LaTeX package
+) (fontspec.cfg)))
+
+Package fontspec Info: Font family 'DejaVuSerif(0)' created for font 'DejaVu
+(fontspec)             Serif' with options [Ligatures=TeX].
+(fontspec)              
+(fontspec)              This font family consists of the following NFSS
+(fontspec)             series/shapes:
+(fontspec)              
+(fontspec)             - 'normal' (m/n) with NFSS spec.: <->"DejaVu
+(fontspec)             Serif/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: 
+(fontspec)             - 'bold' (b/n) with NFSS spec.: <->"DejaVu
+(fontspec)             Serif/B/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'bold small caps'  (b/sc) with NFSS spec.: 
+(fontspec)             - 'italic' (m/it) with NFSS spec.: <->"DejaVu
+(fontspec)             Serif/I/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'italic small caps'  (m/scit) with NFSS spec.: 
+(fontspec)             - 'bold italic' (b/it) with NFSS spec.: <->"DejaVu
+(fontspec)             Serif/BI/OT:script=latn;language=dflt;mapping=tex-text;"
+
+(fontspec)             - 'bold italic small caps'  (b/scit) with NFSS spec.: 
+
+
+Package fontspec Info: Font family 'DejaVuSans(0)' created for font 'DejaVu
+(fontspec)             Sans' with options [Ligatures=TeX].
+(fontspec)              
+(fontspec)              This font family consists of the following NFSS
+(fontspec)             series/shapes:
+(fontspec)              
+(fontspec)             - 'normal' (m/n) with NFSS spec.: <->"DejaVu
+(fontspec)             Sans/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'small caps'  (m/sc) with NFSS spec.: 
+(fontspec)             - 'bold' (b/n) with NFSS spec.: <->"DejaVu
+(fontspec)             Sans/B/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'bold small caps'  (b/sc) with NFSS spec.: 
+(fontspec)             - 'italic' (m/it) with NFSS spec.: <->"DejaVu
+(fontspec)             Sans/I/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'italic small caps'  (m/scit) with NFSS spec.: 
+(fontspec)             - 'bold italic' (b/it) with NFSS spec.: <->"DejaVu
+(fontspec)             Sans/BI/OT:script=latn;language=dflt;mapping=tex-text;"
+(fontspec)             - 'bold italic small caps'  (b/scit) with NFSS spec.: 
+
+ (../tables/macros.tex)
+(main.aux)
+\openout1 = `main.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 47.
+LaTeX Font Info:    Trying to load font information for TS1+cmr on input line 4
+7.
+ (ts1cmr.fd
+File: ts1cmr.fd 2019/12/16 v2.5j Standard LaTeX font definitions
+)
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for TU/lmr/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 47.
+LaTeX Font Info:    ... okay on input line 47.
+
+-- Lines per column: 56 (exact).
+LaTeX Font Info:    Trying to load font information for T1+DejaVuSerif(0) on in
+put line 47.
+LaTeX Font Info:    No file T1DejaVuSerif(0).fd. on input line 47.
+
+LaTeX Font Warning: Font shape `T1/DejaVuSerif(0)/m/n' undefined
+(Font)              using `T1/cmr/m/n' instead on input line 47.
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSerif(0)/n/n' undefined
+(Font)              using `T1/DejaVuSerif(0)/m/n' instead on input line 47.
+
+
+Package fontspec Info: Adjusting the maths setup (use [no-math] to avoid
+(fontspec)             this).
+
+\symlegacymaths=\mathgroup9
+LaTeX Font Info:    Overwriting symbol font `legacymaths' in version `bold'
+(Font)                  OT1/cmr/m/n --> OT1/cmr/bx/n on input line 47.
+LaTeX Font Info:    Redeclaring math accent \acute on input line 47.
+LaTeX Font Info:    Redeclaring math accent \grave on input line 47.
+LaTeX Font Info:    Redeclaring math accent \ddot on input line 47.
+LaTeX Font Info:    Redeclaring math accent \tilde on input line 47.
+LaTeX Font Info:    Redeclaring math accent \bar on input line 47.
+LaTeX Font Info:    Redeclaring math accent \breve on input line 47.
+LaTeX Font Info:    Redeclaring math accent \check on input line 47.
+LaTeX Font Info:    Redeclaring math accent \hat on input line 47.
+LaTeX Font Info:    Redeclaring math accent \dot on input line 47.
+LaTeX Font Info:    Redeclaring math accent \mathring on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Gamma on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Delta on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Theta on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Lambda on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Xi on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Pi on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Sigma on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Upsilon on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Phi on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Psi on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \Omega on input line 47.
+LaTeX Font Info:    Redeclaring math symbol \mathdollar on input line 47.
+LaTeX Font Info:    Redeclaring symbol font `operators' on input line 47.
+LaTeX Font Info:    Encoding `OT1' has changed to `TU' for symbol font
+(Font)              `operators' in the math version `normal' on input line 47.
+LaTeX Font Info:    Overwriting symbol font `operators' in version `normal'
+(Font)                  OT1/cmr/m/n --> TU/DejaVuSerif(0)/m/n on input line 47.
+
+LaTeX Font Info:    Encoding `OT1' has changed to `TU' for symbol font
+(Font)              `operators' in the math version `bold' on input line 47.
+LaTeX Font Info:    Overwriting symbol font `operators' in version `bold'
+(Font)                  OT1/cmr/bx/n --> TU/DejaVuSerif(0)/m/n on input line 47
+.
+LaTeX Font Info:    Overwriting symbol font `operators' in version `normal'
+(Font)                  TU/DejaVuSerif(0)/m/n --> TU/DejaVuSerif(0)/m/n on inpu
+t line 47.
+LaTeX Font Info:    Overwriting math alphabet `\mathit' in version `normal'
+(Font)                  OT1/cmr/m/it --> TU/DejaVuSerif(0)/m/it on input line 4
+7.
+LaTeX Font Info:    Overwriting math alphabet `\mathbf' in version `normal'
+(Font)                  OT1/cmr/bx/n --> TU/DejaVuSerif(0)/b/n on input line 47
+.
+LaTeX Font Info:    Overwriting math alphabet `\mathsf' in version `normal'
+(Font)                  OT1/cmss/m/n --> TU/DejaVuSans(0)/m/n on input line 47.
+
+LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `normal'
+(Font)                  OT1/cmtt/m/n --> TU/lmtt/m/n on input line 47.
+LaTeX Font Info:    Overwriting symbol font `operators' in version `bold'
+(Font)                  TU/DejaVuSerif(0)/m/n --> TU/DejaVuSerif(0)/b/n on inpu
+t line 47.
+LaTeX Font Info:    Overwriting math alphabet `\mathit' in version `bold'
+(Font)                  OT1/cmr/bx/it --> TU/DejaVuSerif(0)/b/it on input line 
+47.
+LaTeX Font Info:    Overwriting math alphabet `\mathsf' in version `bold'
+(Font)                  OT1/cmss/bx/n --> TU/DejaVuSans(0)/b/n on input line 47
+.
+LaTeX Font Info:    Overwriting math alphabet `\mathtt' in version `bold'
+(Font)                  OT1/cmtt/m/n --> TU/lmtt/b/n on input line 47.
+
+LaTeX Font Warning: Font shape `TU/DejaVuSerif(0)/n/n' undefined
+(Font)              using `TU/DejaVuSerif(0)/m/n' instead on input line 47.
+
+File: bullet.png Graphic file (type bmp)
+<bullet.png>
+
+Package xcolor Warning: Incompatible color definition on input line 65.
+
+
+LaTeX Font Warning: Font shape `TU/DejaVuSans(0)/n/n' undefined
+(Font)              using `TU/DejaVuSans(0)/m/n' instead on input line 65.
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSerif(0)/b/n' undefined
+(Font)              using `T1/DejaVuSerif(0)/m/n' instead on input line 68.
+
+
+LaTeX Font Warning: Font shape `TU/DejaVuSerif(0)/n/it' undefined
+(Font)              using `TU/DejaVuSerif(0)/n/n' instead on input line 68.
+
+LaTeX Font Info:    Trying to load font information for U+msa on input line 69.
+
+(umsa.fd
+File: umsa.fd 2013/01/14 v3.01 AMS symbols A
+)
+LaTeX Font Info:    Trying to load font information for U+msb on input line 69.
+
+ (umsb.fd
+File: umsb.fd 2013/01/14 v3.01 AMS symbols B
+)
+LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 7
+1.
+ (t1lmtt.fd
+File: t1lmtt.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
+)
+
+LaTeX Font Warning: Font shape `T1/lmtt/n/n' undefined
+(Font)              using `T1/lmtt/m/n' instead on input line 71.
+
+File: bullet.png Graphic file (type bmp)
+<bullet.png>
+
+Package xcolor Warning: Incompatible color definition on input line 76.
+
+LaTeX Font Info:    Trying to load font information for T1+DejaVuSans(0) on inp
+ut line 82.
+LaTeX Font Info:    No file T1DejaVuSans(0).fd. on input line 82.
+
+LaTeX Font Warning: Font shape `T1/DejaVuSans(0)/n/n' undefined
+(Font)              using `T1/cmr/m/n' instead on input line 82.
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSerif(0)/m/it' undefined
+(Font)              using `T1/DejaVuSerif(0)/m/n' instead on input line 82.
+
+
+Package xcolor Warning: Incompatible color definition on input line 82.
+
+LaTeX Font Info:    Calculating math sizes for size <9.9> on input line 82.
+LaTeX Font Info:    Calculating math sizes for size <6.6> on input line 82.
+
+Overfull \hbox (9.2679pt too wide) in paragraph at lines 82--82
+[]  
+ []
+
+
+Overfull \hbox (9.2679pt too wide) in paragraph at lines 82--82
+[]  
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 84.
+
+
+Underfull \hbox (badness 3919) in paragraph at lines 86--89
+\TU/DejaVuSans(0)/b/n/24 O\TU/DejaVuSerif(0)/n/it/10 dometry stereo-inertial (V
+IO) ước lượng
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+Underfull \vbox (badness 1082) has occurred while \output is active []
+
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSans(0)/b/n' undefined
+(Font)              using `T1/cmr/m/n' instead on input line 95.
+
+
+Package xcolor Warning: Incompatible color definition on input line 95.
+
+File: Logo.png Graphic file (type bmp)
+<Logo.png>
+
+Overfull \vbox (9.66313pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[1
+
+
+]
+
+Package xcolor Warning: Incompatible color definition on input line 100.
+
+
+LaTeX Font Warning: Font shape `TU/DejaVuSans(0)/n/it' undefined
+(Font)              using `TU/DejaVuSans(0)/n/n' instead on input line 100.
+
+
+Underfull \hbox (badness 2368) in paragraph at lines 103--104
+[]\TU/DejaVuSerif(0)/n/it/10 Chính sách ba trạng thái không nhãn
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 103--104
+\TU/DejaVuSerif(0)/n/it/10 (static-safe / dynamic-assist / strong-
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 109.
+
+
+Package xcolor Warning: Incompatible color definition on input line 110.
+
+
+Package xcolor Warning: Incompatible color definition on input line 119.
+
+
+Package xcolor Warning: Incompatible color definition on input line 124.
+
+
+Package xcolor Warning: Incompatible color definition on input line 128.
+
+File: ../figures//fusion_compare_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//fusion_compare_sem_geodf.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 137.
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSans(0)/m/n' undefined
+(Font)              using `T1/cmr/m/n' instead on input line 137.
+
+Missing character: There is no Đ ("110) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ế ("1EBF) in font ecrm0700!
+Missing character: There is no ệ ("1EC7) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ặ ("1EB7) in font ecrm0700!
+Missing character: There is no ầ ("1EA7) in font ecrm0700!
+Missing character: There is no ự ("1EF1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 137.
+
+Missing character: There is no Đ ("110) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ế ("1EBF) in font ecrm0700!
+Missing character: There is no ệ ("1EC7) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ặ ("1EB7) in font ecrm0700!
+Missing character: There is no ầ ("1EA7) in font ecrm0700!
+Missing character: There is no ự ("1EF1) in font ecrm0700!
+
+Overfull \hbox (343.07092pt too wide) in paragraph at lines 137--137
+[][] []
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 143.
+
+Missing character: There is no Đ ("110) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ế ("1EBF) in font ecrm0700!
+Missing character: There is no ệ ("1EC7) in font ecrm0700!
+Missing character: There is no ữ ("1EEF) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0800!
+Missing character: There is no ầ ("1EA7) in font ecrm0800!
+Missing character: There is no ự ("1EF1) in font ecrm0800!
+Missing character: There is no ạ ("1EA1) in font ecrm0800!
+Missing character: There is no ế ("1EBF) in font ecrm0800!
+Missing character: There is no ộ ("1ED9) in font ecrm0800!
+Missing character: There is no ạ ("1EA1) in font ecrm0800!
+Missing character: There is no ộ ("1ED9) in font ecrm0800!
+Missing character: There is no ầ ("1EA7) in font ecrm0800!
+Missing character: There is no ỷ ("1EF7) in font ecrm0800!
+Missing character: There is no ệ ("1EC7) in font ecrm0800!
+Missing character: There is no ạ ("1EA1) in font ecrm0800!
+Missing character: There is no ỏ ("1ECF) in font ecrm0800!
+Missing character: There is no ế ("1EBF) in font ecrm0800!
+Missing character: There is no ắ ("1EAF) in font ecrm0800!
+Missing character: There is no ở ("1EDF) in font ecrm0800!
+Missing character: There is no ế ("1EBF) in font ecrm0800!
+Missing character: There is no ọ ("1ECD) in font ecrm0800!
+Missing character: There is no ố ("1ED1) in font ecrm0800!
+Missing character: There is no ư ("1B0) in font ecrm0800!
+Missing character: There is no ế ("1EBF) in font ecrm0800!
+Missing character: There is no ế ("1EBF) in font ecrm0800!
+Missing character: There is no ọ ("1ECD) in font ecrm0800!
+
+Overfull \hbox (4.29665pt too wide) in paragraph at lines 146--157
+ [][] 
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 159.
+
+
+Package xcolor Warning: Incompatible color definition on input line 160.
+
+
+Underfull \hbox (badness 5607) in paragraph at lines 161--166
+\TU/DejaVuSerif(0)/n/it/10 Hình 2[] cho cái nhìn toàn hệ thống của
+ []
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[2]
+
+Package xcolor Warning: Incompatible color definition on input line 167.
+
+File: ../figures//system_overview_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//system_overview_sem_geodf.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 178.
+
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ệ ("1EC7) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ế ("1EBF) in font ecrm0700!
+Missing character: There is no ữ ("1EEF) in font ecrm0700!
+Missing character: There is no ĩ ("129) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 178.
+
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ệ ("1EC7) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ế ("1EBF) in font ecrm0700!
+Missing character: There is no ữ ("1EEF) in font ecrm0700!
+Missing character: There is no ĩ ("129) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+
+Overfull \hbox (387.09184pt too wide) in paragraph at lines 178--178
+[][] []
+ []
+
+File: ../figures//pipeline_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//pipeline_sem_geodf.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 185.
+
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ặ ("1EB7) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 185.
+
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ặ ("1EB7) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+
+Overfull \hbox (325.47499pt too wide) in paragraph at lines 185--185
+[][] []
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 189.
+
+
+Package xcolor Warning: Incompatible color definition on input line 195.
+
+
+Underfull \hbox (badness 1354) in paragraph at lines 196--200
+\TU/DejaVuSerif(0)/n/it/10 YOLO tạo mặt nạ lớp động trên cam0. Hit
+ []
+
+
+Underfull \hbox (badness 2269) in paragraph at lines 196--200
+\TU/DejaVuSerif(0)/n/it/10 theo track được xác nhận bằng phiếu qua
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 201.
+
+
+Underfull \hbox (badness 2865) in paragraph at lines 203--205
+\TU/DejaVuSerif(0)/n/it/10 GeoDF đã xác nhận khi $[]$, thực
+ []
+
+
+Underfull \hbox (badness 1436) in paragraph at lines 215--218
+\TU/DejaVuSerif(0)/n/it/10 đặt về 0 thay vì đưa vào so sánh ngưỡng,
+ []
+
+File: ../figures//overlap_bidirectional.pdf Graphic file (type pdf)
+<use ../figures//overlap_bidirectional.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 222.
+
+Missing character: There is no Đ ("110) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ầ ("1EA7) in font ecrm0700!
+Missing character: There is no ỗ ("1ED7) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ă ("103) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ẻ ("1EBB) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ữ ("1EEF) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 222.
+
+Missing character: There is no Đ ("110) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ầ ("1EA7) in font ecrm0700!
+Missing character: There is no ỗ ("1ED7) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ể ("1EC3) in font ecrm0700!
+Missing character: There is no ă ("103) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ẻ ("1EBB) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ữ ("1EEF) in font ecrm0700!
+Missing character: There is no ậ ("1EAD) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+
+Overfull \hbox (451.14731pt too wide) in paragraph at lines 222--222
+[][] []
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 226.
+
+
+Underfull \hbox (badness 2245) in paragraph at lines 228--231
+\TU/DejaVuSerif(0)/n/it/10 Gọi trạng thái rời $\OML/cmm/m/it/10 s \OMS/cmsy/m/n
+/10 2 f\OT1/cmr/m/n/10 0\OML/cmm/m/it/10 ; \OT1/cmr/m/n/10 1\OML/cmm/m/it/10 ; 
+\OT1/cmr/m/n/10 2\OMS/cmsy/m/n/10 g$ \TU/DejaVuSerif(0)/n/it/10 (static-safe,
+ []
+
+
+Underfull \hbox (badness 7468) in paragraph at lines 228--231
+\TU/DejaVuSerif(0)/n/it/10 dynamic-assist, strong-dynamic), tóm tắt ở
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 238.
+
+
+Overfull \hbox (31.23375pt too wide) in paragraph at lines 239--240
+\TU/DejaVuSerif(0)/n/it/10 Ban đầu hold là $\OML/cmm/m/it/10 H$ \TU/DejaVuSerif
+(0)/n/it/10 khung ($[][]\OT1/cmr/m/n/10 180$\TU/DejaVuSerif(0)/n/it/10 ).
+ []
+
+
+Overfull \hbox (44.86842pt too wide) detected at line 244
+[]\OML/cmm/m/it/10 t[] \OMS/cmsy/m/n/10   []  [] \OML/cmm/m/it/10 ;  [] \OT1/cm
+r/m/n/10 = [] \OML/cmm/m/it/10 ;
+ []
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[3]
+File: ../figures//policy_fsm_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//policy_fsm_sem_geodf.pdf>
+
+
+Package xcolor Warning: Incompatible color definition on input line 256.
+
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỉ ("1EC9) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ỹ ("1EF9) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 256.
+
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỉ ("1EC9) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ề ("1EC1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ỹ ("1EF9) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+
+Overfull \hbox (349.5124pt too wide) in paragraph at lines 256--256
+[][] []
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 262.
+
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ặ ("1EB7) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ị ("1ECB) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ừ ("1EEB) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0800!
+Missing character: There is no ị ("1ECB) in font ecrm0800!
+Missing character: There is no đ ("111) in font ecrm0800!
+Missing character: There is no ọ ("1ECD) in font ecrm0800!
+Missing character: There is no đ ("111) in font ecrm0800!
+Missing character: There is no ọ ("1ECD) in font ecrm0800!
+Missing character: There is no ậ ("1EAD) in font ecrm0800!
+
+Package xcolor Warning: Incompatible color definition on input line 282.
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[4]
+File: ../figures//backend_weight_flow.pdf Graphic file (type pdf)
+<use ../figures//backend_weight_flow.pdf>
+
+
+Package xcolor Warning: Incompatible color definition on input line 292.
+
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ụ ("1EE5) in font ecrm0700!
+Missing character: There is no ị ("1ECB) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ụ ("1EE5) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 292.
+
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ỏ ("1ECF) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ấ ("1EA5) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+Missing character: There is no ợ ("1EE3) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ụ ("1EE5) in font ecrm0700!
+Missing character: There is no ị ("1ECB) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ụ ("1EE5) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+
+Overfull \hbox (688.35707pt too wide) in paragraph at lines 292--292
+[][] []
+ []
+
+
+Overfull \hbox (34.19174pt too wide) detected at line 301
+[]
+ []
+
+
+Overfull \hbox (17.05994pt too wide) detected at line 313
+[][] \OT1/cmr/m/n/10 = []  [] = []  [] \OML/cmm/m/it/10 ;
+ []
+
+
+Underfull \hbox (badness 1377) in paragraph at lines 313--318
+\TU/DejaVuSerif(0)/n/it/10 cắt lại về $\OT1/cmr/m/n/10 [\OML/cmm/m/it/10 w[]; \
+OT1/cmr/m/n/10 1]$\TU/DejaVuSerif(0)/n/it/10 . Công thức []–[] được
+ []
+
+
+Underfull \hbox (badness 2707) in paragraph at lines 313--318
+\T1/lmtt/n/n/10 PaperEquationMatchesImplementation\TU/DejaVuSerif(0)/n/it/10 , 
+cùng tính
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 325.
+
+
+Underfull \hbox (badness 4832) in paragraph at lines 330--331
+\TU/DejaVuSerif(0)/n/it/10 Nhờ vậy marginalization factor không bao
+ []
+
+
+Underfull \hbox (badness 3343) in paragraph at lines 330--331
+\TU/DejaVuSerif(0)/n/it/10 giờ đọc một trọng số toàn cục khả biến,
+ []
+
+
+Underfull \hbox (badness 4429) in paragraph at lines 330--331
+\TU/DejaVuSerif(0)/n/it/10 track không thể hồi tố làm đổi prior đã
+ []
+
+
+Overfull \hbox (28.38943pt too wide) in paragraph at lines 332--334
+\TU/DejaVuSerif(0)/n/it/10 ba đại lượng ở Mục [][]: $[]$
+ []
+
+
+Overfull \hbox (27.00922pt too wide) in paragraph at lines 332--334
+\TU/DejaVuSerif(0)/n/it/10 (đầu ra của mapping), $[]$
+ []
+
+
+Overfull \hbox (67.30423pt too wide) in paragraph at lines 332--334
+[]$\TU/DejaVuSerif(0)/n/it/10 , $[]$
+ []
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[5]
+Missing character: There is no ư ("1B0) in font ecrm1000!
+Missing character: There is no ớ ("1EDB) in font ecrm1000!
+Missing character: There is no ỗ ("1ED7) in font ecrm1000!
+Missing character: There is no Đ ("110) in font ecrm1000!
+Missing character: There is no ồ ("1ED3) in font ecrm1000!
+Missing character: There is no ộ ("1ED9) in font ecrm1000!
+Missing character: There is no ặ ("1EB7) in font ecrm1000!
+Missing character: There is no ạ ("1EA1) in font ecrm1000!
+Missing character: There is no ớ ("1EDB) in font ecrm1000!
+Missing character: There is no ấ ("1EA5) in font ecrm1000!
+Missing character: There is no ế ("1EBF) in font ecrm1000!
+Missing character: There is no ổ ("1ED5) in font ecrm1000!
+Missing character: There is no ư ("1B0) in font ecrm1000!
+Missing character: There is no ợ ("1EE3) in font ecrm1000!
+Missing character: There is no ạ ("1EA1) in font ecrm1000!
+Missing character: There is no ắ ("1EAF) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ạ ("1EA1) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ồ ("1ED3) in font ecrm1000!
+Missing character: There is no ấ ("1EA5) in font ecrm1000!
+Missing character: There is no ề ("1EC1) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ổ ("1ED5) in font ecrm1000!
+Missing character: There is no ả ("1EA3) in font ecrm1000!
+Missing character: There is no ệ ("1EC7) in font ecrm1000!
+Missing character: There is no ỷ ("1EF7) in font ecrm1000!
+Missing character: There is no ệ ("1EC7) in font ecrm1000!
+Missing character: There is no ế ("1EBF) in font ecrm1000!
+Missing character: There is no đ ("111) in font ecrm1000!
+Missing character: There is no ư ("1B0) in font ecrm1000!
+Missing character: There is no ợ ("1EE3) in font ecrm1000!
+Missing character: There is no ế ("1EBF) in font ecrm1000!
+Missing character: There is no ậ ("1EAD) in font ecrm1000!
+Missing character: There is no ọ ("1ECD) in font ecrm1000!
+Missing character: There is no ố ("1ED1) in font ecrm1000!
+Missing character: There is no ố ("1ED1) in font ecrm1000!
+Missing character: There is no ụ ("1EE5) in font ecrm1000!
+Missing character: There is no ồ ("1ED3) in font ecrm1000!
+
+Package xcolor Warning: Incompatible color definition on input line 348.
+
+
+Package xcolor Warning: Incompatible color definition on input line 349.
+
+
+Underfull \hbox (badness 1418) in paragraph at lines 350--353
+\TU/DejaVuSerif(0)/n/it/10 Chúng tôi dùng VINS stereo-inertial ROS 2
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 354.
+
+
+Package xcolor Warning: Incompatible color definition on input line 358.
+
+
+Package xcolor Warning: Incompatible color definition on input line 368.
+
+File: ../figures//eval_protocol_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//eval_protocol_sem_geodf.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 379.
+
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ỡ ("1EE1) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ă ("103) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 379.
+
+Missing character: There is no ứ ("1EE9) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ỡ ("1EE1) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ă ("103) in font ecrm0700!
+Missing character: There is no ồ ("1ED3) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ằ ("1EB1) in font ecrm0700!
+
+Overfull \hbox (413.49843pt too wide) in paragraph at lines 379--379
+[][] []
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 383.
+
+
+Package xcolor Warning: Incompatible color definition on input line 384.
+
+(../tables/ate_viode.tex
+
+Package xcolor Warning: Incompatible color definition on input line 3.
+
+)
+Underfull \hbox (badness 2134) in paragraph at lines 387--391
+\TU/DejaVuSerif(0)/n/it/10 Hình 8[] tóm tắt Sem-GeoDF so với GeoDF-
+ []
+
+File: ../figures//viode_ate_delta_sem_geodf.pdf Graphic file (type pdf)
+<use ../figures//viode_ate_delta_sem_geodf.pdf>
+
+Package xcolor Warning: Incompatible color definition on input line 395.
+
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 395.
+
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ổ ("1ED5) in font ecrm0700!
+Missing character: There is no ủ ("1EE7) in font ecrm0700!
+Missing character: There is no ớ ("1EDB) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+(../tables/delta_adaptive.tex
+
+Package xcolor Warning: Incompatible color definition on input line 3.
+
+
+Overfull \hbox (79.70206pt too wide) in paragraph at lines 5--38
+ [][] 
+ []
+
+)
+
+Package xcolor Warning: Incompatible color definition on input line 401.
+
+(../tables/ate_euroc.tex
+
+Package xcolor Warning: Incompatible color definition on input line 3.
+
+)
+File: ../figures//method_compare_selected.pdf Graphic file (type pdf)
+<use ../figures//method_compare_selected.pdf>
+
+
+Package xcolor Warning: Incompatible color definition on input line 409.
+
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ĩ ("129) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 409.
+
+Missing character: There is no ả ("1EA3) in font ecrm0700!
+Missing character: There is no ĩ ("129) in font ecrm0700!
+Missing character: There is no đ ("111) in font ecrm0700!
+Missing character: There is no ộ ("1ED9) in font ecrm0700!
+Missing character: There is no ạ ("1EA1) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ọ ("1ECD) in font ecrm0700!
+Missing character: There is no ố ("1ED1) in font ecrm0700!
+Missing character: There is no ư ("1B0) in font ecrm0700!
+Missing character: There is no ơ ("1A1) in font ecrm0700!
+
+Package xcolor Warning: Incompatible color definition on input line 413.
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[6]
+
+Package xcolor Warning: Incompatible color definition on input line 423.
+
+
+Underfull \hbox (badness 2662) in paragraph at lines 425--429
+\TU/DejaVuSerif(0)/n/it/10 Ở mức \T1/lmtt/n/n/10 0_none\TU/DejaVuSerif(0)/n/it/
+10 , luôn bật ngữ nghĩa có thể
+ []
+
+
+Underfull \hbox (badness 3396) in paragraph at lines 425--429
+\TU/DejaVuSerif(0)/n/it/10 hồi quy so với Baseline vì mặt nạ dương
+ []
+
+
+Underfull \hbox (badness 3679) in paragraph at lines 425--429
+\TU/DejaVuSerif(0)/n/it/10 Sem-GeoDF là $\OMS/cmsy/m/n/10 ^^@\OT1/cmr/m/n/10 17
+[]$ \TU/DejaVuSerif(0)/n/it/10 (tốt nhất trong bốn).
+ []
+
+
+Underfull \vbox (badness 10000) has occurred while \output is active []
+
+
+(../tables/static_safety.tex
+
+Package xcolor Warning: Incompatible color definition on input line 4.
+
+
+Overfull \hbox (37.6048pt too wide) in paragraph at lines 8--29
+ [][] 
+ []
+
+)
+
+Package xcolor Warning: Incompatible color definition on input line 432.
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[7]
+
+Package xcolor Warning: Incompatible color definition on input line 437.
+
+(../tables/ablation_weight.tex
+
+Package xcolor Warning: Incompatible color definition on input line 11.
+
+)
+
+Package xcolor Warning: Incompatible color definition on input line 445.
+
+
+Package xcolor Warning: Incompatible color definition on input line 452.
+
+
+Underfull \hbox (badness 2073) in paragraph at lines 454--455
+\T1/lmtt/n/n/10 parking_lot_1_low\TU/DejaVuSerif(0)/n/it/10 ) cũng hồi quy so v
+ới
+ []
+
+
+Underfull \hbox (badness 2376) in paragraph at lines 457--458
+[]\TU/DejaVuSerif(0)/n/it/10 EuRoC dùng $\OML/cmm/m/it/10 N \OT1/cmr/m/n/10 = [
+]$ \TU/DejaVuSerif(0)/n/it/10 trial/ô (ít hơn
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 462.
+
+
+Package xcolor Warning: Incompatible color definition on input line 466.
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[8]
+
+Package xcolor Warning: Incompatible color definition on input line 470.
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 471--475
+\TU/DejaVuSerif(0)/n/it/10 Mỗi chạy ghi $[]$ (git SHA,
+ []
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 471--475
+\TU/DejaVuSerif(0)/n/it/10 hash cấu hình, bag rate, cờ oracle) và
+ []
+
+
+Overfull \hbox (30.1659pt too wide) in paragraph at lines 471--475
+\TU/DejaVuSerif(0)/n/it/10 sách có thể replay offline bằng $[]$.
+ []
+
+
+Package xcolor Warning: Incompatible color definition on input line 478.
+
+
+Package xcolor Warning: Incompatible color definition on input line 483.
+
+(main.bbl
+
+Package xcolor Warning: Incompatible color definition on input line 2.
+
+
+LaTeX Font Warning: Font shape `T1/DejaVuSerif(0)/n/it' undefined
+(Font)              using `T1/DejaVuSerif(0)/n/n' instead on input line 26.
+
+
+Underfull \hbox (badness 2384) in paragraph at lines 67--70
+[]\T1/DejaVuSerif(0)/n/it/8 B. Bescos, C. Cam-pos, J. D. Tardós, and J. Neira,
+ []
+
+
+Underfull \hbox (badness 1584) in paragraph at lines 77--81
+\T1/DejaVuSerif(0)/n/it/8 on coarse-to-fine prob-a-bil-ity in dy-namic en-vi-ro
+n-ments,''
+ []
+
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[9]
+LaTeX Font Info:    Calculating math sizes for size <7.61> on input line 105.
+)
+File: bullet.png Graphic file (type bmp)
+<bullet.png>
+File: notaglineLogo.png Graphic file (type bmp)
+<notaglineLogo.png>
+
+Overfull \vbox (9.13515pt too high) has occurred while \output is active []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Overfull \hbox (505.12177pt too wide) has occurred while \output is active
+[]
+ []
+
+
+Underfull \hbox (badness 10000) has occurred while \output is active
+[]
+ []
+
+[10
+
+] (main.aux)
+
+LaTeX Font Warning: Some font shapes were not available, defaults substituted.
+
+ )
+Output written on main.xdv (10 pages, 241268 bytes).

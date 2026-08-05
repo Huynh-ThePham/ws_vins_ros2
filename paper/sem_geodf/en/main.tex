@@ -49,9 +49,9 @@ Dynamic objects break the static-scene assumption used by feature-based stereo-i
 Semantic segmentation masks can suppress movers but often over-reject useful structure in static scenes, whereas geometry-only epipolar filters need no training labels yet may fail when movers dominate the image.
 This paper presents \textbf{Sem-GeoDF}, an engineering fusion module for stereo-inertial VINS-Fusion that combines a non-blocking YOLO dynamic mask with GeoDF-Adaptive epipolar rejection through an \emph{adaptive gated union} (logical OR), not intersection.
 Each branch keeps its own scene gate; candidates are merged under a shared reject-ratio budget; and a three-state online policy (static-safe / dynamic-assist / strong-dynamic) modulates soft masking, hard cull, and adaptive backend residual weights \(w_i\in[w_{\min},1]\).
-The policy uses only online signals---burst ratio, strong semantic EMA, and bidirectional semantic--geo overlap on raw GeoDF candidates---and never reads dataset labels, ground truth, or hold-out metrics.
+The policy uses only online signals---burst ratio, strong semantic EMA, and a Dice agreement score with an explicit minimum-support requirement on raw GeoDF candidates---and never reads dataset labels, ground truth, or hold-out metrics. Hard rejection additionally requires healthy experts, observable camera motion and sufficient feature redundancy, so deletion is gated by a per-track lifecycle rather than by evidence alone.
 Under a fair \(1.0\times\) bag-rate protocol with thresholds tuned on VIODE \texttt{city\_day} only, Sem-GeoDF improves high-dynamic hold-out scenes versus GeoDF-Adaptive (e.g., city\_night/\(3\_high\)~\DeltaCityNightHigh, parking\_lot/\(3\_high\)~\DeltaParkingHigh) while reducing static-scene regression relative to always-on semantic masking (SAD-Sem).
-We do not claim per-cell superiority over SAD-Sem on mean ATE; the contribution is spectrum robustness, protocol hygiene, and a reproducible four-method evaluation on VIODE (\(N=\PaperNViode\) trials per cell) and EuRoC (static generalization, \(N=\PaperNEuroc\) trials per cell).
+We do not claim per-cell superiority over SAD-Sem on mean ATE; the contribution is spectrum robustness, protocol hygiene, and a reproducible evaluation on VIODE (\(N=\PaperNViode\) trials per cell) and EuRoC as a static-scene safety check (\(N=\PaperNEuroc\) trials per cell). The numerical results reported here predate the correctness and fairness fixes described in Sec.~\ref{sec:status} and are being regenerated; the method description and its test-enforced correspondence to the implementation are current.
 On the eight dynamic hold-out scenes, Sem-GeoDF is better than GeoDF-Adaptive on \HoldoutBetter{} and worse on \HoldoutWorse{} under a \(\pm3\%\) band.
 \end{abstract}
 
@@ -82,10 +82,11 @@ We propose \textbf{Sem-GeoDF}, a policy-gated \emph{union} (OR) of YOLO and GeoD
 \paragraph{Contributions.}
 \begin{enumerate}
 \item An online adaptive gated-union front-end for stereo-inertial VINS that ORs semantic and GeoDF dynamic candidates with a shared ratio/min-feature guard and non-blocking mask synchronization.
-\item A label-free three-state policy (static-safe / dynamic-assist / strong-dynamic) driven by burst/strong EMA and \emph{bidirectional} overlap on \emph{raw} GeoDF candidates, repairing a previously dead overlap trigger.
+\item A label-free three-state policy (static-safe / dynamic-assist / strong-dynamic) driven by burst/strong EMA and a support-guarded Dice agreement score on \emph{raw} GeoDF candidates, with holds expressed as durations on the sensor clock rather than frame counts.
 \item Adaptive backend residual weights \(w_i\) with Ceres \(\sqrt{w_i}\) scaling, computed only from online semantic/geometric evidence and per-id recovery.
 \item A reproducible evaluation: fair \(1.0\times\) bag rate, thresholds selected on \texttt{city\_day} only, hold-out \texttt{city\_night}/\texttt{parking\_lot} (\(N=\PaperNViode\)) and an EuRoC static check (\(N=\PaperNEuroc\) trials per cell), with a four-method matrix switched by \texttt{METHODS}. All reported tables are regenerated directly from run artifacts by one script, with the per-cell trial count printed in every cell.
-\item Honest positioning: we emphasize spectrum robustness and static safety rather than claiming universal best ATE against semantic-only baselines.
+\item A correctness and fairness layer that makes the evaluation checkable rather than asserted: all methods are generated from one common backbone with a machine-checked ownership allowlist; a stereo physical validity contract is shared by the backend and the geometric branch; the fundamental matrix is tested for degeneracy before it may authorise a deletion; failure detection is structured and recorded; and no publication asset can be produced from a run tree that has not passed an expected-matrix gate.
+\item Honest positioning: we emphasize spectrum robustness and static safety rather than claiming universal best ATE against semantic-only baselines, and we state explicitly which evidence is still outstanding (Sec.~\ref{sec:status}).
 \end{enumerate}
 
 \section{Related Work}
@@ -96,7 +97,7 @@ DynaSLAM and DS-SLAM combine geometric motion cues with semantic segmentation fo
 More recent semantic-geometric systems refine this idea: RDS-SLAM removes the tracking-thread stall of semantic masks~\cite{zhang2020rdsslam}, CFP-SLAM uses a coarse-to-fine dynamic-probability model~\cite{hu2023cfpslam}, Crowd-SLAM targets crowded scenes with detection~\cite{soares2021crowd}, and DytanVO jointly refines odometry and motion segmentation~\cite{shen2023dytanvo}.
 On the visual-inertial side, DynaVINS adds robust pose-graph factors for dynamic environments~\cite{song2022dynavins}, and Liu \emph{et al.}~\cite{liu2022dynamicvins} combine object detection with IMU for resource-restricted RGB-D robots.
 Those full-stack systems are strong references and generally target either RGB-D or full SLAM back-ends.
-Our scope is intentionally narrower and complementary: a drop-in stereo-inertial front-end module for VINS-Fusion with explicit realtime constraints (non-blocking masks), an online label-free policy, optional backend residual weighting, and protocol hygiene (no label leakage into the online estimator).
+Our scope is intentionally narrower and complementary: a drop-in stereo-inertial front-end module for VINS-Fusion with non-blocking mask synchronisation, an online label-free policy, optional backend residual weighting, and protocol hygiene (no label leakage into the online estimator). We describe the design as non-blocking rather than \emph{real-time}: a real-time claim requires end-to-end mask age and frame-drop rate to be measured and reported, which we do in Sec.~\ref{sec:runtime} rather than assert.
 We do not claim to outperform these full stacks; we target a reproducible, honestly-scoped fusion component.
 
 \subsection{Geometry-only dynamic feature rejection}
@@ -177,26 +178,34 @@ Scene activation uses an EMA of the epipolar outlier ratio with hysteresis aroun
 Confirmed geometric candidates enter the shared reject set whenever GeoDF is armed.
 
 \subsection{Semantic branch}
+\label{sec:masksync}
 YOLO produces a dynamic-class mask on cam0.
 Per-track hits are vote-confirmed over \(\texttt{sem\_vote\_frames}\).
 A semantic scene gate tracks an EMA of the dynamic pixel ratio with hysteresis.
 Soft masking of \emph{new} features and hard cull of \emph{existing} tracks are policy-dependent (Sec.~\ref{sec:policy}).
 
-\subsection{Bidirectional overlap on raw GeoDF candidates}
+\subsection{Expert agreement with minimum support}
 \label{sec:overlap}
 An earlier implementation computed overlap only on GeoDF \emph{confirmed} tracks while \(\texttt{frame\_active}\), which empirically produced \(0\%\) overlap triggers even when both branches fired.
-Sem-GeoDF instead uses the raw GeoDF candidate pool \(G\) (fallback to confirmed if empty) and the semantic-raw set \(S\) (Fig.~\ref{fig:overlap}):
+Sem-GeoDF therefore measures agreement on the raw GeoDF candidate pool \(G\) (fallback to confirmed if empty) and the semantic-raw set \(S\) (Fig.~\ref{fig:overlap}).
+
+A directed maximum, \(o=\max(|G\cap S|/|G|,\,|S\cap G|/|S|)\), was used initially, but it is not a safe agreement measure: two two-element sets sharing a single track score \(o{=}0.5\) and clear a \(0.35\) threshold on coincidence alone. We use the symmetric S{\o}rensen--Dice coefficient
 \begin{equation}
-o=\max\!\left(\frac{|G\cap S|}{|G|},\frac{|S\cap G|}{|S|}\right),
+\label{eq:dice}
+o_D=\frac{2\,|G\cap S|}{|G|+|S|},
 \end{equation}
-then applies EMA smoothing with coefficient \(\texttt{sem\_policy\_overlap\_ema}\).
-The candidate-count guard passes if \(|G|\) or \(|S|\) reaches \(\texttt{sem\_policy\_min\_geo\_candidates}\).
-This keeps the overlap trigger alive when the two experts fire on differently sized track sets.
+which cannot be dominated by the smaller set, together with an explicit \emph{minimum support} requirement
+\begin{equation}
+\label{eq:support}
+|G|\ge n_G,\qquad |S|\ge n_S,\qquad |G\cap S|\ge n_I .
+\end{equation}
+When \eqref{eq:support} is not met the agreement signal is set to zero rather than passed to a threshold comparison, because a ratio computed from two or three tracks is not evidence. Optionally the score is scaled by a support confidence \(o_{\mathrm{sup}}=o_D\cdot\min(1,|G\cap S|/n_{\mathrm{sat}})\), which downweights small but qualifying intersections. The chosen metric is EMA-smoothed with coefficient \(\texttt{sem\_policy\_overlap\_ema}\).
+Directional max, directional min, Dice, Jaccard and Dice-with-support are all implemented and selected by \(\texttt{sem\_policy\_overlap\_metric}\), so the choice is an ablation rather than an assumption (Table~\ref{tab:required_tables}).
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\columnwidth]{overlap_bidirectional.pdf}
-\caption{Bidirectional overlap on the raw GeoDF pool. Taking the maximum of the two directed ratios keeps the agreement trigger alive when the semantic and geometric candidate sets differ in size.}
+\caption{Expert agreement on the raw GeoDF pool. Dice is symmetric, so the smaller candidate set cannot dominate the score, and the minimum-support requirement prevents a single shared track between two tiny sets from arming the policy.}
 \label{fig:overlap}
 \end{figure}
 
@@ -204,17 +213,26 @@ This keeps the overlap trigger alive when the two experts fire on differently si
 \label{sec:policy}
 Let the discrete state be \(s\in\{0,1,2\}\) (static-safe, dynamic-assist, strong-dynamic), as summarized in Fig.~\ref{fig:policy}.
 Write \(r_t\) for the current-frame dynamic-pixel ratio, \(\bar{r}_t\) for its EMA, and \(\bar{o}_t\) for the overlap EMA of Sec.~\ref{sec:overlap}.
-Escalation uses three online predicates and a hold timer of \(H\) frames:
+Escalation uses three online predicates:
 \begin{align}
 \mathrm{burst} &= [r_t \ge \tau_{\mathrm{burst}}], \\
 \mathrm{strong} &= [\bar{r}_t \ge \tau_{\mathrm{strong}}], \\
-\mathrm{overlap} &= [\bar{o}_t \ge \tau_{\mathrm{ov}} \;\wedge\; (|G|\!\lor\!|S|)\!\ge\! n_{\min}],
+\mathrm{overlap} &= [\bar{o}_t \ge \tau_{\mathrm{ov}} \;\wedge\; \eqref{eq:support}],
 \end{align}
 with defaults / train-selected values in Table~\ref{tab:params}.
-The hold timer prevents chatter after a burst or overlap trigger.
+
+\paragraph{The hold is a duration, not a frame count}
+The hold was originally \(H\) frames (\(\texttt{sem\_policy\_hold\_frames}{=}180\)). A frame count is not a well-defined quantity: at \(10\)~Hz it is \(18\)~s, at \(30\)~Hz it is \(6\)~s, and it shortens further whenever frames are dropped, so the same configuration means different things on different sensors. The hold is now a duration on the \emph{sensor} clock (never wall-clock),
+\begin{equation}
+\label{eq:hold}
+t^{\mathrm{hold}} \leftarrow \max\!\left(t^{\mathrm{hold}},\, t + \Delta_{\mathrm{assist}}\right),\qquad
+\mathrm{hold\ active} = \left[\,t < t^{\mathrm{hold}}\,\right],
+\end{equation}
+with separate \(\Delta_{\mathrm{assist}}\) and \(\Delta_{\mathrm{strong}}\). A minimum dwell time prevents state chatter, and blocks only \emph{downgrades}: escalation is never delayed, because waiting is the unsafe direction when real dynamic content appears. A backwards timestamp (bag restart) resets the machine rather than leaving a hold armed for the remainder of the run.
+
 \begin{itemize}
 \item \(s{=}0\) (static-safe): soft-mask new features when the semantic scene is active; semantic hard cull off.
-\item \(s{=}1\) (dynamic-assist): entered on burst, overlap, or an active hold; vote-confirmed semantic tracks enter the shared reject set when the semantic scene is active; soft-mask may be held for \(H\) frames.
+\item \(s{=}1\) (dynamic-assist): entered on burst, overlap, or an active hold; vote-confirmed semantic tracks enter the shared reject set when the semantic scene is active.
 \item \(s{=}2\) (strong-dynamic): entered on strong EMA and/or assist plus usable raw geo evidence; full OR fusion armed under the same shared reject budget.
 \end{itemize}
 Final selected values are written to \texttt{selected\_params.yaml} from \texttt{city\_day} replay only (never from hold-out ATE).
@@ -247,6 +265,51 @@ Parameter & Value \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\subsection{Health, observability and per-track lifecycle}
+\label{sec:health}
+Neither expert is trustworthy unconditionally, so evidence is not allowed to act directly. Three health scores in \([0,1]\) are measured first, and only then does a policy decide what may be done.
+
+\emph{Semantic health} \(h_{\mathrm{sem}}\) falls with mask staleness (using the mask's own source timestamp, Sec.~\ref{sec:masksync}) and with mask \emph{saturation}: a mask that labels most of the frame dynamic is far more often a segmentation failure than a scene in which everything moves, so it must not be permitted to delete features.
+
+\emph{Geometric health} \(h_{\mathrm{geo}}\) comes from an explicit degeneracy test on the fundamental matrix, rather than from \(F\) merely being non-empty. \(F\) estimated during near-pure rotation, at low parallax, from correspondences clustered in one image region, from weak RANSAC support, or from a mover-dominated frame is not empty --- it is confidently wrong, and hard-rejecting static structure on it is precisely the failure mode this work claims to avoid. We therefore require a minimum median parallax, a minimum grid occupancy, a bounded residual-spread condition number, and minimum RANSAC inlier count and ratio. Low parallax and an ill-conditioned estimate mark the geometry \emph{degenerate} (no GeoDF decision at all); clustered features, weak support and mover dominance mark it \emph{weak} (down-weight only, and not admissible as strong two-expert agreement).
+
+\emph{Observability health} \(h_{\mathrm{obs}}\) is the \emph{minimum} of normalized redundancy (track count), median parallax, and spatial spread. The minimum, not a mean: many features clustered in one corner do not make camera motion observable.
+
+Each track then carries its own lifecycle,
+\[
+\textsc{Trusted}\to\textsc{Suspect}\to\textsc{DownWeighted}\to\textsc{Rejected},
+\]
+with \(\textsc{Suspect}/\textsc{DownWeighted}\to\textsc{Recovering}\to\textsc{Trusted}\) when evidence disappears and the track stays clean for a dwell time. Hard rejection is the only irreversible action, and a track may be deleted only when \emph{all} of the following hold:
+\begin{equation}
+\label{eq:reject-guard}
+r_i \ge \tau_{\mathrm{rej}}
+\;\wedge\;
+\text{two-expert agreement}
+\;\wedge\;
+h_{\mathrm{sem}},h_{\mathrm{geo}} \text{ healthy}
+\;\wedge\;
+h_{\mathrm{obs}} \text{ healthy}
+\;\wedge\;
+N_{\mathrm{track}} \ge N_{\min},
+\end{equation}
+and a per-frame deletion allowance of \(N_{\mathrm{track}}-N_{\min}\) bounds how many tracks a single frame may remove. Without that allowance, evaluating \(N_{\mathrm{track}} \ge N_{\min}\) once per track lets a batch of simultaneous deletions overshoot the floor. Anything short of \eqref{eq:reject-guard} is a recoverable down-weight, and which guard blocked a deletion is logged so the behaviour is auditable rather than invisible.
+
+This is the substantive difference from an OR fusion under a reject-ratio cap: what the method manages is a factor \emph{lifecycle} governed by evidence quality, redundancy and estimator observability.
+
+\subsection{Stereo physical validity contract}
+\label{sec:stereo}
+A stereo match previously had to satisfy only optical flow plus a fixed left--right cycle tolerance. Nothing verified that it was physically possible, so a match with the wrong disparity direction or a negative triangulated depth could reach the stereo factor, depth initialisation, the right-camera geometric branch and the weight evidence.
+
+Every left--right match now passes one contract before any consumer sees it: flow status and border validity; a left\(\to\)right\(\to\)left cycle bound; an epipolar residual against \(E=[\mathbf{t}]_\times R\) from the actual extrinsic; a disparity magnitude within \([d_{\min},d_{\max}]\); positive triangulated depth in \emph{both} cameras; and a bounded distance between the two rays at closest approach.
+
+Crucially, the expected disparity \emph{direction} is derived per feature rather than hard-coded. For a ray \(\mathbf{x}_0\) in cam0 at inverse depth \(w=1/Z\), the cam1 projection is \(\pi(R\mathbf{x}_0 + w\mathbf{t})\), which starts at the point at infinity \(\pi(R\mathbf{x}_0)\) for \(w{=}0\) and moves along the epipolar line as \(w\) grows; a physically possible match lies on that side. This is exact for any rig geometry, so the same test is valid for left--right, right--left, vertical and verged rigs, whereas ``disparity must be positive'' is a calibration-specific assumption.
+
+There is exactly one stereo matcher. The geometric branch reads only contract-validated observations instead of running a second optical flow of its own, which previously let its measurement of a track disagree with the measurement the backend factor used for the same track. Per-cause counters (wrong disparity sign, cycle, epipolar, negative depth, reprojection, range, border) are logged for every frame, so a published rejection rate is accountable.
+
+\subsection{Failure detection}
+\label{sec:failure}
+A diverged run must be reported as failed, not emit a plausible-looking trajectory that then enters a table. The estimator evaluates, per frame and most-severe-first: non-finite state, solver failure, accelerometer- and gyroscope-bias divergence, translation and rotation jumps, and a \emph{sustained} run of low-feature frames (a single sparse frame is normal). The reason is structured (\textsc{NanState}, \textsc{SolverFailure}, \textsc{AccBiasDivergence}, \textsc{GyroBiasDivergence}, \textsc{TranslationJump}, \textsc{RotationJump}, \textsc{LowFeatureCount}) and written to the run manifest with its timestamp, so failures are counted rather than inferred.
 
 \subsection{Adaptive backend residual weighting}
 \label{sec:weight}
@@ -323,7 +386,7 @@ All methods share a fair bag playback rate of \(1.0\times\) (including non-YOLO 
 
 \subsection{Datasets}
 \textbf{VIODE}~\cite{minoda2021viode}: environments \texttt{city\_day}, \texttt{city\_night}, and \texttt{parking\_lot}, each with dynamic levels \texttt{0\_none}, \texttt{1\_low}, \texttt{2\_mid}, \texttt{3\_high}.
-\textbf{EuRoC}~\cite{burri2016euroc}: Machine Hall sequences MH\_01--MH\_05 for static generalization.
+\textbf{EuRoC}~\cite{burri2016euroc}: Machine Hall sequences MH\_01--MH\_05, used as a \emph{static-scene safety} check. We do not present this as evidence of generalization: VIODE is simulated and EuRoC is static, so neither speaks to real-world dynamic scenes. A generalization claim would need at least one real dynamic sequence, which we list as required future evidence in Sec.~\ref{sec:status}.
 
 \subsection{Methods}
 Four methods are compared via \(\texttt{METHODS}\):
@@ -351,6 +414,7 @@ All tables, figures, and abstract numbers are emitted by a single script (\textt
 \end{figure}
 
 \section{Results}
+\label{sec:results-anchor}
 \label{sec:results}
 \subsection{VIODE trajectory accuracy}
 \input{../tables/ate_viode.tex}
@@ -369,7 +433,7 @@ We therefore claim \emph{spectrum consistency} on hard scenes, not universal per
 
 \input{../tables/delta_adaptive.tex}
 
-\subsection{EuRoC static generalization}
+\subsection{EuRoC static-scene behaviour}
 \input{../tables/ate_euroc.tex}
 
 Fig.~\ref{fig:methods} highlights selected static and high-dynamic scenes across the four methods.
@@ -413,10 +477,11 @@ The equations in Sec.~\ref{sec:weight} already make the contribution of \(w_i\) 
 
 \input{../tables/ablation_weight.tex}
 
-\subsection{Sensitivity and realtime behavior}
+\subsection{Sensitivity and runtime behaviour}
+\label{sec:runtime}
 Offline replay on \texttt{city\_day} shows that nearby \((\texttt{burst},\texttt{strong},\texttt{hold})\) grid points yield similar weighted policy objectives.
 Overlap thresholds \(0.30\)--\(0.40\) change little when overlap events are sparse---consistent with burst/strong dominating escalation on many sequences.
-Non-blocking mask sync keeps VINS realtime-capable: the estimator never waits on YOLO; it either consumes a fresh-enough mask or falls back to GeoDF-only.
+Non-blocking mask synchronisation means the estimator never waits on the segmentation network: it either consumes a mask that is fresh by its own source timestamp or falls back to GeoDF-only. That is a statement about the coupling, not a real-time guarantee. A real-time claim additionally requires end-to-end mask age, mask reuse and drop ratios, processed-frame ratio, and per-frame estimator latency, all of which the node now publishes (\(\texttt{/dynamic\_mask/source\_stamp}\), \(\texttt{/inference\_finish\_stamp}\), \(\texttt{/reused}\), \(\texttt{/model\_latency\_ms}\)) and the manifest records; the corresponding table is listed in Table~\ref{tab:required_tables} and is pending the re-run described in Sec.~\ref{sec:status}.
 Logged \(\texttt{sem\_mask\_lag\_ms}\) provides an audit of mask age at consumption time.
 The \(\pm3\%\) decision band is a reporting convention (roughly the run-to-run ATE spread we observe on repeated VIODE trials), used only to label a cell better/similar/worse; it is not a significance test, and all raw deltas are shown so readers can apply their own threshold.
 
@@ -429,6 +494,49 @@ The \(\pm3\%\) decision band is a reporting convention (roughly the run-to-run A
 \item VIODE is simulated; real-world dynamic bags remain future work.
 \item Matched external SOTA tables (e.g., DynaVINS under identical bags/rates) are not included here.
 \end{enumerate}
+
+\section{Status of the numerical results}
+\label{sec:status}
+This manuscript is a work in progress, and we state plainly which parts are settled and which are not.
+
+\paragraph{Settled}
+The method description (Sec.~\ref{sec:overlap}--\ref{sec:weight}) matches the released implementation, and the correspondence is enforced mechanically rather than by inspection: the weighting equations \eqref{eq:fused-risk}--\eqref{eq:target-weight} are checked against the code by a property test that re-derives them independently, the projection factors are validated by finite-difference gradient tests at \(w\in\{1,0.75,0.25\}\), and the policy, overlap, health, lifecycle, degeneracy, stereo-contract and failure-detection components each carry unit tests plus a synthetic integration test that requires neither GPU nor dataset.
+
+\paragraph{Not settled: every number in Sec.~\ref{sec:results-anchor} must be regenerated}
+The tables and figures reporting ATE were produced before the corrections described in this paper, and they are \emph{not} valid evidence for the current method. Specifically:
+\begin{itemize}
+\item the earlier Sem-GeoDF configuration additionally enabled per-observation visual quality weighting and adaptive IMU covariance, which the Baseline, GeoDF-Adaptive and SAD-Sem configurations did not, so no measured improvement could be attributed to Sem-GeoDF itself. All methods are now generated from one common backbone with a machine-checked ownership allowlist;
+\item failure detection was inert (an unconditional early return), so diverged runs produced trajectories that entered the averages;
+\item the publication path silently excluded any run with ATE above \(50\)~m, removing exactly the cases the method claims to improve, and did not report success rate;
+\item the agreement trigger used a directed maximum with no minimum support, and the hold was a frame count rather than a duration.
+\end{itemize}
+Each of these changes the algorithm's behaviour, so the entire matrix has to be re-run. The re-run is a compute task, not an open research question: the protocol, the expected matrix, the paired seeds and the validation gate are all committed, and no publication asset can be generated until \(\texttt{validate\_experiment\_matrix.py}\) returns \textsc{pass} on the new run tree.
+
+\paragraph{Tables the final version must contain}
+\begin{table}[t]
+\centering
+\caption{Evidence required before the claims in this paper are supported. None may be omitted, and the asset generator refuses to emit any of them from an unvalidated run tree.}
+\label{tab:required_tables}
+\begin{tabular}{ll}
+\hline
+Evidence & Status \\
+\hline
+Common-backbone ATE / RPE & pending re-run \\
+Success rate and trajectory coverage & pending re-run \\
+Gated union on/off (U vs S, G) & pending re-run \\
+Backend weight on/off (U vs U+W) & pending re-run \\
+Overlap-metric ablation & pending re-run \\
+Static-scene safety & pending re-run \\
+Runtime and mask-age distribution & pending re-run \\
+Robustness injection & pending re-run \\
+Real-world dynamic evaluation & dataset not yet available \\
+Config / protocol summary & committed \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Claims we do not make}
+We do not claim state-of-the-art dynamic VIO; we do not claim to be better than semantic-only masking per cell; we do not claim probabilistically optimal fusion, since the evidence terms are not independent; we do not claim real-time operation until end-to-end latency and drop rate are reported; and we do not claim generalization from simulated-dynamic plus static-real data alone.
 
 \section{Discussion}
 \label{sec:discussion}

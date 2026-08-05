@@ -67,9 +67,9 @@
 Mặt nạ phân đoạn ngữ nghĩa có thể loại bỏ vật chuyển động nhưng thường loại thừa cấu trúc hữu ích ở cảnh tĩnh; bộ lọc hình học epipolar không cần nhãn huấn luyện nhưng dễ kém hiệu lực khi vật động chiếm ưu thế ảnh.
 Bài báo trình bày \textbf{Sem-GeoDF}, module hợp nhất kỹ thuật cho stereo-inertial VINS-Fusion: kết hợp mặt nạ YOLO không chặn luồng với loại bỏ epipolar GeoDF-Adaptive qua \emph{hợp có cổng thích nghi} (OR logic), không phải giao.
 Mỗi nhánh giữ cổng cảnh riêng; ứng viên được gộp dưới ngân sách tỷ lệ loại bỏ chung; chính sách ba trạng thái (static-safe / dynamic-assist / strong-dynamic) điều khiển soft-mask, hard-cull và trọng số dư backend thích nghi \(w_i\in[w_{\min},1]\).
-Chính sách chỉ dùng tín hiệu online---tỷ lệ burst, EMA semantic mạnh, và chồng lấp hai chiều semantic--geo trên ứng viên GeoDF thô---không đọc nhãn dataset, ground truth hay metric hold-out.
+Chính sách chỉ dùng tín hiệu online---tỷ lệ burst, EMA semantic mạnh, và điểm đồng thuận Dice kèm yêu cầu hỗ trợ tối thiểu tường minh trên ứng viên GeoDF thô---không đọc nhãn dataset, ground truth hay metric hold-out. Loại bỏ cứng còn đòi hỏi chuyên gia đủ tin cậy, chuyển động camera quan sát được và độ dư đặc trưng đủ lớn, nên việc xóa được kiểm soát bởi vòng đời từng track chứ không chỉ bởi bằng chứng.
 Với giao thức bag \(1.0\times\) công bằng và ngưỡng chỉnh trên VIODE \texttt{city\_day} thôi, Sem-GeoDF cải thiện các cảnh động mạnh hold-out so với GeoDF-Adaptive (ví dụ city\_night/\(3\_high\)~\DeltaCityNightHigh, parking\_lot/\(3\_high\)~\DeltaParkingHigh) đồng thời giảm hồi quy cảnh tĩnh so với luôn bật semantic (SAD-Sem).
-Chúng tôi \emph{không} khẳng định thắng từng ô so với SAD-Sem về ATE trung bình; đóng góp là độ bền phổ động, vệ sinh giao thức, và đánh giá bốn phương pháp tái lập được trên VIODE (\(N=\PaperNViode\) trial/ô) và EuRoC (tổng quát hóa tĩnh, \(N=\PaperNEuroc\) trial/ô).
+Chúng tôi \emph{không} khẳng định thắng từng ô so với SAD-Sem về ATE trung bình; đóng góp là độ bền phổ động, vệ sinh giao thức, và đánh giá tái lập được trên VIODE (\(N=\PaperNViode\) trial/ô) cùng EuRoC như một kiểm tra an toàn cảnh tĩnh (\(N=\PaperNEuroc\) trial/ô). Các số liệu báo ở đây có trước các bản sửa tính đúng đắn và tính công bằng và đang được tái sinh; phần mô tả phương pháp cùng sự tương ứng có test bảo đảm với mã nguồn là bản hiện hành.
 Trên tám cảnh động hold-out, Sem-GeoDF tốt hơn GeoDF-Adaptive ở \HoldoutBetter{} và kém hơn ở \HoldoutWorse{} dưới dải \(\pm3\%\).
 \end{abstract}
 
@@ -113,7 +113,7 @@ DynaSLAM và DS-SLAM kết hợp tín hiệu chuyển động hình học với 
 Các hệ semantic-hình học gần đây: RDS-SLAM loại bỏ nghẽn luồng của mặt nạ ngữ nghĩa~\cite{zhang2020rdsslam}, CFP-SLAM dùng mô hình xác suất động thô-đến-tinh~\cite{hu2023cfpslam}, Crowd-SLAM nhắm cảnh đông đúc~\cite{soares2021crowd}, DytanVO tinh chỉnh đồng thời odometry và phân đoạn chuyển động~\cite{shen2023dytanvo}.
 Phía visual-inertial, DynaVINS thêm factor pose-graph vững cho cảnh động~\cite{song2022dynavins}, và Liu \emph{et al.}~\cite{liu2022dynamicvins} kết hợp phát hiện đối tượng với IMU cho robot RGB-D hạn chế tài nguyên.
 Đó là các tham chiếu full-stack mạnh, thường nhắm RGB-D hoặc back-end SLAM đầy đủ.
-Phạm vi của chúng tôi hẹp và bổ trợ: module front-end stereo-inertial gắn vào VINS-Fusion với ràng buộc realtime rõ (mặt nạ không chặn), chính sách online không nhãn, trọng số backend tùy chọn, và vệ sinh giao thức (không rò nhãn vào ước lượng online).
+Phạm vi của chúng tôi hẹp và bổ trợ: module front-end stereo-inertial gắn vào VINS-Fusion với đồng bộ mặt nạ không chặn, chính sách online không nhãn, trọng số backend tùy chọn, và vệ sinh giao thức (không rò nhãn vào ước lượng online). Chúng tôi mô tả thiết kế là \emph{không chặn} chứ không phải \emph{realtime}: một tuyên bố realtime đòi hỏi phải đo và báo độ trễ end-to-end của mặt nạ cùng tỷ lệ mất khung.
 Chúng tôi không khẳng định vượt các full-stack này; chúng tôi nhắm một thành phần hợp nhất tái lập được, phạm vi trung thực.
 
 \subsection{Loại bỏ đặc trưng động chỉ hình học}
@@ -198,21 +198,28 @@ Hit theo track được xác nhận bằng phiếu qua \(\texttt{sem\_vote\_fram
 Cổng cảnh ngữ nghĩa theo dõi EMA tỷ lệ pixel động với hysteresis.
 Soft-mask đặc trưng \emph{mới} và hard-cull track \emph{đã có} phụ thuộc chính sách (Mục~\ref{sec:policy}).
 
-\subsection{Chồng lấp hai chiều trên ứng viên GeoDF thô}
+\subsection{Đồng thuận chuyên gia với hỗ trợ tối thiểu}
 \label{sec:overlap}
 Triển khai trước chỉ tính chồng lấp trên track GeoDF \emph{đã xác nhận} khi \(\texttt{frame\_active}\), thực nghiệm cho \(0\%\) trigger chồng lấp dù cả hai nhánh kích hoạt.
-Sem-GeoDF dùng pool ứng viên GeoDF thô \(G\) (fallback confirmed nếu rỗng) và tập semantic-raw \(S\) (Hình~\ref{fig:overlap}):
+Sem-GeoDF vì vậy đo đồng thuận trên pool ứng viên GeoDF thô \(G\) (fallback confirmed nếu rỗng) và tập semantic-raw \(S\) (Hình~\ref{fig:overlap}).
+
+Ban đầu chúng tôi dùng max có hướng \(o=\max(|G\cap S|/|G|,\,|S\cap G|/|S|)\), nhưng đây không phải thước đo đồng thuận an toàn: hai tập hai phần tử chia sẻ một track duy nhất đạt \(o{=}0.5\) và vượt ngưỡng \(0.35\) chỉ nhờ trùng hợp. Chúng tôi dùng hệ số S{\o}rensen--Dice đối xứng
 \begin{equation}
-o=\max\!\left(\frac{|G\cap S|}{|G|},\frac{|S\cap G|}{|S|}\right),
+\label{eq:dice}
+o_D=\frac{2\,|G\cap S|}{|G|+|S|},
 \end{equation}
-rồi làm mượt EMA với hệ số \(\texttt{sem\_policy\_overlap\_ema}\).
-Bảo vệ số ứng viên đạt nếu \(|G|\) hoặc \(|S|\) đạt \(\texttt{sem\_policy\_min\_geo\_candidates}\).
-Điều này giữ trigger chồng lấp sống khi hai chuyên gia kích hoạt trên tập track kích thước khác nhau.
+vốn không thể bị tập nhỏ hơn chi phối, cùng yêu cầu \emph{hỗ trợ tối thiểu} tường minh
+\begin{equation}
+\label{eq:support}
+|G|\ge n_G,\qquad |S|\ge n_S,\qquad |G\cap S|\ge n_I .
+\end{equation}
+Khi \eqref{eq:support} không đạt, tín hiệu đồng thuận được đặt về 0 thay vì đưa vào so sánh ngưỡng, bởi một tỷ lệ tính từ hai hay ba track không phải bằng chứng. Tùy chọn nhân thêm độ tin cậy hỗ trợ \(o_{\mathrm{sup}}=o_D\cdot\min(1,|G\cap S|/n_{\mathrm{sat}})\) để giảm trọng số cho giao nhỏ nhưng vẫn đạt yêu cầu. Thước đo được chọn rồi làm mượt EMA với hệ số \(\texttt{sem\_policy\_overlap\_ema}\).
+Cả max có hướng, min có hướng, Dice, Jaccard và Dice-kèm-hỗ-trợ đều được triển khai và chọn qua \(\texttt{sem\_policy\_overlap\_metric}\), nên lựa chọn này là một ablation chứ không phải giả định.
 
 \begin{figure}[t]
 \centering
 \includegraphics[width=0.92\columnwidth]{overlap_bidirectional.pdf}
-\caption{Chồng lấp hai chiều trên pool GeoDF thô. Lấy max hai tỷ lệ có hướng giữ trigger đồng thuận khi tập semantic và hình học khác kích thước.}
+\caption{Đồng thuận chuyên gia trên pool GeoDF thô. Dice đối xứng nên tập ứng viên nhỏ hơn không thể chi phối điểm số, và yêu cầu hỗ trợ tối thiểu ngăn một track chia sẻ duy nhất giữa hai tập rất nhỏ kích hoạt chính sách.}
 \label{fig:overlap}
 \end{figure}
 
@@ -220,14 +227,22 @@ Bảo vệ số ứng viên đạt nếu \(|G|\) hoặc \(|S|\) đạt \(\texttt
 \label{sec:policy}
 Gọi trạng thái rời \(s\in\{0,1,2\}\) (static-safe, dynamic-assist, strong-dynamic), tóm tắt ở Hình~\ref{fig:policy}.
 Ký hiệu \(r_t\) là tỷ lệ pixel động khung hiện tại, \(\bar{r}_t\) là EMA của nó, và \(\bar{o}_t\) là EMA chồng lấp ở Mục~\ref{sec:overlap}.
-Leo thang dùng ba vị từ online và bộ đếm hold \(H\) khung:
+Leo thang dùng ba vị từ online:
 \begin{align}
 \mathrm{burst} &= [r_t \ge \tau_{\mathrm{burst}}], \\
 \mathrm{strong} &= [\bar{r}_t \ge \tau_{\mathrm{strong}}], \\
-\mathrm{overlap} &= [\bar{o}_t \ge \tau_{\mathrm{ov}} \;\wedge\; (|G|\!\lor\!|S|)\!\ge\! n_{\min}],
+\mathrm{overlap} &= [\bar{o}_t \ge \tau_{\mathrm{ov}} \;\wedge\; \eqref{eq:support}],
 \end{align}
 với giá trị mặc định / chọn từ train ở Bảng~\ref{tab:params}.
-Bộ đếm hold chống rung sau trigger burst hoặc overlap.
+
+\paragraph{Hold là khoảng thời gian, không phải số khung}
+Ban đầu hold là \(H\) khung (\(\texttt{sem\_policy\_hold\_frames}{=}180\)). Số khung không phải đại lượng xác định: ở \(10\)~Hz nó là \(18\)~s, ở \(30\)~Hz là \(6\)~s, và còn ngắn hơn khi khung bị bỏ, nên cùng một cấu hình lại mang nghĩa khác nhau trên các cảm biến khác nhau. Hold giờ là khoảng thời gian trên đồng hồ \emph{cảm biến} (không bao giờ wall-clock),
+\begin{equation}
+\label{eq:hold}
+t^{\mathrm{hold}} \leftarrow \max\!\left(t^{\mathrm{hold}},\, t + \Delta_{\mathrm{assist}}\right),\qquad
+\mathrm{hold\ active} = \left[\,t < t^{\mathrm{hold}}\,\right],
+\end{equation}
+với \(\Delta_{\mathrm{assist}}\) và \(\Delta_{\mathrm{strong}}\) riêng biệt. Thời gian lưu trú tối thiểu chống rung trạng thái, và chỉ chặn \emph{hạ cấp}: leo thang không bao giờ bị trì hoãn, vì chờ đợi là hướng không an toàn khi nội dung động thật xuất hiện. Timestamp lùi (bag khởi động lại) reset máy trạng thái thay vì để hold kích hoạt suốt phần còn lại của lần chạy.
 \begin{itemize}
 \item \(s{=}0\) (static-safe): soft-mask đặc trưng mới khi cảnh semantic active; tắt hard-cull semantic.
 \item \(s{=}1\) (dynamic-assist): vào khi burst, overlap, hoặc hold đang chạy; track semantic đã vote vào tập loại bỏ chung khi cảnh semantic active; soft-mask có thể giữ \(H\) khung.
@@ -427,10 +442,10 @@ Các phương trình ở Mục~\ref{sec:weight} đã làm rõ đóng góp của 
 
 \input{../tables/ablation_weight.tex}
 
-\subsection{Độ nhạy và hành vi realtime}
+\subsection{Độ nhạy và hành vi thời gian chạy}
 Replay offline trên \texttt{city\_day} cho thấy các điểm lưới \((\texttt{burst},\texttt{strong},\texttt{hold})\) gần nhau cho mục tiêu chính sách có trọng tương tự.
 Ngưỡng chồng lấp \(0.30\)--\(0.40\) ít đổi khi sự kiện chồng lấp thưa---phù hợp với burst/strong thống trị leo thang trên nhiều chuỗi.
-Đồng bộ mặt nạ không chặn giữ VINS realtime: ước lượng không bao giờ chờ YOLO; nó hoặc dùng mặt nạ đủ mới hoặc fallback chỉ-GeoDF.
+Đồng bộ mặt nạ không chặn nghĩa là ước lượng không bao giờ chờ mạng phân đoạn: nó hoặc dùng mặt nạ còn mới theo dấu thời gian nguồn của chính mặt nạ, hoặc fallback chỉ-GeoDF. Đó là phát biểu về mức ghép nối, không phải bảo đảm realtime. Một tuyên bố realtime còn cần tuổi mặt nạ end-to-end, tỷ lệ tái sử dụng và mất khung, tỷ lệ khung được xử lý, và độ trễ ước lượng mỗi khung --- node hiện đã publish các đại lượng này và manifest ghi lại chúng; bảng tương ứng còn chờ lần chạy lại.
 Cột \(\texttt{sem\_mask\_lag\_ms}\) ghi tuổi mặt nạ lúc tiêu thụ để audit.
 Dải quyết định \(\pm3\%\) là quy ước báo cáo (xấp xỉ độ tản ATE giữa các trial lặp trên VIODE), chỉ dùng để gán nhãn tốt hơn/tương tự/kém hơn; không phải kiểm định ý nghĩa, và mọi delta thô đều hiển thị để người đọc tự đặt ngưỡng.
 

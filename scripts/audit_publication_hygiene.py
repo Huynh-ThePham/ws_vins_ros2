@@ -141,6 +141,90 @@ def check_manifest_provenance(failures: list[str]) -> None:
             failures.append(f"scripts/write_run_manifest.py: does not record {field}")
 
 
+def check_mask_freshness_is_honest(failures: list[str]) -> None:
+    """Plan P1.8: a reused mask must keep its original stamp.
+
+    Static, because the node cannot be imported without ROS. It checks the two
+    structural properties that made the old code dishonest: the reuse path must
+    republish the STORED message, and it must not assign header.stamp.
+    """
+    path = REPO / "src/yolo_dynamic_mask/yolo_dynamic_mask/mask_node.py"
+    if not path.is_file():
+        failures.append("src/yolo_dynamic_mask/.../mask_node.py is missing")
+        return
+    text = path.read_text()
+
+    if "self.last_mask_msg" not in text:
+        failures.append(
+            "mask_node.py: does not store the mask MESSAGE (last_mask_msg). Storing only "
+            "the array forces the reuse path to build a new header, which is how a stale "
+            "mask acquired a fresh stamp and defeated sem_mask_max_age_ms.")
+
+    # Isolate the reuse path and require it to be stamp-free.
+    match = re.search(r"def _republish_last_mask\(self.*?\n(?=\n    def |\nclass |\Z)",
+                      text, re.S)
+    if not match:
+        failures.append("mask_node.py: no _republish_last_mask(); the reuse path must be "
+                        "explicit so it can be audited")
+    else:
+        body = match.group(0)
+        if re.search(r"header\.stamp\s*=", body) or re.search(r"\.header\s*=\s*msg\.header", body):
+            failures.append(
+                "mask_node.py:_republish_last_mask: assigns a header/stamp. A reused mask "
+                "must be republished UNCHANGED, or the estimator's freshness check is "
+                "meaningless.")
+        if "self.last_mask_msg" not in body:
+            failures.append("mask_node.py:_republish_last_mask: does not publish the stored "
+                            "message")
+
+    for topic in ("source_stamp", "inference_finish_stamp", "reused", "model_latency_ms"):
+        if topic not in text:
+            failures.append(f"mask_node.py: missing the /{topic} diagnostic the plan requires "
+                            f"for measuring mask age and reuse from a bag")
+
+    # P1.9: a real latest-frame worker, not a busy flag.
+    if "worker_thread" not in text or "latest_lock" not in text:
+        failures.append("mask_node.py: no latest-frame worker (worker_thread/latest_lock). A "
+                        "`busy` flag in the callback drops frames but does not implement "
+                        "latest-only.")
+    if re.search(r"self\.busy\s*=", text):
+        failures.append("mask_node.py: still uses a `busy` flag; replace it with the "
+                        "latest-frame worker handoff")
+
+
+def check_dependencies_are_locked(failures: list[str]) -> None:
+    """Plan P1.10: lower bounds mean the same repo produces different results."""
+    lock = REPO / "requirements-lock.txt"
+    if not lock.is_file():
+        failures.append("requirements-lock.txt is missing; ultralytics>=8.3.0 lets the same "
+                        "repo produce different results depending on install date")
+        return
+    for line in lock.read_text().splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if "==" not in stripped:
+            failures.append(f"requirements-lock.txt: '{stripped}' is not pinned with ==")
+
+    manifest = REPO / "models/model_manifest.json"
+    if not manifest.is_file():
+        failures.append("models/model_manifest.json is missing; the segmentation model would "
+                        "be unidentified in every semantic run")
+        return
+    import json as _json
+    try:
+        data = _json.loads(manifest.read_text())
+    except (OSError, ValueError) as exc:
+        failures.append(f"models/model_manifest.json is unreadable: {exc}")
+        return
+    for field in ("model_name", "sha256", "ultralytics_version", "torch_version",
+                  "dynamic_classes", "confidence_threshold", "image_size"):
+        if not data.get(field):
+            failures.append(f"models/model_manifest.json: missing {field}")
+    if data.get("sha256") and len(str(data["sha256"])) != 64:
+        failures.append("models/model_manifest.json: sha256 is not a full 64-char digest")
+
+
 def check_validator_exists(failures: list[str]) -> None:
     for rel in ("scripts/validate_experiment_matrix.py",
                 "scripts/audit_method_config_diff.py",
@@ -163,6 +247,8 @@ def main() -> int:
     check_no_oracle_default(failures)
     check_asset_scripts_are_gated(failures)
     check_manifest_provenance(failures)
+    check_mask_freshness_is_honest(failures)
+    check_dependencies_are_locked(failures)
 
     if failures:
         print(f"FAIL: {len(failures)} publication-hygiene violation(s)\n")
@@ -171,7 +257,8 @@ def main() -> int:
         return 1
 
     print("PASS: publication path is fail-closed, no oracle default, assets are gated, "
-          "manifests carry full provenance.")
+          "manifests carry full provenance, mask reuse keeps its original stamp, "
+          "dependencies and model are pinned.")
     return 0
 
 

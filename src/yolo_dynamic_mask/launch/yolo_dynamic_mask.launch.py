@@ -7,6 +7,10 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument('model_path', default_value='yolo11n-seg.pt'),
+        # Plan P1.10: identify the model. A publication run passes
+        # require_verified_model:=true so an unhashed or mismatched model is refused.
+        DeclareLaunchArgument('model_manifest', default_value=''),
+        DeclareLaunchArgument('require_verified_model', default_value='false'),
         DeclareLaunchArgument('image_topic', default_value='/cam0/image_raw'),
         DeclareLaunchArgument('mask_topic', default_value='/dynamic_mask'),
         DeclareLaunchArgument('conf_thres', default_value='0.4'),
@@ -23,6 +27,8 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'model_path': LaunchConfiguration('model_path'),
+                'model_manifest': LaunchConfiguration('model_manifest'),
+                'require_verified_model': LaunchConfiguration('require_verified_model'),
                 'image_topic': LaunchConfiguration('image_topic'),
                 'mask_topic': LaunchConfiguration('mask_topic'),
                 'conf_thres': LaunchConfiguration('conf_thres'),

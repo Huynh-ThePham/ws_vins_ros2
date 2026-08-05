@@ -1,0 +1,20 @@
+# Exact Python dependency versions for a reproducible Sem-GeoDF paper run (plan P1.10).
+#
+# requirements-yolo.txt has only lower bounds (ultralytics>=8.3.0), so the same repo
+# produced different results depending on the day it was installed. These are the
+# versions the paper results were produced with; pin them, do not relax them.
+#
+#   python3 -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements-lock.txt
+#
+# torch/torchvision are the CUDA 12.1 wheels:
+#   pip install --index-url https://download.pytorch.org/whl/cu121 \
+#       torch==2.5.1+cu121 torchvision==0.20.1+cu121
+
+ultralytics==8.4.61
+torch==2.5.1+cu121
+torchvision==0.20.1+cu121
+numpy==1.26.4
+opencv-python==4.11.0
+matplotlib==3.10.8
+scipy==1.15.3

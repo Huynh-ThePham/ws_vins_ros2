@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "Identifies the segmentation model for a publication run (plan P1.10).",
+    "Pass model_manifest:=models/model_manifest.json and require_verified_model:=true.",
+    "The node refuses to run on a hash mismatch and refuses to auto-download.",
+    "dynamic_classes are COCO ids: person, car, motorcycle, bus, truck."
+  ],
+  "model_name": "yolo11n-seg",
+  "file": "../yolo11n-seg.pt",
+  "sha256": "55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152",
+  "size_bytes": 6182636,
+  "ultralytics_version": "8.4.61",
+  "torch_version": "2.5.1+cu121",
+  "torchvision_version": "0.20.1+cu121",
+  "cuda_version": "12.1",
+  "numpy_version": "1.26.4",
+  "opencv_version": "4.11.0",
+  "python_version": "3.10.12",
+  "dynamic_classes": [
+    0,
+    2,
+    3,
+    5,
+    7
+  ],
+  "confidence_threshold": 0.4,
+  "image_size": 480,
+  "retina_masks": true,
+  "half_precision": true
+}

@@ -1,0 +1,41 @@
+# Reproduction container for the Sem-GeoDF paper (plan P1.10 / section 12).
+#
+# Pins the OS, ROS distro and every Python dependency so a rebuild months later
+# produces the same numbers. The image digest goes into each run manifest via
+# PAPER_CONTAINER_DIGEST.
+#
+#   docker build -f Dockerfile.paper -t sem-geodf-paper .
+#   docker run --gpus all -e PAPER_CONTAINER_DIGEST=$(docker inspect \
+#       --format='{{index .RepoDigests 0}}' sem-geodf-paper) \
+#       -v $PWD:/ws -v /path/to/datasets:/data sem-geodf-paper
+#
+# The YOLO weights are NOT downloaded here: a publication run must use the file
+# recorded in models/model_manifest.json. Mount it in.
+
+FROM ros:humble-ros-base-jammy
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git \
+      libeigen3-dev libceres-dev libboost-all-dev \
+      libopencv-dev python3-opencv \
+      ros-humble-cv-bridge ros-humble-image-transport \
+      ros-humble-rosbag2 ros-humble-rosbag2-storage-default-plugins \
+      python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# CUDA 12.1 wheels, matched to requirements-lock.txt.
+COPY requirements-lock.txt /tmp/requirements-lock.txt
+RUN python3 -m pip install --no-cache-dir \
+      --extra-index-url https://download.pytorch.org/whl/cu121 \
+      -r /tmp/requirements-lock.txt
+
+WORKDIR /ws
+# Fail loudly rather than silently reusing a stale colcon build from the host.
+ENV COLCON_DEFAULTS_FILE=""
+CMD ["bash", "-lc", "source /opt/ros/humble/setup.bash && \
+  colcon build --packages-select pht_slam_common pht_camera_models pht_vio pht_vio_ros yolo_dynamic_mask --cmake-args -DBUILD_TESTING=ON && \
+  source install/setup.bash && \
+  colcon test --packages-select pht_vio && colcon test-result --verbose"]

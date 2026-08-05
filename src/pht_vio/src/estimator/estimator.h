@@ -22,6 +22,7 @@
 
 #include "parameters.h"
 #include "feature_manager.h"
+#include "failure_detection.h"
 #include <pht_slam_common/utility.hpp>
 #include <pht_slam_common/tic_toc.hpp>
 #include "../initial/solve_5pts.h"
@@ -76,7 +77,11 @@ class Estimator
     void optimization();
     void vector2double();
     void double2vector();
+    // Returns the structured reason (NONE when healthy). The boolean wrapper is
+    // kept for the existing call site.
+    failure_detection::FailureReason detectFailure();
     bool failureDetection();
+    void writeFailureStatus(failure_detection::FailureReason reason, double timestamp);
     bool getIMUInterval(double t0, double t1, vector<pair<double, Eigen::Vector3d>> &accVector, 
                                               vector<pair<double, Eigen::Vector3d>> &gyrVector);
     void getPoseInWorldFrame(Eigen::Matrix4d &T);
@@ -154,6 +159,15 @@ class Estimator
     bool first_imu;
     bool is_valid, is_key;
     bool failure_occur;
+
+    // Structured failure detection state (plan P0.4).
+    failure_detection::Detector failure_detector;
+    failure_detection::FailureReason last_failure_reason =
+        failure_detection::FailureReason::NONE;
+    double last_failure_timestamp = -1.0;
+    int failure_count = 0;
+    bool last_solver_failed = false;
+    bool failure_status_written = false;
 
     vector<Vector3d> point_cloud;
     vector<Vector3d> margin_cloud;

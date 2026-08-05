@@ -109,6 +109,12 @@ void Estimator::clearState()
     f_manager.clearState();
 
     failure_occur = 0;
+    // A reboot starts a fresh window, so the low-feature streak and the solver
+    // verdict must not carry over. last_failure_reason / failure_count are kept:
+    // they are the run's record of what happened, and failure_status.json already
+    // holds the first (root-cause) failure.
+    failure_detector.reset();
+    last_solver_failed = false;
 
     mProcess.unlock();
 }
@@ -973,53 +979,106 @@ void Estimator::double2vector()
 
 }
 
+// Plan P0.4. This function used to open with `return false;`, which made every
+// check below it dead code: a diverged run then produced a plausible-looking
+// trajectory instead of being reported as failed, quietly removing the worst cases
+// from every published table.
+//
+// The thresholds are configuration, and the decision logic lives in
+// failure_detection.h so it can be unit-tested against synthetic divergence.
+failure_detection::FailureReason Estimator::detectFailure()
+{
+    const VinsConfig &cfg = vinsConfig();
+
+    failure_detection::Config detector_config;
+    detector_config.enable = cfg.failure_detection_enable != 0;
+    detector_config.max_acc_bias = cfg.failure_max_acc_bias;
+    detector_config.max_gyro_bias = cfg.failure_max_gyro_bias;
+    detector_config.max_translation_step_m = cfg.failure_max_translation_step_m;
+    detector_config.max_rotation_step_deg = cfg.failure_max_rotation_step_deg;
+    detector_config.min_tracked_features = cfg.failure_min_tracked_features;
+    detector_config.max_consecutive_low_feature_frames =
+        cfg.failure_max_consecutive_low_feature_frames;
+    // configure() resets the streak, so only re-apply when something changed.
+    if (detector_config.enable != failure_detector.config().enable ||
+        detector_config.max_acc_bias != failure_detector.config().max_acc_bias ||
+        detector_config.max_gyro_bias != failure_detector.config().max_gyro_bias ||
+        detector_config.max_translation_step_m !=
+            failure_detector.config().max_translation_step_m ||
+        detector_config.max_rotation_step_deg !=
+            failure_detector.config().max_rotation_step_deg ||
+        detector_config.min_tracked_features !=
+            failure_detector.config().min_tracked_features ||
+        detector_config.max_consecutive_low_feature_frames !=
+            failure_detector.config().max_consecutive_low_feature_frames)
+    {
+        failure_detector.configure(detector_config);
+    }
+
+    failure_detection::Observation obs;
+    obs.tracked_features = f_manager.last_track_num;
+    obs.acc_bias_norm = Bas[WINDOW_SIZE].norm();
+    obs.gyro_bias_norm = Bgs[WINDOW_SIZE].norm();
+
+    const Vector3d tmp_P = Ps[WINDOW_SIZE];
+    obs.translation_step_m = (tmp_P - last_P).norm();
+
+    const Matrix3d tmp_R = Rs[WINDOW_SIZE];
+    const Matrix3d delta_R = tmp_R.transpose() * last_R;
+    const Quaterniond delta_Q(delta_R);
+    // Clamp before acos: a slightly non-unit quaternion otherwise yields NaN and
+    // would be misreported as NAN_STATE rather than as a rotation jump.
+    const double w = std::min(1.0, std::max(-1.0, delta_Q.w()));
+    obs.rotation_step_deg = std::acos(w) * 2.0 * 180.0 / M_PI;
+
+    obs.solver_failed = last_solver_failed;
+
+    obs.state_has_nan = !tmp_P.allFinite() || !Vs[WINDOW_SIZE].allFinite() ||
+                        !tmp_R.allFinite() || !Bas[WINDOW_SIZE].allFinite() ||
+                        !Bgs[WINDOW_SIZE].allFinite() || !g.allFinite();
+    for (int i = 0; i <= WINDOW_SIZE && !obs.state_has_nan; i++)
+        obs.state_has_nan = !Ps[i].allFinite() || !Vs[i].allFinite() || !Rs[i].allFinite();
+
+    const failure_detection::FailureReason reason = failure_detector.evaluate(obs);
+    if (reason == failure_detection::FailureReason::NONE)
+        return reason;
+
+    failure_count++;
+    last_failure_reason = reason;
+    last_failure_timestamp = Headers[WINDOW_SIZE];
+    ROS_WARN("failure detection: %s (features=%d |Ba|=%.3f |Bg|=%.3f dP=%.3fm dR=%.1fdeg "
+             "solver_failed=%d nan=%d)",
+             failure_detection::toString(reason), obs.tracked_features, obs.acc_bias_norm,
+             obs.gyro_bias_norm, obs.translation_step_m, obs.rotation_step_deg,
+             obs.solver_failed ? 1 : 0, obs.state_has_nan ? 1 : 0);
+    writeFailureStatus(reason, last_failure_timestamp);
+    return reason;
+}
+
 bool Estimator::failureDetection()
 {
-    return false;
-    if (f_manager.last_track_num < 2)
-    {
-        ROS_INFO( " little feature %d", f_manager.last_track_num);
-        //return true;
-    }
-    if (Bas[WINDOW_SIZE].norm() > 2.5)
-    {
-        ROS_INFO( " big IMU acc bias estimation %f", Bas[WINDOW_SIZE].norm());
-        return true;
-    }
-    if (Bgs[WINDOW_SIZE].norm() > 1.0)
-    {
-        ROS_INFO( " big IMU gyr bias estimation %f", Bgs[WINDOW_SIZE].norm());
-        return true;
-    }
-    /*
-    if (tic(0) > 1)
-    {
-        ROS_INFO( " big extri param estimation %d", tic(0) > 1);
-        return true;
-    }
-    */
-    Vector3d tmp_P = Ps[WINDOW_SIZE];
-    if ((tmp_P - last_P).norm() > 5)
-    {
-        //ROS_INFO( " big translation");
-        //return true;
-    }
-    if (abs(tmp_P.z() - last_P.z()) > 1)
-    {
-        //ROS_INFO( " big z translation");
-        //return true; 
-    }
-    Matrix3d tmp_R = Rs[WINDOW_SIZE];
-    Matrix3d delta_R = tmp_R.transpose() * last_R;
-    Quaterniond delta_Q(delta_R);
-    double delta_angle;
-    delta_angle = acos(delta_Q.w()) * 2.0 / 3.14 * 180.0;
-    if (delta_angle > 50)
-    {
-        ROS_INFO( " big delta_angle ");
-        //return true;
-    }
-    return false;
+    return detectFailure() != failure_detection::FailureReason::NONE;
+}
+
+// Written on the FIRST failure only, so the manifest records the root cause rather
+// than whatever the system degenerated into after rebooting.
+void Estimator::writeFailureStatus(failure_detection::FailureReason reason, double timestamp)
+{
+    const VinsConfig &cfg = vinsConfig();
+    if (cfg.failure_status_path.empty() || failure_status_written)
+        return;
+    std::ofstream out(cfg.failure_status_path, std::ios::out);
+    if (!out)
+        return;
+    out << "{\n"
+        << "  \"status\": \"failed\",\n"
+        << "  \"failure_reason\": \"" << failure_detection::toString(reason) << "\",\n"
+        << "  \"failure_timestamp_ns\": "
+        << static_cast<long long>(timestamp * 1e9) << ",\n"
+        << "  \"failure_count\": " << failure_count << "\n"
+        << "}\n";
+    out.close();
+    failure_status_written = true;
 }
 
 void Estimator::optimization()
@@ -1164,6 +1223,14 @@ void Estimator::optimization()
     ceres::Solve(options, &problem, &summary);
     //cout << summary.BriefReport() << endl;
     ROS_DEBUG( "Iterations : %d", static_cast<int>(summary.iterations.size()));
+    // Feed the solver's own verdict into failure detection (plan P0.4). NO_CONVERGENCE
+    // is the normal outcome of the per-frame iteration cap, so only a genuine
+    // FAILURE / USER_FAILURE counts, along with a non-finite cost.
+    last_solver_failed = summary.termination_type == ceres::FAILURE ||
+                         summary.termination_type == ceres::USER_FAILURE ||
+                         !std::isfinite(summary.final_cost);
+    if (last_solver_failed)
+        ROS_WARN("ceres solver failure: %s", summary.message.c_str());
     //printf("solver costs: %f \n", t_solver.toc());
 
     double2vector();

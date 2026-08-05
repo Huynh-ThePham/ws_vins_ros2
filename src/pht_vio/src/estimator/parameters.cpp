@@ -178,6 +178,25 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         calibration_min_tracked_features =
             static_cast<int>(fsSettings["calibration_min_tracked_features"]);
 
+    if (!fsSettings["failure_detection_enable"].empty())
+        failure_detection_enable = static_cast<int>(fsSettings["failure_detection_enable"]);
+    if (!fsSettings["failure_max_acc_bias"].empty())
+        failure_max_acc_bias = static_cast<double>(fsSettings["failure_max_acc_bias"]);
+    if (!fsSettings["failure_max_gyro_bias"].empty())
+        failure_max_gyro_bias = static_cast<double>(fsSettings["failure_max_gyro_bias"]);
+    if (!fsSettings["failure_max_translation_step_m"].empty())
+        failure_max_translation_step_m =
+            static_cast<double>(fsSettings["failure_max_translation_step_m"]);
+    if (!fsSettings["failure_max_rotation_step_deg"].empty())
+        failure_max_rotation_step_deg =
+            static_cast<double>(fsSettings["failure_max_rotation_step_deg"]);
+    if (!fsSettings["failure_min_tracked_features"].empty())
+        failure_min_tracked_features =
+            static_cast<int>(fsSettings["failure_min_tracked_features"]);
+    if (!fsSettings["failure_max_consecutive_low_feature_frames"].empty())
+        failure_max_consecutive_low_feature_frames =
+            static_cast<int>(fsSettings["failure_max_consecutive_low_feature_frames"]);
+
     visual_adaptive_quality = visual_adaptive_quality ? 1 : 0;
     visual_quality_min_weight = std::min(1.0, std::max(0.01, visual_quality_min_weight));
     visual_lk_error_scale = std::min(1000.0, std::max(0.1, visual_lk_error_scale));
@@ -203,6 +222,16 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::min(1000.0, std::max(0.0, calibration_min_parallax_px));
     calibration_min_tracked_features =
         std::min(NUM_OF_F, std::max(0, calibration_min_tracked_features));
+    failure_detection_enable = failure_detection_enable ? 1 : 0;
+    failure_max_acc_bias = std::min(1000.0, std::max(0.01, failure_max_acc_bias));
+    failure_max_gyro_bias = std::min(1000.0, std::max(0.001, failure_max_gyro_bias));
+    failure_max_translation_step_m =
+        std::min(1000.0, std::max(0.01, failure_max_translation_step_m));
+    failure_max_rotation_step_deg =
+        std::min(180.0, std::max(1.0, failure_max_rotation_step_deg));
+    failure_min_tracked_features = std::min(NUM_OF_F, std::max(0, failure_min_tracked_features));
+    failure_max_consecutive_low_feature_frames =
+        std::min(10000, std::max(1, failure_max_consecutive_low_feature_frames));
     min_parallax = fsSettings["keyframe_parallax"];
     min_parallax = min_parallax / FOCAL_LENGTH;
 
@@ -213,6 +242,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
             output_folder = std::string(home) + output_folder.substr(1);
     }
     vins_result_path = output_folder + "/vio.csv";
+    if (!output_folder.empty())
+        failure_status_path = output_folder + "/failure_status.json";
     std::cout << "result path " << vins_result_path << std::endl;
     std::ofstream fout(vins_result_path, std::ios::out);
     fout.close();

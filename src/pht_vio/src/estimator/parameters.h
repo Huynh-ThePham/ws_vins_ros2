@@ -202,6 +202,19 @@ struct VinsConfig
     double calibration_min_parallax_px = 5.0;
     int calibration_min_tracked_features = 40;
 
+    // Structured failure detection (plan P0.4). Enabled by default: a diverged run
+    // must be reported as failed rather than emit a plausible-looking trajectory.
+    int failure_detection_enable = 1;
+    double failure_max_acc_bias = 2.5;
+    double failure_max_gyro_bias = 1.0;
+    double failure_max_translation_step_m = 5.0;
+    double failure_max_rotation_step_deg = 50.0;
+    int failure_min_tracked_features = 10;
+    int failure_max_consecutive_low_feature_frames = 5;
+    // Written once, on the first detected failure, so the run manifest can carry a
+    // structured reason instead of an operator reading logs.
+    std::string failure_status_path;
+
     void reset();
     bool loadFromYaml(const std::string &config_file);
 };

@@ -1,0 +1,8 @@
+# @method: G
+# @label: GeoDF-Adaptive
+# @description: B0 + geometric expert only (scene-gated epipolar filter).
+#
+# Owns geodf_enable / geodf_hard_reject and nothing else. All GeoDF thresholds
+# live in the base so G and U share them exactly.
+geodf_enable: 1
+geodf_hard_reject: 1

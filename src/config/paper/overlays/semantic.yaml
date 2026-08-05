@@ -1,0 +1,7 @@
+# @method: S
+# @label: SAD-Sem
+# @description: B0 + semantic masking only (YOLO dynamic mask).
+#
+# Owns sem_enable only. The geometric expert and the union stay off, so S measures
+# the semantic contribution alone.
+sem_enable: 1

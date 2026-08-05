@@ -1,0 +1,13 @@
+# @method: U
+# @label: Sem-GeoDF (union, no weighting)
+# @description: B0 + adaptive gated union of both experts under one shared reject budget.
+#
+# Both experts on, policy-gated union on, backend residual weighting OFF.
+# U and U+W must differ in sem_geodf_backend_weight ALONE - that is the whole
+# point of the weighting ablation (plan P0.5).
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 0

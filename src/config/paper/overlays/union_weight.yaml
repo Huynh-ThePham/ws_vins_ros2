@@ -1,0 +1,13 @@
+# @method: U+W
+# @label: Sem-GeoDF (ours)
+# @description: U + backend residual weighting w_i for suspicious survivors.
+#
+# Identical to union_noweight except sem_geodf_backend_weight. Visual/IMU factor
+# adaptation stays OFF here: bundling it in is what made the earlier comparison
+# confounded.
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1

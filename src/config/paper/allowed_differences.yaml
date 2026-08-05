@@ -1,0 +1,34 @@
+# Config-difference allowlist for the paper matrix (plan P0.1).
+#
+# scripts/audit_method_config_diff.py compares every pair of resolved method
+# configs and FAILS if they differ in any key not listed here for the method that
+# owns the change. A key missing from this file is a confound by definition.
+#
+# Read as: "overlay <name> is permitted to change exactly these keys relative to
+# the common base". Everything else must be byte-identical across methods.
+#
+# Parsed with the same line-oriented reader as the configs themselves, so this is
+# deliberately a flat `overlay: key1, key2` mapping rather than nested YAML.
+
+# --- main comparison matrix -------------------------------------------------
+baseline:
+geodf: geodf_enable, geodf_hard_reject
+semantic: sem_enable
+union_noweight: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight
+union_weight: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight
+full_adaptive: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, visual_adaptive_quality, imu_adaptive_covariance
+
+# --- keys that may NEVER differ between methods, even if an overlay lists them
+# These are shared protocol settings. Listing one above is not enough; the audit
+# rejects a difference in any of them outright.
+__forbidden_differences__: max_cnt, min_dist, freq, F_threshold, flow_back, max_solver_time, max_num_iterations, keyframe_parallax, visual_sigma_px, visual_huber_delta, acc_n, gyr_n, acc_w, gyr_w, g_norm, estimate_extrinsic, estimate_td, td, image_width, image_height, cam0_calib, cam1_calib, failure_detection_enable, failure_max_acc_bias, failure_max_gyro_bias, failure_max_translation_step_m, failure_max_rotation_step_deg, failure_min_tracked_features, failure_max_consecutive_low_feature_frames, sem_policy_burst_ratio, sem_policy_strong_ratio, sem_policy_overlap_ratio, sem_policy_overlap_ema, sem_policy_min_geo_candidates, sem_policy_min_sem_candidates, sem_policy_min_intersection, sem_policy_overlap_metric, sem_policy_assist_hold_s, sem_policy_strong_hold_s, sem_policy_min_state_dwell_s, sem_geodf_backend_min_weight, sem_geodf_backend_semantic_weight, sem_geodf_backend_geo_weight, sem_geodf_backend_agree_weight, sem_geodf_backend_recovery, sem_geodf_rank_by_risk, geodf_sampson_th, geodf_reject_ratio_max, geodf_min_feature_num, geodf_ratio_guard, geodf_vote_frames, geodf_warmup_frames, sem_vote_frames, stereo_validity_enable, stereo_lr_cycle_max_px, stereo_epipolar_max_px, stereo_reprojection_max_px
+
+# --- oracle keys: must hold the given value in EVERY paper config ------------
+# A non-negative sem_policy_dynamic_level feeds the ground-truth dynamic level of
+# the scene into the online estimator, which is evaluation leakage.
+__required_values__: sem_policy_dynamic_level=-1, failure_detection_enable=1
+
+# --- second matrix: factor adaptation enabled for ALL methods ----------------
+# Allowed only when the audit runs with --matrix full-adaptation, which requires
+# every method to set both keys to 1 (never just "ours").
+__uniform_adaptation_keys__: visual_adaptive_quality, imu_adaptive_covariance

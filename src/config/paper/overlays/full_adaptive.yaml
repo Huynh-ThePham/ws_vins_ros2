@@ -1,0 +1,16 @@
+# @method: Full
+# @label: Sem-GeoDF + common factor adaptation
+# @description: U+W + visual/IMU factor adaptation (a separate, orthogonal contribution).
+#
+# Reported as its own row, never merged into U+W. To attribute the adaptation
+# itself, run the second matrix in which visual_adaptive_quality and
+# imu_adaptive_covariance are enabled for EVERY method
+# (see scripts/audit_method_config_diff.py --matrix full-adaptation).
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1
+visual_adaptive_quality: 1
+imu_adaptive_covariance: 1

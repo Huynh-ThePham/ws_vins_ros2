@@ -1,0 +1,7 @@
+# @method: B0
+# @label: Baseline
+# @description: Common stereo-inertial backbone. No dynamic-feature handling.
+#
+# B0 is the base with nothing switched on, so this overlay is intentionally empty
+# of settings. It exists so every method in the matrix is produced by the same
+# generate_paper_config.py path and every run directory holds a resolved config.

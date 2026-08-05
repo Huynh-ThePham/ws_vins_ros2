@@ -106,6 +106,26 @@ sem_geodf_backend_semantic_weight: 0.55
 sem_geodf_backend_geo_weight: 0.75
 sem_geodf_backend_agree_weight: 0.25
 sem_geodf_backend_recovery: 0.20
+sem_geodf_rank_by_risk: 1
+
+visual_sigma_px: 1.5
+visual_huber_delta: 1.0
+visual_adaptive_quality: 1
+visual_quality_min_weight: 0.35
+visual_lk_error_scale: 20.0
+visual_fb_error_scale: 0.5
+visual_quality_full_age: 4
+visual_adaptive_huber: 0
+visual_huber_delta_min: 0.75
+visual_huber_delta_max: 3.0
+visual_huber_k: 1.345
+visual_huber_ema: 0.10
+
+imu_adaptive_covariance: 1
+imu_gap_threshold_s: 0.015
+imu_acc_saturation: 80.0
+imu_gyr_saturation: 8.0
+imu_max_cov_inflation: 20.0
 
 geodf_adaptive: 1
 geodf_auto_rho: 1
@@ -113,16 +133,80 @@ geodf_vote_frames: 2
 geodf_max_reject_ratio: 0.40
 ```
 
-## Ablation modes (6)
+`visual_sigma_px` replaces the former hard-coded 1.5-pixel reprojection
+standard deviation, and `visual_huber_delta` replaces the former hard-coded
+Huber transition. Their defaults are backward-compatible. When
+`sem_geodf_rank_by_risk: 1`, candidates competing for the shared rejection
+budget are ordered by the same fused risk that produces the backend residual
+weight; `0` retains the legacy synthetic-semantic/Sampson ordering.
+
+The adaptive factor layer separates three confidence sources:
+
+\[
+\Lambda^{eff}_{ij}
+= q^{LK}_{ij}q^{FB}_{ij}q^{age}_{ij}q^{SemGeo}_{ij}
+  (f/\sigma_{px})^2 I_2 .
+\]
+
+LK/forward-backward/track-age quality is measured before optimization,
+Semantic-GeoDF confidence is environment evidence, and the bounded Huber
+transition is learned from the previous optimized window. This avoids using
+one residual to instantaneously tune both its covariance and its robust loss.
+For IMU preintegration, only explicit sample gaps or saturation inflate the
+per-step noise:
+
+\[
+P_{k+1}=F_kP_kF_k^\top+V_k(\alpha_kQ_k)V_k^\top,\qquad
+1\leq\alpha_k\leq\alpha_{\max}.
+\]
+
+Runtime telemetry is written to `adaptive_factor_stats.csv` with the current
+Huber delta, residual population, effective visual weights and IMU inflation.
+The adaptive-Huber implementation remains available for controlled ablation,
+but is disabled in the primary configs because the VIODE smoke comparison
+favored adaptive observation covariance with the original Huber transition.
+All adaptive switches default to `0` in `VinsConfig`, so legacy YAML files
+remain behavior-compatible; the paper Sem-GeoDF configs explicitly enable
+them.
+
+Single-trial implementation smoke checks (not statistical claims) gave:
+
+| Dataset | Fixed factor ATE/RPE (m) | Adaptive quality ATE/RPE (m) |
+|---|---:|---:|
+| VIODE `city_day/3_high` | 0.206562 / 0.133151 | 0.199725 / 0.135405 |
+| EuRoC `MH_01_easy` | 0.183904 / 0.046319 | 0.186722 / 0.046222 |
+
+Thus observation-level quality is enabled for the degradation-oriented main
+configuration, while adaptive Huber remains off. Final claims must use the
+full fixed protocol with multiple trials; static-focused deployments can set
+`visual_adaptive_quality: 0` without changing code.
+
+## Ablation modes
+
+**Paper default (4)** — switch with env `METHODS="..."`:
 
 | Mode | Config suffix | YOLO |
 |------|---------------|------|
 | baseline | `stereo_imu` | no |
 | adaptive | `stereo_imu_geodf_adaptive` | no |
 | sad_sem | `stereo_imu_sem` | yes |
-| sequential | `stereo_imu_sem_geodf_sequential` | yes, fusion off |
 | sem_geodf | `stereo_imu_sem_geodf` | yes, adaptive gated union |
-| sem_geodf_mask_gated | `stereo_imu_sem_geodf_mask_gated` | yes, soft mask gated |
+
+Optional extra ablations (not in default matrix):
+
+| Mode | Config suffix | Notes |
+|------|---------------|-------|
+| sequential | `stereo_imu_sem_geodf_sequential` | GeoDF then semantic, fusion off |
+| sem_geodf_mask_gated | `stereo_imu_sem_geodf_mask_gated` | soft-mask gated only |
+
+```bash
+# default paper set
+METHODS="baseline adaptive sad_sem sem_geodf" ./scripts/run_sem_geodf_ablation.sh full
+
+# include optional ablations
+METHODS="baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated" \
+  ./scripts/run_sem_geodf_ablation.sh full
+```
 
 ## Build & run
 

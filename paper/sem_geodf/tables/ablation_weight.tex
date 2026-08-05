@@ -1,0 +1,26 @@
+% Honest status: paired w_i-off runs are not yet in the released result tree.
+% The manuscript therefore reports the weight *mechanism* quantitatively via
+% equations and parameters, and treats the paired ATE ablation as a
+% camera-ready item after METHODS="... sem_geodf_noweight" completes.
+\begin{table}[t]
+\centering
+\caption{Adaptive residual-weight mechanism (enabled in Sem-GeoDF paper
+configs; \(\texttt{sem\_geodf\_backend\_weight}{=}1\)). A paired ATE ablation
+with \(w_i\) off under an identical gated union is planned for camera-ready
+once \texttt{sem\_geodf\_noweight} runs finish; Baseline / Adaptive / SAD-Sem
+do not use this term.}
+\label{tab:ablation_weight}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{llc}
+\toprule
+Symbol / flag & Default & Role \\
+\midrule
+\(w_{\min}\) & 0.25 & Floor on residual weight \\
+\(w_{\mathrm{sem}}\) & 0.55 & Cap when semantic-confirmed \\
+\(w_{\mathrm{geo}}\) & 0.75 & Cap when GeoDF-confirmed \\
+\(w_{\mathrm{agr}}\) & 0.25 & Cap when both confirmed \\
+\(\alpha_{\mathrm{rec}}\) & 0.20 & Per-id recovery toward target \\
+Ceres scale & \(\sqrt{w_i}\) & Residual and full Jacobian \\
+\bottomrule
+\end{tabular}
+\end{table}

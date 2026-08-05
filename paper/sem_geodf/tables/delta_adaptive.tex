@@ -1,0 +1,38 @@
+\begin{table}[t]
+\centering
+\caption{Sem-GeoDF ATE change versus GeoDF-Adaptive (negative $=$ better; both means over the same $N$). Decision band $\pm 3\%$. Train (\texttt{city\_day}) is separated from hold-out; EuRoC is a static generalization check.}
+\label{tab:delta_adaptive}
+\begin{tabular}{lrrc}
+\toprule
+Scene & $\Delta$ vs Adaptive [\%] & Verdict & $N$ \\
+\midrule
+\multicolumn{4}{l}{\emph{Train: city\_day (thresholds selected here)}} \\
+city\_day\_0\_none & -3.6 & better & 3 \\
+city\_day\_1\_low & -0.5 & similar & 3 \\
+city\_day\_2\_mid & +12.3 & worse & 3 \\
+city\_day\_3\_high & -17.3 & better & 3 \\
+\multicolumn{4}{l}{\quad subtotal: 2 better / 1 similar / 1 worse} \\
+\midrule
+\multicolumn{4}{l}{\emph{Hold-out: city\_night, parking\_lot}} \\
+city\_night\_0\_none & +11.2 & worse & 3 \\
+city\_night\_1\_low & -20.4 & better & 3 \\
+city\_night\_2\_mid & -38.8 & better & 3 \\
+city\_night\_3\_high & -56.9 & better & 3 \\
+parking\_lot\_0\_none & -6.4 & better & 3 \\
+parking\_lot\_1\_low & +6.6 & worse & 3 \\
+parking\_lot\_2\_mid & -52.0 & better & 3 \\
+parking\_lot\_3\_high & -38.2 & better & 3 \\
+\multicolumn{4}{l}{\quad subtotal: 6 better / 0 similar / 2 worse} \\
+\midrule
+\multicolumn{4}{l}{\emph{EuRoC (static generalization)}} \\
+MH\_01\_easy & +3.7 & worse & 2 \\
+MH\_02\_easy & -8.0 & better & 2 \\
+MH\_03\_medium & -0.0 & similar & 1 \\
+MH\_04\_difficult & -2.2 & similar & 1 \\
+MH\_05\_difficult & -1.7 & similar & 1 \\
+\multicolumn{4}{l}{\quad subtotal: 1 better / 3 similar / 1 worse} \\
+\midrule
+\multicolumn{4}{l}{\textbf{Hold-out headline:} 6 better / 0 similar / 2 worse on the 8 dynamic hold-out scenes.} \\
+\bottomrule
+\end{tabular}
+\end{table}

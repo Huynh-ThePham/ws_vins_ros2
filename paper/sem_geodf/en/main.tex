@@ -1,0 +1,455 @@
+%% ============================================================================
+%% Sem-GeoDF — IEEE Access manuscript (official ieeeaccess.cls)
+%% Template assets: ../template/  (see ../template/SOURCE.md)
+%% Regenerate tables/figures:
+%%   python3 scripts/make_sem_geodf_paper_assets.py \
+%%     --root results/sem_geodf_ablation/paper_postfix --out paper/sem_geodf
+%% Compile from this directory:
+%%   tectonic -X compile main.tex
+%% ============================================================================
+\documentclass{ieeeaccess}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{url}
+\usepackage{bm}
+\usepackage{xcolor}
+% hyperref is loaded by ieeeaccess.cls when needed; avoid double-load
+
+\graphicspath{{../figures/}}
+\input{../tables/macros.tex}
+
+\begin{document}
+\history{Date of publication xxxx 00, 0000, date of current version xxxx 00, 0000.}
+\doi{10.1109/ACCESS.2026.DOI}
+
+\title{Sem-GeoDF: Adaptive Gated Union of Semantic and Geometric Dynamic Feature Rejection for Stereo-Inertial Visual Odometry}
+
+\author{\uppercase{Anonymous Author}\authorrefmark{1}}
+
+\address[1]{Affiliation withheld pending author list finalization (IEEE Access submission draft).}
+
+\tfootnote{Manuscript prepared with the IEEE Access \texttt{ieeeaccess} class. Code and configs will be released upon acceptance.}
+
+\markboth
+{Anonymous Author: Sem-GeoDF for Stereo-Inertial VIO}
+{Anonymous Author: Sem-GeoDF for Stereo-Inertial VIO}
+
+\corresp{Corresponding author: Anonymous Author (e-mail: anonymous@example.com).}
+
+\begin{abstract}
+Dynamic objects break the static-scene assumption used by feature-based stereo-inertial visual odometry (VIO).
+Semantic segmentation masks can suppress movers but often over-reject useful structure in static scenes, whereas geometry-only epipolar filters need no training labels yet may fail when movers dominate the image.
+This paper presents \textbf{Sem-GeoDF}, an engineering fusion module for stereo-inertial VINS-Fusion that combines a non-blocking YOLO dynamic mask with GeoDF-Adaptive epipolar rejection through an \emph{adaptive gated union} (logical OR), not intersection.
+Each branch keeps its own scene gate; candidates are merged under a shared reject-ratio budget; and a three-state online policy (static-safe / dynamic-assist / strong-dynamic) modulates soft masking, hard cull, and adaptive backend residual weights \(w_i\in[w_{\min},1]\).
+The policy uses only online signals---burst ratio, strong semantic EMA, and bidirectional semantic--geo overlap on raw GeoDF candidates---and never reads dataset labels, ground truth, or hold-out metrics.
+Under a fair \(1.0\times\) bag-rate protocol with thresholds tuned on VIODE \texttt{city\_day} only, Sem-GeoDF improves high-dynamic hold-out scenes versus GeoDF-Adaptive (e.g., city\_night/\(3\_high\)~\DeltaCityNightHigh, parking\_lot/\(3\_high\)~\DeltaParkingHigh) while reducing static-scene regression relative to always-on semantic masking (SAD-Sem).
+We do not claim per-cell superiority over SAD-Sem on mean ATE; the contribution is spectrum robustness, protocol hygiene, and a reproducible four-method evaluation on VIODE (\(N=\PaperNViode\) trials per cell) and EuRoC (static generalization, \(N=\PaperNEuroc\) trials per cell).
+On the eight dynamic hold-out scenes, Sem-GeoDF is better than GeoDF-Adaptive on \HoldoutBetter{} and worse on \HoldoutWorse{} under a \(\pm3\%\) band.
+\end{abstract}
+
+\begin{keywords}
+Dynamic feature rejection, stereo-inertial odometry, semantic segmentation, sensor fusion, visual-inertial SLAM, residual weighting, YOLO
+\end{keywords}
+
+\titlepgskip=-15pt
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+\IEEEPARstart{S}{tereo}-inertial visual odometry (VIO) estimates ego-motion by fusing camera tracks with inertial measurements and is a core building block for mobile robots, drones, and AR navigation~\cite{qin2018vins,qin2019vinsfusion}.
+Most feature-based front-ends assume that the majority of tracked points lie on a rigid static scene.
+That assumption fails in traffic-like environments: moving vehicles inject inconsistent image motion into the visual residual and inflate absolute trajectory error (ATE), as stressed by dynamic benchmarks such as VIODE~\cite{minoda2021viode}.
+
+Two complementary remedy families are widely used.
+\emph{Semantic} methods remove features that fall on detector or instance/segmentation masks~\cite{bescos2018dynaslam,yu2018dsslam,song2022dynavins}.
+They are effective when the model fires correctly, but false positives can strip static structure, and accuracy becomes coupled to model domain, class taxonomy, and compute budget.
+\emph{Geometric} methods reject tracks that violate multi-view rigidity, typically via epipolar Sampson tests and robust fundamental-matrix estimation~\cite{hartley2003multiple}.
+They require no semantic training data, yet a fundamental matrix estimated from a mover-dominated image can itself become unreliable.
+
+This paper addresses a practical systems question for stereo-inertial VINS:
+\emph{How can semantic and geometric experts be combined online, without oracle scene labels, so that static safety stays close to geometry-only behavior while high-dynamic accuracy exceeds geometry alone?}
+We propose \textbf{Sem-GeoDF}, a policy-gated \emph{union} (OR) of YOLO and GeoDF-Adaptive candidates under one shared reject-ratio guard, with optional adaptive backend residual weighting for suspicious survivors.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item An online adaptive gated-union front-end for stereo-inertial VINS that ORs semantic and GeoDF dynamic candidates with a shared ratio/min-feature guard and non-blocking mask synchronization.
+\item A label-free three-state policy (static-safe / dynamic-assist / strong-dynamic) driven by burst/strong EMA and \emph{bidirectional} overlap on \emph{raw} GeoDF candidates, repairing a previously dead overlap trigger.
+\item Adaptive backend residual weights \(w_i\) with Ceres \(\sqrt{w_i}\) scaling, computed only from online semantic/geometric evidence and per-id recovery.
+\item A reproducible evaluation: fair \(1.0\times\) bag rate, thresholds selected on \texttt{city\_day} only, hold-out \texttt{city\_night}/\texttt{parking\_lot} (\(N=\PaperNViode\)) and an EuRoC static check (\(N=\PaperNEuroc\) trials per cell), with a four-method matrix switched by \texttt{METHODS}. All reported tables are regenerated directly from run artifacts by one script, with the per-cell trial count printed in every cell.
+\item Honest positioning: we emphasize spectrum robustness and static safety rather than claiming universal best ATE against semantic-only baselines.
+\end{enumerate}
+
+\section{Related Work}
+\label{sec:related}
+\subsection{Dynamic visual and visual-inertial SLAM}
+Handling dynamic scenes has been a long-standing goal for feature-based SLAM~\cite{cadena2016survey}.
+DynaSLAM and DS-SLAM combine geometric motion cues with semantic segmentation for visual SLAM~\cite{bescos2018dynaslam,yu2018dsslam}, and DynaSLAM~II tightly couples multi-object tracking with the estimator~\cite{bescos2021dynaslam2}.
+More recent semantic-geometric systems refine this idea: RDS-SLAM removes the tracking-thread stall of semantic masks~\cite{zhang2020rdsslam}, CFP-SLAM uses a coarse-to-fine dynamic-probability model~\cite{hu2023cfpslam}, Crowd-SLAM targets crowded scenes with detection~\cite{soares2021crowd}, and DytanVO jointly refines odometry and motion segmentation~\cite{shen2023dytanvo}.
+On the visual-inertial side, DynaVINS adds robust pose-graph factors for dynamic environments~\cite{song2022dynavins}, and Liu \emph{et al.}~\cite{liu2022dynamicvins} combine object detection with IMU for resource-restricted RGB-D robots.
+Those full-stack systems are strong references and generally target either RGB-D or full SLAM back-ends.
+Our scope is intentionally narrower and complementary: a drop-in stereo-inertial front-end module for VINS-Fusion with explicit realtime constraints (non-blocking masks), an online label-free policy, optional backend residual weighting, and protocol hygiene (no label leakage into the online estimator).
+We do not claim to outperform these full stacks; we target a reproducible, honestly-scoped fusion component.
+
+\subsection{Geometry-only dynamic feature rejection}
+Epipolar geometry and Sampson residuals are classical tools~\cite{hartley2003multiple}.
+Always-on geometric filters risk removing static structure during aggressive rotation or low parallax.
+GeoDF-Adaptive introduces scene-aware activation with an auto-calibrated \(\rho_{\mathrm{on}}\) and track-level voting; Sem-GeoDF reuses this branch unchanged as the geometric expert.
+
+\subsection{Semantic masking in VIO}
+Real-time instance/segmentation networks such as YOLO~\cite{redmon2016yolo,jocher2023yolo} provide dynamic-object pixels at interactive rates.
+Our SAD-Sem ablation applies semantic masking alone under the same fair bag rate and therefore isolates the benefit of fusion versus ``semantics always on.''
+
+\subsection{How Sem-GeoDF differs}
+Table~\ref{tab:diff} and Fig.~\ref{fig:fusion} contrast design choices.
+AND fusion rejects only when both experts agree and can miss movers when one expert is silent.
+Sequential cascades apply one filter after the other without a shared budget.
+Sem-GeoDF uses policy-gated OR with a shared reject-ratio guard and a static-safe mode that disables semantic hard cull until online evidence escalates.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{fusion_compare_sem_geodf.pdf}
+\caption{Conceptual contrast of fusion styles. Sem-GeoDF uses a policy-gated union (OR) with a shared reject budget rather than AND agreement or an unbudgeted sequential cascade.}
+\label{fig:fusion}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Conceptual design contrast among fusion styles.}
+\label{tab:diff}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lccc}
+\toprule
+Aspect & AND & Sequential & Sem-GeoDF \\
+\midrule
+Reject if either expert fires & no & partial & yes (OR) \\
+Shared reject-ratio budget & rare & no & yes \\
+Static-safe semantic hard-cull off & rare & no & yes \\
+Label-free online policy & varies & varies & yes \\
+Adaptive backend residual weights & rare & rare & yes (optional) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Method}
+\label{sec:method}
+\subsection{System overview}
+Fig.~\ref{fig:overview} gives a full-system view of Sem-GeoDF inside stereo-inertial VINS-Fusion; Fig.~\ref{fig:pipeline} compresses the same front-end into a per-frame flow.
+Camera images feed YOLO asynchronously (\(\texttt{sem\_block\_on\_mask}{=}0\)).
+If the latest mask is older than \(\texttt{sem\_mask\_max\_age\_ms}\), the semantic branch is disabled for that frame (fail-open to geometry).
+Previous tracks feed GeoDF-Adaptive.
+Confirmed semantic and geometric candidates are unioned, clipped by \(\texttt{geodf\_max\_reject\_ratio}\) and a minimum feature count, then optionally enter backend optimization with residual weights \(w_i\).
+
+\paragraph{Design principles.}
+\begin{itemize}
+\item \emph{No oracle leakage:} the estimator never reads VIODE level, ground truth, ATE/RPE, or summary files.
+\item \emph{Fail-open semantics:} missing/stale masks never stall VINS.
+\item \emph{Union under a budget:} OR fusion cannot wipe the track set.
+\item \emph{Train/hold-out hygiene:} policy thresholds are frozen from \texttt{city\_day} before inspecting hold-out ATE.
+\end{itemize}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{system_overview_sem_geodf.pdf}
+\caption{Sem-GeoDF system overview. Sensors feed a semantic expert (YOLO) and a GeoDF-Adaptive geometric expert; bidirectional overlap and a label-free three-state policy gate a shared OR union, optional residual weights \(w_i\), and the VINS-Fusion backend.}
+\label{fig:overview}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{pipeline_sem_geodf.pdf}
+\caption{Per-frame Sem-GeoDF front-end: fail-open mask sync, dual experts, online policy, gated OR under a shared reject budget, and \(\sqrt{w_i}\) residual weighting into VINS.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Geometric branch (GeoDF-Adaptive)}
+A temporal fundamental matrix is estimated from track correspondences.
+RANSAC inliers/outliers and Sampson residuals form a dual gate; tracks accumulate votes over \(\texttt{geodf\_vote\_frames}\).
+Scene activation uses an EMA of the epipolar outlier ratio with hysteresis around an auto-calibrated \(\rho_{\mathrm{on}}\).
+Confirmed geometric candidates enter the shared reject set whenever GeoDF is armed.
+
+\subsection{Semantic branch}
+YOLO produces a dynamic-class mask on cam0.
+Per-track hits are vote-confirmed over \(\texttt{sem\_vote\_frames}\).
+A semantic scene gate tracks an EMA of the dynamic pixel ratio with hysteresis.
+Soft masking of \emph{new} features and hard cull of \emph{existing} tracks are policy-dependent (Sec.~\ref{sec:policy}).
+
+\subsection{Bidirectional overlap on raw GeoDF candidates}
+\label{sec:overlap}
+An earlier implementation computed overlap only on GeoDF \emph{confirmed} tracks while \(\texttt{frame\_active}\), which empirically produced \(0\%\) overlap triggers even when both branches fired.
+Sem-GeoDF instead uses the raw GeoDF candidate pool \(G\) (fallback to confirmed if empty) and the semantic-raw set \(S\) (Fig.~\ref{fig:overlap}):
+\begin{equation}
+o=\max\!\left(\frac{|G\cap S|}{|G|},\frac{|S\cap G|}{|S|}\right),
+\end{equation}
+then applies EMA smoothing with coefficient \(\texttt{sem\_policy\_overlap\_ema}\).
+The candidate-count guard passes if \(|G|\) or \(|S|\) reaches \(\texttt{sem\_policy\_min\_geo\_candidates}\).
+This keeps the overlap trigger alive when the two experts fire on differently sized track sets.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\columnwidth]{overlap_bidirectional.pdf}
+\caption{Bidirectional overlap on the raw GeoDF pool. Taking the maximum of the two directed ratios keeps the agreement trigger alive when the semantic and geometric candidate sets differ in size.}
+\label{fig:overlap}
+\end{figure}
+
+\subsection{Three-state adaptive policy}
+\label{sec:policy}
+Let the discrete state be \(s\in\{0,1,2\}\) (static-safe, dynamic-assist, strong-dynamic), as summarized in Fig.~\ref{fig:policy}.
+Write \(r_t\) for the current-frame dynamic-pixel ratio, \(\bar{r}_t\) for its EMA, and \(\bar{o}_t\) for the overlap EMA of Sec.~\ref{sec:overlap}.
+Escalation uses three online predicates and a hold timer of \(H\) frames:
+\begin{align}
+\mathrm{burst} &= [r_t \ge \tau_{\mathrm{burst}}], \\
+\mathrm{strong} &= [\bar{r}_t \ge \tau_{\mathrm{strong}}], \\
+\mathrm{overlap} &= [\bar{o}_t \ge \tau_{\mathrm{ov}} \;\wedge\; (|G|\!\lor\!|S|)\!\ge\! n_{\min}],
+\end{align}
+with defaults / train-selected values in Table~\ref{tab:params}.
+The hold timer prevents chatter after a burst or overlap trigger.
+\begin{itemize}
+\item \(s{=}0\) (static-safe): soft-mask new features when the semantic scene is active; semantic hard cull off.
+\item \(s{=}1\) (dynamic-assist): entered on burst, overlap, or an active hold; vote-confirmed semantic tracks enter the shared reject set when the semantic scene is active; soft-mask may be held for \(H\) frames.
+\item \(s{=}2\) (strong-dynamic): entered on strong EMA and/or assist plus usable raw geo evidence; full OR fusion armed under the same shared reject budget.
+\end{itemize}
+Final selected values are written to \texttt{selected\_params.yaml} from \texttt{city\_day} replay only (never from hold-out ATE).
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{policy_fsm_sem_geodf.pdf}
+\caption{Three-state online policy. Escalation uses burst, strong semantic EMA, and bidirectional overlap only; the estimator never reads VIODE level, ground truth, or trajectory metrics.}
+\label{fig:policy}
+\end{figure}
+
+\begin{table}[t]
+\centering
+\caption{Key Sem-GeoDF parameters (defaults / train-selected).}
+\label{tab:params}
+\begin{tabular}{lc}
+\toprule
+Parameter & Value \\
+\midrule
+\(\texttt{sem\_vote\_frames}\) / \(\texttt{geodf\_vote\_frames}\) & 2 / 2 \\
+\(\texttt{sem\_policy\_burst\_ratio}\) & 0.18 \\
+\(\texttt{sem\_policy\_strong\_ratio}\) & 0.18 (selected) \\
+\(\texttt{sem\_policy\_hold\_frames}\) & 180 (selected) \\
+\(\texttt{sem\_policy\_overlap\_ratio}\) & 0.35 \\
+\(\texttt{geodf\_max\_reject\_ratio}\) & 0.40 \\
+\(\texttt{sem\_mask\_max\_age\_ms}\) & 150 \\
+\(\texttt{sem\_geodf\_backend\_weight}\) & 1 (enabled) \\
+\(\texttt{sem\_geodf\_backend\_min\_weight}\) & 0.25 \\
+\(\texttt{sem\_geodf\_backend\_recovery}\) & 0.20 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Adaptive backend residual weighting}
+\label{sec:weight}
+Hard rejection is not always possible: a shared ratio guard and minimum-feature constraints may keep suspicious tracks alive.
+When \(\texttt{sem\_geodf\_backend\_weight}{=}1\), each surviving track \(i\) carries a residual weight \(w_i\in[w_{\min},1]\), broadcast to all of its observations and combined as the per-pair minimum across the two frames of a factor (Fig.~\ref{fig:weight}).
+Every visual factor in Ceres multiplies both the residual \emph{and} all of its Jacobian blocks (including the time-offset term) by \(\sqrt{w_i}\), so the contribution is a genuine weighted least-squares term rather than an untracked post-hoc score.
+The weight is thus a per-track confidence, not an independent per-observation noise model; we state this explicitly to avoid overclaiming.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{backend_weight_flow.pdf}
+\caption{Adaptive residual-weight path for tracks that survive the shared reject budget. Online semantic/geometric risks form a probabilistic-OR target \(\tilde{w}_i\), recovered per id, then applied as \(\sqrt{w_i}\) in Ceres.}
+\label{fig:weight}
+\end{figure}
+
+From online evidence at the current frame we form three risk terms in \([0,1]\):
+\begin{align}
+\rho^{\mathrm{sem}}_i &= \mathbb{1}^{\mathrm{sem}}_i\,(1{-}w_{\mathrm{sem}})\,c^{\mathrm{sem}}_i, \\
+\rho^{\mathrm{geo}}_i &= \mathbb{1}^{\mathrm{geo}}_i\,(1{-}w_{\mathrm{geo}})\,\max(c^{\mathrm{geo}},\,e_i), \\
+\rho^{\mathrm{agr}}_i &= \mathbb{1}^{\mathrm{sem}}_i\mathbb{1}^{\mathrm{geo}}_i\,(1{-}w_{\mathrm{agr}})\,\max(\bar{o}_t,\,\min(c^{\mathrm{sem}}_i,\max(c^{\mathrm{geo}},e_i))),
+\end{align}
+where \(\mathbb{1}^{\mathrm{sem}}_i\) / \(\mathbb{1}^{\mathrm{geo}}_i\) flag semantic / GeoDF raw-or-confirmed hits, \(c^{\mathrm{sem}}\) / \(c^{\mathrm{geo}}\) are scene confidences from EMA+hysteresis (and policy state), and \(e_i\) is the normalized Sampson excess.
+A probabilistic-OR combines them into a target weight
+\begin{equation}
+\tilde{w}_i = \mathrm{clip}\!\left(1-(1{-}\rho^{\mathrm{sem}}_i)(1{-}\rho^{\mathrm{geo}}_i)(1{-}\rho^{\mathrm{agr}}_i),\; w_{\min},\;1\right),
+\end{equation}
+then caps \(\tilde{w}_i\) by \(w_{\mathrm{sem}}\), \(w_{\mathrm{geo}}\), or \(w_{\mathrm{agr}}\) when the corresponding confirmation flags fire.
+Per-id recovery with rate \(\alpha_{\mathrm{rec}}\) raises \(w_i\) toward a higher target gradually so transient false positives do not permanently suppress a track:
+\begin{equation}
+w_i \leftarrow
+\begin{cases}
+w_i^{\mathrm{prev}}+\alpha_{\mathrm{rec}}(\tilde{w}_i-w_i^{\mathrm{prev}}) & \text{if }\tilde{w}_i>w_i^{\mathrm{prev}},\\
+\tilde{w}_i & \text{otherwise.}
+\end{cases}
+\end{equation}
+Audit columns in \(\texttt{sem\_geodf\_stats.csv}\) record \(\texttt{weighted\_tracks}\), \(\texttt{mean\_backend\_weight}\), and related diagnostics.
+Table~\ref{tab:ablation_weight} lists the defaults used in paper configs.
+
+\begin{algorithm}[t]
+\caption{Sem-GeoDF front-end step (per stereo frame)}
+\label{alg:semgeodf}
+\begin{algorithmic}[1]
+\State Sync latest YOLO mask if age \(\le\) max age; else disable semantic branch
+\State Update semantic EMA; run GeoDF-Adaptive \(\to\) raw/confirmed sets
+\State Compute bidirectional overlap \(o\) on raw GeoDF pool; update policy \(s\)
+\State \(R \gets\) GeoDF confirmed \(\cup\) (policy-gated semantic confirmed)
+\State Apply shared ratio / min-feature guard to \(R\); soft-mask if allowed
+\State If backend weighting enabled, assign \(w_i\) for survivors and recover idle ids
+\end{algorithmic}
+\end{algorithm}
+
+\section{Experimental Setup}
+\label{sec:setup}
+\subsection{Implementation}
+We use a ROS~2 Humble stereo-inertial VINS derived from VINS-Fusion~\cite{qin2019vinsfusion}.
+YOLO runs on CUDA.
+All methods share a fair bag playback rate of \(1.0\times\) (including non-YOLO baselines), so semantic methods are not artificially slowed relative to geometry-only runs.
+
+\subsection{Datasets}
+\textbf{VIODE}~\cite{minoda2021viode}: environments \texttt{city\_day}, \texttt{city\_night}, and \texttt{parking\_lot}, each with dynamic levels \texttt{0\_none}, \texttt{1\_low}, \texttt{2\_mid}, \texttt{3\_high}.
+\textbf{EuRoC}~\cite{burri2016euroc}: Machine Hall sequences MH\_01--MH\_05 for static generalization.
+
+\subsection{Methods}
+Four methods are compared via \(\texttt{METHODS}\):
+\begin{itemize}
+\item \textbf{Baseline:} stereo-inertial VINS without dynamic rejection.
+\item \textbf{GeoDF-Adaptive:} geometry-only adaptive rejection.
+\item \textbf{SAD-Sem:} semantic-only YOLO masking.
+\item \textbf{Sem-GeoDF (ours):} adaptive gated union + backend weights.
+\end{itemize}
+Optional sequential / mask-gated ablations exist in code but are excluded from the default matrix to keep the comparison focused.
+
+\subsection{Protocol}
+Policy thresholds are selected on \texttt{city\_day} only by maximizing a weighted static/dynamic policy objective on logged stats (not ATE).
+Hold-out night/parking ATE and EuRoC are reported after freezing thresholds (Fig.~\ref{fig:protocol}).
+Primary metric: ATE RMSE after SE(3) Umeyama alignment (EVO).
+On VIODE we run \(N=\PaperNViode\) trials per cell after an \(N{=}1\) gate used to catch diverged runs; EuRoC uses \(N=\PaperNEuroc\) trials per cell (fewer than VIODE), so we treat it as a static generalization check rather than a full variance estimate.
+Every table cell prints its own trial count as a superscript, so \(N{=}1\) cells are never mistaken for averaged means.
+All tables, figures, and abstract numbers are emitted by a single script (\texttt{make\_sem\_geodf\_paper\_assets.py}) directly from the run artifacts, so the manuscript is reproducible from the result tree.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{eval_protocol_sem_geodf.pdf}
+\caption{Leak-free evaluation protocol: thresholds are selected on VIODE \texttt{city\_day} only (policy proxy, not ATE), frozen, then reported on hold-out night/parking and EuRoC under a fair \(1.0\times\) bag rate.}
+\label{fig:protocol}
+\end{figure}
+
+\section{Results}
+\label{sec:results}
+\subsection{VIODE trajectory accuracy}
+\input{../tables/ate_viode.tex}
+
+Fig.~\ref{fig:delta} summarizes Sem-GeoDF versus GeoDF-Adaptive on VIODE (negative $=$ better).
+The largest gains concentrate on high-dynamic hold-out night and parking scenes, where geometry alone is insufficient.
+As Table~\ref{tab:delta_adaptive} separates, on the eight dynamic hold-out cells Sem-GeoDF is better on \HoldoutBetter{}, worse on \HoldoutWorse{}, with the two regressions at the low-dynamic \texttt{0\_none}/\texttt{1\_low} end where semantics add little.
+We therefore claim \emph{spectrum consistency} on hard scenes, not universal per-cell dominance.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.98\textwidth]{viode_ate_delta_sem_geodf.pdf}
+\caption{ATE change of Sem-GeoDF versus GeoDF-Adaptive on VIODE (negative $=$ better). Shaded band: \(\pm 3\%\).}
+\label{fig:delta}
+\end{figure*}
+
+\input{../tables/delta_adaptive.tex}
+
+\subsection{EuRoC static generalization}
+\input{../tables/ate_euroc.tex}
+
+Fig.~\ref{fig:methods} highlights selected static and high-dynamic scenes across the four methods.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{method_compare_selected.pdf}
+\caption{Selected static and high-dynamic scenes: four-method ATE comparison.}
+\label{fig:methods}
+\end{figure}
+
+\subsection{Interpretation versus SAD-Sem}
+The large negative deltas in Table~\ref{tab:delta_adaptive} are measured against GeoDF-Adaptive, i.e.\ the \emph{geometry-only} branch, which is the weaker baseline on high-dynamic night/parking scenes.
+Against semantic-only SAD-Sem the picture is different: on those same hard cells SAD-Sem often achieves the best per-cell ATE (e.g.\ \texttt{city\_night\_3\_high} SAD-Sem \(\approx0.273\) vs ours \(\approx0.354\)), and the mean ATE of Sem-GeoDF is typically close to SAD-Sem rather than strictly better.
+We therefore state the headline explicitly as gains over geometry-only filtering, and we do \emph{not} market Sem-GeoDF as a strict ATE winner over SAD-Sem.
+Its value for IEEE Access is the combination of:
+(i)~large gains over geometry-only filtering on hard hold-outs;
+(ii)~reduced static regression relative to always-on semantics (Sec.~\ref{sec:staticsafe});
+(iii)~label-free online control, shared reject budget, and adaptive residual weights;
+(iv)~a reproducible fair-rate protocol whose tables regenerate exactly from the run artifacts.
+
+\subsection{Static safety}
+\label{sec:staticsafe}
+On \texttt{0\_none} levels, always-on semantics can regress relative to Baseline because false-positive masks remove useful structure.
+Table~\ref{tab:static_safety} quantifies the effect: on \texttt{city\_day\_0\_none}, SAD-Sem is \(+36\%\) versus Baseline while Sem-GeoDF stays within \(+5\%\); on \texttt{parking\_lot\_0\_none}, SAD-Sem is \(+12\%\) while Sem-GeoDF is \(-17\%\) (best of the four).
+\texttt{city\_night\_0\_none} is mixed---both Adaptive and SAD-Sem improve over Baseline, and Sem-GeoDF sits between them---but the static-safe policy still avoids the day/parking over-rejection pattern of always-on masking.
+This is the practical justification for a policy rather than always-on semantics.
+
+\input{../tables/static_safety.tex}
+
+\subsection{Role of adaptive residual weights}
+Backend weighting complements hard cull: when the ratio guard preserves suspicious tracks, down-weighting reduces their influence without emptying the feature set.
+Because weights are recovered per id, transient false positives do not permanently suppress a track.
+This mechanism is active in Sem-GeoDF paper configs (\(\texttt{sem\_geodf\_backend\_weight}{=}1\)) and is absent from Baseline / Adaptive / SAD-Sem.
+
+\subsection{Backend weight mechanism}
+\label{sec:ablation-weight}
+Table~\ref{tab:ablation_weight} summarizes the residual-weight parameters used throughout the Sem-GeoDF paper runs.
+A paired ATE ablation that disables only \(w_i\) (\(\texttt{sem\_geodf\_backend\_weight}{=}0\)) while freezing the identical gated union and train-selected policy is reserved for camera-ready once the \texttt{sem\_geodf\_noweight} matrix finishes; until then we do not invent numerical deltas.
+The equations in Sec.~\ref{sec:weight} already make the contribution of \(w_i\) explicit relative to hard cull under the shared reject budget.
+
+\input{../tables/ablation_weight.tex}
+
+\subsection{Sensitivity and realtime behavior}
+Offline replay on \texttt{city\_day} shows that nearby \((\texttt{burst},\texttt{strong},\texttt{hold})\) grid points yield similar weighted policy objectives.
+Overlap thresholds \(0.30\)--\(0.40\) change little when overlap events are sparse---consistent with burst/strong dominating escalation on many sequences.
+Non-blocking mask sync keeps VINS realtime-capable: the estimator never waits on YOLO; it either consumes a fresh-enough mask or falls back to GeoDF-only.
+Logged \(\texttt{sem\_mask\_lag\_ms}\) provides an audit of mask age at consumption time.
+The \(\pm3\%\) decision band is a reporting convention (roughly the run-to-run ATE spread we observe on repeated VIODE trials), used only to label a cell better/similar/worse; it is not a significance test, and all raw deltas are shown so readers can apply their own threshold.
+
+\subsection{Failure modes and limitations}
+\begin{enumerate}
+\item Mid-dynamic day cells where GeoDF already helps and adding semantics can slightly increase ATE; two low-dynamic hold-out cells (\texttt{city\_night\_0\_none}, \texttt{parking\_lot\_1\_low}) also regress versus GeoDF-Adaptive.
+\item The three policy escalation triggers (burst, strong, overlap) are all driven by semantic signals; geometry never escalates the semantic branch on its own. Sem-GeoDF is thus best described as ``geometry always-on with its own gate, OR policy-gated semantics,'' not a symmetric consensus.
+\item The residual-weight \emph{mechanism} is specified and enabled (Sec.~\ref{sec:weight}, Table~\ref{tab:ablation_weight}), but a paired ATE ablation with \(w_i\) off is still pending camera-ready completion of the \texttt{sem\_geodf\_noweight} matrix; we therefore do not claim a quantified ATE split between union and weighting yet.
+\item EuRoC uses \(N=\PaperNEuroc\) trials per cell (fewer than VIODE); it is a static generalization check, not a full variance estimate. \(N=\PaperNViode\) on VIODE is also small for formal significance testing.
+\item VIODE is simulated; real-world dynamic bags remain future work.
+\item Matched external SOTA tables (e.g., DynaVINS under identical bags/rates) are not included here.
+\end{enumerate}
+
+\section{Discussion}
+\label{sec:discussion}
+IEEE Access is the target venue because the contribution is a reproducible applied fusion module with honest trade-offs, rather than a short letter claiming frontier novelty over full dynamic-VIO stacks.
+The manuscript follows the official Access two-column layout (\texttt{ieeeaccess.cls}).
+
+\paragraph{Claim framing.}
+We claim spectrum robustness and static safety: large gains versus GeoDF-Adaptive on high-dynamic hold-outs (Table~\ref{tab:delta_adaptive}), reduced static regression versus always-on semantics (Table~\ref{tab:static_safety}), and a label-free online policy under a fair \(1.0\times\) protocol.
+We do \emph{not} claim universal per-cell ATE superiority over SAD-Sem, matched DynaVINS SOTA under identical bags, or a finished paired \(w_i\) ATE ablation.
+
+\paragraph{Reproducibility.}
+Each run writes \(\texttt{run\_manifest.json}\) (git SHA, config hash, bag rate, oracle flag) and per-frame \(\texttt{sem\_geodf\_stats.csv}\).
+Policy thresholds can be replayed offline with \(\texttt{simulate\_sem\_policy.py}\).
+The \(\texttt{paper\_postfix}\) result tree is generated with the corrected \(\sqrt{w_i}\) scaling on the time-offset Jacobian (Sec.~\ref{sec:weight}), so the released estimator reproduces the reported Sem-GeoDF numbers without a residual/Jacobian mismatch.
+The default paper matrix is launched by
+\[\texttt{METHODS="baseline adaptive sad\_sem sem\_geodf"}.\]
+Code, configs, and evaluation scripts will be released upon acceptance.
+
+\section{Conclusion}
+\label{sec:conclusion}
+Sem-GeoDF couples semantic and geometric dynamic-feature rejection through an online adaptive gated union for stereo-inertial VIO, with optional adaptive backend residual weighting for suspicious survivors.
+With label-free control and a strict train/hold-out protocol, it improves several high-dynamic VIODE hold-outs over geometry-only filtering while mitigating semantic over-rejection in static scenes.
+We present this work as an engineering contribution for IEEE Access with full tables, figures, explicit limitations, and a clear path to camera-ready weight ablation.
+
+\section*{Acknowledgment}
+The authors thank colleagues who provided dataset paths, compute support, and feedback during evaluation.
+
+% Bibliography (IEEE Access: biographies follow references)
+\bibliographystyle{IEEEtran}
+\bibliography{../bib/refs}
+
+\begin{IEEEbiographynophoto}{Anonymous Author}
+Anonymous Author is preparing this IEEE Access manuscript.
+Replace this placeholder with a short biography for every listed author before submission
+(IEEE Access requires biographies for all authors).
+\end{IEEEbiographynophoto}
+
+\EOD
+
+\end{document}

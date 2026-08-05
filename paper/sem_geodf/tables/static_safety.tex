@@ -1,0 +1,29 @@
+\begin{table}[t]
+\centering
+\caption{Static-scene ATE RMSE [m] on VIODE \texttt{0\_none} (\(N{=}3\)).
+\(\Delta\) vs Baseline in parentheses (negative $=$ better).}
+\label{tab:static_safety}
+\setlength{\tabcolsep}{2.8pt}
+{\footnotesize
+\begin{tabular}{lcccc}
+\toprule
+Scene & Base. & Adapt. & SAD-Sem & Sem-GeoDF \\
+\midrule
+city\_day\_0\_none
+  & 0.110
+  & 0.120~(+9\%)
+  & 0.150~(+36\%)
+  & \textbf{0.116}~(+5\%) \\
+city\_night\_0\_none
+  & 0.418
+  & 0.307~($-$27\%)
+  & \textbf{0.298}~($-$29\%)
+  & 0.342~($-$18\%) \\
+parking\_lot\_0\_none
+  & 0.168
+  & 0.149~($-$11\%)
+  & 0.188~(+12\%)
+  & \textbf{0.139}~($-$17\%) \\
+\bottomrule
+\end{tabular}}
+\end{table}

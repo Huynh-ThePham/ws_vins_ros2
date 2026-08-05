@@ -8,6 +8,7 @@
  *******************************************************/
 
 #include "estimator.h"
+#include "../factor/adaptive_factor_quality.h"
 
 void Estimator::setPropagatedStateCallback(PropagatedStateCallback cb)
 {
@@ -62,6 +63,7 @@ void Estimator::clearState()
     initR = Eigen::Matrix3d::Identity();
     inputImageCnt = 0;
     initFirstPoseFlag = false;
+    adaptive_visual_huber_delta = vinsConfig().visual_huber_delta;
 
     for (int i = 0; i < WINDOW_SIZE + 1; i++)
     {
@@ -121,9 +123,15 @@ void Estimator::setParameter()
         cout << " exitrinsic cam " << i << endl  << ric[i] << endl << tic[i].transpose() << endl;
     }
     f_manager.setRic(ric);
-    ProjectionTwoFrameOneCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
-    ProjectionTwoFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
-    ProjectionOneFrameTwoCamFactor::sqrt_info = FOCAL_LENGTH / 1.5 * Matrix2d::Identity();
+    const double visual_sqrt_information = FOCAL_LENGTH / vinsConfig().visual_sigma_px;
+    ProjectionTwoFrameOneCamFactor::sqrt_info = visual_sqrt_information * Matrix2d::Identity();
+    ProjectionTwoFrameTwoCamFactor::sqrt_info = visual_sqrt_information * Matrix2d::Identity();
+    ProjectionOneFrameTwoCamFactor::sqrt_info = visual_sqrt_information * Matrix2d::Identity();
+    adaptive_visual_huber_delta = vinsConfig().visual_huber_delta;
+    ROS_INFO("Visual residual model: sigma_px=%.3f huber_delta=%.3f adaptive_quality=%d adaptive_huber=%d",
+             vinsConfig().visual_sigma_px, vinsConfig().visual_huber_delta,
+             vinsConfig().visual_adaptive_quality,
+             vinsConfig().visual_adaptive_huber);
     td = vinsConfig().td;
     g = vinsConfig().g;
     cout << "set g " << g.transpose() << endl;
@@ -1022,7 +1030,10 @@ void Estimator::optimization()
     ceres::Problem problem;
     ceres::LossFunction *loss_function;
     //loss_function = NULL;
-    loss_function = new ceres::HuberLoss(1.0);
+    const double huber_delta = vinsConfig().visual_adaptive_huber
+                                   ? adaptive_visual_huber_delta
+                                   : vinsConfig().visual_huber_delta;
+    loss_function = new ceres::HuberLoss(huber_delta);
     //loss_function = new ceres::CauchyLoss(1.0 / FOCAL_LENGTH);
     //ceres::LossFunction* loss_function = new ceres::HuberLoss(1.0);
     for (int i = 0; i < frame_count + 1; i++)
@@ -1035,11 +1046,20 @@ void Estimator::optimization()
     if(!vinsConfig().use_imu)
         problem.SetParameterBlockConstant(para_Pose[0]);
 
+    const bool calibration_observable =
+        !vinsConfig().calibration_observability_gate ||
+        (Vs[0].norm() >= vinsConfig().calibration_min_speed &&
+         f_manager.last_average_parallax >=
+             vinsConfig().calibration_min_parallax_px &&
+         f_manager.last_track_num >=
+             vinsConfig().calibration_min_tracked_features);
     for (int i = 0; i < vinsConfig().num_of_cam; i++)
     {
         ceres::LocalParameterization *local_parameterization = new PoseLocalParameterization();
         problem.AddParameterBlock(para_Ex_Pose[i], SIZE_POSE, local_parameterization);
-        if ((vinsConfig().estimate_extrinsic && frame_count == WINDOW_SIZE && Vs[0].norm() > 0.2) || openExEstimation)
+        if ((vinsConfig().estimate_extrinsic &&
+             frame_count == WINDOW_SIZE && calibration_observable) ||
+            openExEstimation)
         {
             //ROS_INFO( "estimate extinsic param");
             openExEstimation = 1;
@@ -1052,7 +1072,7 @@ void Estimator::optimization()
     }
     problem.AddParameterBlock(para_Td[0], 1);
 
-    if (!vinsConfig().estimate_td || Vs[0].norm() < 0.2)
+    if (!vinsConfig().estimate_td || !calibration_observable)
         problem.SetParameterBlockConstant(para_Td[0]);
 
     if (last_marginalization_info && last_marginalization_info->valid)
@@ -1530,6 +1550,18 @@ double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, 
 void Estimator::outliersRejection(set<int> &removeIndex)
 {
     //return;
+    std::vector<double> whitened_visual_norms;
+    std::vector<double> visual_factor_weights;
+    const double visual_sqrt_info =
+        FOCAL_LENGTH / vinsConfig().visual_sigma_px;
+    auto recordVisualNorm = [&](double normalized_error, double weight) {
+        const double bounded_weight =
+            std::min(1.0, std::max(0.0, weight));
+        whitened_visual_norms.push_back(
+            normalized_error * visual_sqrt_info *
+            std::sqrt(bounded_weight));
+        visual_factor_weights.push_back(bounded_weight);
+    };
     int feature_index = -1;
     for (auto &it_per_id : f_manager.feature)
     {
@@ -1553,6 +1585,10 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                                                     depth, pts_i, pts_j);
                 err += tmp_error;
                 errCnt++;
+                recordVisualNorm(
+                    tmp_error,
+                    std::min(it_per_id.feature_per_frame[0].weight,
+                             it_per_frame.weight));
                 //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
             }
             // need to rewrite projecton factor.........
@@ -1567,6 +1603,10 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
                     errCnt++;
+                    recordVisualNorm(
+                        tmp_error,
+                        std::min(it_per_id.feature_per_frame[0].weight,
+                                 it_per_frame.weightRight));
                     //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
                 }
                 else
@@ -1576,6 +1616,10 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                                                         depth, pts_i, pts_j_right);
                     err += tmp_error;
                     errCnt++;
+                    recordVisualNorm(
+                        tmp_error,
+                        std::min(it_per_id.feature_per_frame[0].weight,
+                                 it_per_frame.weightRight));
                     //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
                 }       
             }
@@ -1584,6 +1628,57 @@ void Estimator::outliersRejection(set<int> &removeIndex)
         if(ave_err * FOCAL_LENGTH > 3)
             removeIndex.insert(it_per_id.feature_id);
 
+    }
+
+    const adaptive_factor::AdaptiveHuberConfig huber_config{
+        vinsConfig().visual_adaptive_huber != 0,
+        vinsConfig().visual_huber_delta_min,
+        vinsConfig().visual_huber_delta_max,
+        vinsConfig().visual_huber_k,
+        vinsConfig().visual_huber_ema,
+        vinsConfig().visual_huber_min_samples};
+    adaptive_visual_huber_delta =
+        adaptive_factor::adaptiveHuberDelta(
+            whitened_visual_norms,
+            adaptive_visual_huber_delta,
+            vinsConfig().visual_huber_delta,
+            huber_config);
+    ROS_DEBUG("Adaptive visual Huber: delta=%.3f samples=%zu",
+              adaptive_visual_huber_delta, whitened_visual_norms.size());
+
+    if (!vinsConfig().adaptive_factor_stats_path.empty())
+    {
+        const double median_visual_norm =
+            adaptive_factor::median(whitened_visual_norms);
+        double weight_sum = 0.0;
+        double min_weight = 1.0;
+        for (double weight : visual_factor_weights)
+        {
+            weight_sum += weight;
+            min_weight = std::min(min_weight, weight);
+        }
+        const double mean_weight = visual_factor_weights.empty()
+                                       ? 1.0
+                                       : weight_sum / visual_factor_weights.size();
+        double imu_mean_inflation = 1.0;
+        double imu_max_inflation = 1.0;
+        if (vinsConfig().use_imu && frame_count > 0 &&
+            pre_integrations[frame_count] != nullptr)
+        {
+            imu_mean_inflation =
+                pre_integrations[frame_count]->meanNoiseInflation();
+            imu_max_inflation =
+                pre_integrations[frame_count]->maxNoiseInflation();
+        }
+        std::ofstream adaptive_stats(
+            vinsConfig().adaptive_factor_stats_path, std::ios::app);
+        adaptive_stats << static_cast<long long>(Headers[frame_count] * 1e9) << ","
+                       << adaptive_visual_huber_delta << ","
+                       << whitened_visual_norms.size() << ","
+                       << median_visual_norm << ","
+                       << mean_weight << "," << min_weight << ","
+                       << imu_mean_inflation << ","
+                       << imu_max_inflation << "\n";
     }
 }
 

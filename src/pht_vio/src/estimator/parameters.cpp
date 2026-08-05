@@ -94,11 +94,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         sem_geodf_backend_agree_weight = static_cast<double>(fsSettings["sem_geodf_backend_agree_weight"]);
     if (!fsSettings["sem_geodf_backend_recovery"].empty())
         sem_geodf_backend_recovery = static_cast<double>(fsSettings["sem_geodf_backend_recovery"]);
+    if (!fsSettings["sem_geodf_rank_by_risk"].empty())
+        sem_geodf_rank_by_risk = static_cast<int>(fsSettings["sem_geodf_rank_by_risk"]);
     sem_geodf_backend_min_weight = std::min(1.0, std::max(0.01, sem_geodf_backend_min_weight));
     sem_geodf_backend_semantic_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_semantic_weight));
     sem_geodf_backend_geo_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_geo_weight));
     sem_geodf_backend_agree_weight = std::min(1.0, std::max(sem_geodf_backend_min_weight, sem_geodf_backend_agree_weight));
     sem_geodf_backend_recovery = std::min(1.0, std::max(0.0, sem_geodf_backend_recovery));
+    sem_geodf_rank_by_risk = sem_geodf_rank_by_risk ? 1 : 0;
     if (!fsSettings["sem_mask_max_age_ms"].empty())
         sem_mask_max_age_ms = static_cast<double>(fsSettings["sem_mask_max_age_ms"]);
     if (!fsSettings["sem_use_latest_mask"].empty())
@@ -121,6 +124,85 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
 
     solver_time = fsSettings["max_solver_time"];
     num_iterations = fsSettings["max_num_iterations"];
+    if (!fsSettings["visual_sigma_px"].empty())
+        visual_sigma_px = static_cast<double>(fsSettings["visual_sigma_px"]);
+    if (!fsSettings["visual_huber_delta"].empty())
+        visual_huber_delta = static_cast<double>(fsSettings["visual_huber_delta"]);
+    visual_sigma_px = std::min(20.0, std::max(0.1, visual_sigma_px));
+    visual_huber_delta = std::min(20.0, std::max(0.1, visual_huber_delta));
+    if (!fsSettings["visual_adaptive_quality"].empty())
+        visual_adaptive_quality = static_cast<int>(fsSettings["visual_adaptive_quality"]);
+    if (!fsSettings["visual_quality_min_weight"].empty())
+        visual_quality_min_weight = static_cast<double>(fsSettings["visual_quality_min_weight"]);
+    if (!fsSettings["visual_lk_error_scale"].empty())
+        visual_lk_error_scale = static_cast<double>(fsSettings["visual_lk_error_scale"]);
+    if (!fsSettings["visual_fb_error_scale"].empty())
+        visual_fb_error_scale = static_cast<double>(fsSettings["visual_fb_error_scale"]);
+    if (!fsSettings["visual_quality_full_age"].empty())
+        visual_quality_full_age = static_cast<int>(fsSettings["visual_quality_full_age"]);
+    if (!fsSettings["visual_adaptive_huber"].empty())
+        visual_adaptive_huber = static_cast<int>(fsSettings["visual_adaptive_huber"]);
+    if (!fsSettings["visual_huber_delta_min"].empty())
+        visual_huber_delta_min = static_cast<double>(fsSettings["visual_huber_delta_min"]);
+    if (!fsSettings["visual_huber_delta_max"].empty())
+        visual_huber_delta_max = static_cast<double>(fsSettings["visual_huber_delta_max"]);
+    if (!fsSettings["visual_huber_k"].empty())
+        visual_huber_k = static_cast<double>(fsSettings["visual_huber_k"]);
+    if (!fsSettings["visual_huber_ema"].empty())
+        visual_huber_ema = static_cast<double>(fsSettings["visual_huber_ema"]);
+    if (!fsSettings["visual_huber_min_samples"].empty())
+        visual_huber_min_samples = static_cast<int>(fsSettings["visual_huber_min_samples"]);
+    if (!fsSettings["imu_adaptive_covariance"].empty())
+        imu_adaptive_covariance = static_cast<int>(fsSettings["imu_adaptive_covariance"]);
+    if (!fsSettings["imu_gap_threshold_s"].empty())
+        imu_gap_threshold_s = static_cast<double>(fsSettings["imu_gap_threshold_s"]);
+    if (!fsSettings["imu_acc_saturation"].empty())
+        imu_acc_saturation = static_cast<double>(fsSettings["imu_acc_saturation"]);
+    if (!fsSettings["imu_gyr_saturation"].empty())
+        imu_gyr_saturation = static_cast<double>(fsSettings["imu_gyr_saturation"]);
+    if (!fsSettings["imu_gap_inflation_gain"].empty())
+        imu_gap_inflation_gain = static_cast<double>(fsSettings["imu_gap_inflation_gain"]);
+    if (!fsSettings["imu_saturation_inflation_gain"].empty())
+        imu_saturation_inflation_gain = static_cast<double>(fsSettings["imu_saturation_inflation_gain"]);
+    if (!fsSettings["imu_max_cov_inflation"].empty())
+        imu_max_cov_inflation = static_cast<double>(fsSettings["imu_max_cov_inflation"]);
+    if (!fsSettings["calibration_observability_gate"].empty())
+        calibration_observability_gate =
+            static_cast<int>(fsSettings["calibration_observability_gate"]);
+    if (!fsSettings["calibration_min_speed"].empty())
+        calibration_min_speed = static_cast<double>(fsSettings["calibration_min_speed"]);
+    if (!fsSettings["calibration_min_parallax_px"].empty())
+        calibration_min_parallax_px =
+            static_cast<double>(fsSettings["calibration_min_parallax_px"]);
+    if (!fsSettings["calibration_min_tracked_features"].empty())
+        calibration_min_tracked_features =
+            static_cast<int>(fsSettings["calibration_min_tracked_features"]);
+
+    visual_adaptive_quality = visual_adaptive_quality ? 1 : 0;
+    visual_quality_min_weight = std::min(1.0, std::max(0.01, visual_quality_min_weight));
+    visual_lk_error_scale = std::min(1000.0, std::max(0.1, visual_lk_error_scale));
+    visual_fb_error_scale = std::min(20.0, std::max(0.05, visual_fb_error_scale));
+    visual_quality_full_age = std::min(100, std::max(1, visual_quality_full_age));
+    visual_adaptive_huber = visual_adaptive_huber ? 1 : 0;
+    visual_huber_delta_min = std::min(20.0, std::max(0.1, visual_huber_delta_min));
+    visual_huber_delta_max = std::min(20.0, std::max(visual_huber_delta_min, visual_huber_delta_max));
+    visual_huber_k = std::min(10.0, std::max(0.1, visual_huber_k));
+    visual_huber_ema = std::min(1.0, std::max(0.0, visual_huber_ema));
+    visual_huber_min_samples = std::min(10000, std::max(4, visual_huber_min_samples));
+    imu_adaptive_covariance = imu_adaptive_covariance ? 1 : 0;
+    imu_gap_threshold_s = std::min(1.0, std::max(1e-4, imu_gap_threshold_s));
+    imu_acc_saturation = std::min(10000.0, std::max(1.0, imu_acc_saturation));
+    imu_gyr_saturation = std::min(10000.0, std::max(0.1, imu_gyr_saturation));
+    imu_gap_inflation_gain = std::min(1000.0, std::max(0.0, imu_gap_inflation_gain));
+    imu_saturation_inflation_gain =
+        std::min(1000.0, std::max(0.0, imu_saturation_inflation_gain));
+    imu_max_cov_inflation = std::min(1000.0, std::max(1.0, imu_max_cov_inflation));
+    calibration_observability_gate = calibration_observability_gate ? 1 : 0;
+    calibration_min_speed = std::min(100.0, std::max(0.0, calibration_min_speed));
+    calibration_min_parallax_px =
+        std::min(1000.0, std::max(0.0, calibration_min_parallax_px));
+    calibration_min_tracked_features =
+        std::min(NUM_OF_F, std::max(0, calibration_min_tracked_features));
     min_parallax = fsSettings["keyframe_parallax"];
     min_parallax = min_parallax / FOCAL_LENGTH;
 
@@ -352,7 +434,22 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         fusion_stats.close();
         ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
                         << sem_adaptive_policy
-                        << ", backend_weight=" << sem_geodf_backend_weight << ")");
+                        << ", backend_weight=" << sem_geodf_backend_weight
+                        << ", risk_rank=" << sem_geodf_rank_by_risk << ")");
+    }
+
+    if (visual_adaptive_quality || visual_adaptive_huber || imu_adaptive_covariance) {
+        adaptive_factor_stats_path = output_folder + "/adaptive_factor_stats.csv";
+        std::ofstream adaptive_stats(adaptive_factor_stats_path, std::ios::out);
+        adaptive_stats << "timestamp_ns,visual_huber_delta,visual_samples,"
+                          "median_whitened_visual_norm,mean_visual_factor_weight,"
+                          "min_visual_factor_weight,imu_mean_noise_inflation,"
+                          "imu_max_noise_inflation\n";
+        adaptive_stats.close();
+        ROS_INFO_STREAM("Adaptive factor confidence enabled (visual_quality="
+                        << visual_adaptive_quality
+                        << ", visual_huber=" << visual_adaptive_huber
+                        << ", imu_covariance=" << imu_adaptive_covariance << ")");
     }
 
     fsSettings.release();

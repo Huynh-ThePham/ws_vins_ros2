@@ -10,6 +10,8 @@
  *******************************************************/
 
 #include "feature_tracker.h"
+#include "sem_geodf_risk.h"
+#include "../factor/adaptive_factor_quality.h"
 #include <opencv2/imgproc/imgproc_c.h>
 #include <fstream>
 #include <cmath>
@@ -501,6 +503,15 @@ double FeatureTracker::distance(cv::Point2f &pt1, cv::Point2f &pt2)
 map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(double _cur_time, const cv::Mat &_img, const cv::Mat &_img1, const cv::Mat &_sem_mask, double _sem_mask_lag_ms)
 {
     TicToc t_r;
+    const auto &cfg = vinsConfig();
+    const adaptive_factor::VisualQualityConfig visual_quality_config{
+        cfg.visual_adaptive_quality != 0,
+        cfg.visual_quality_min_weight,
+        cfg.visual_lk_error_scale,
+        cfg.visual_fb_error_scale,
+        cfg.visual_quality_full_age};
+    std::map<int, double> left_measurement_weights;
+    std::map<int, double> right_measurement_weights;
     cur_time = _cur_time;
     cur_img = _img;
     cur_img1 = _img1;  // (F) keep right image accessible to rejectGeoDynamic()
@@ -533,11 +544,12 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
     {
         TicToc t_o;
         vector<uchar> status;
-        vector<float> err;
+        vector<float> forward_err;
+        vector<double> fb_error(prev_pts.size(), 0.0);
         if(hasPrediction)
         {
             cur_pts = predict_pts;
-            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 1, 
+            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, forward_err, cv::Size(21, 21), 1,
             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
             
             int succ_num = 0;
@@ -547,20 +559,23 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
                     succ_num++;
             }
             if (succ_num < 10)
-               cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+               cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, forward_err, cv::Size(21, 21), 3);
         }
         else
-            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, err, cv::Size(21, 21), 3);
+            cv::calcOpticalFlowPyrLK(prev_img, cur_img, prev_pts, cur_pts, status, forward_err, cv::Size(21, 21), 3);
         // reverse check
         if(vinsConfig().flow_back)
         {
             vector<uchar> reverse_status;
             vector<cv::Point2f> reverse_pts = prev_pts;
-            cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 1, 
+            vector<float> reverse_err;
+            cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, reverse_err, cv::Size(21, 21), 1,
             cv::TermCriteria(cv::TermCriteria::COUNT+cv::TermCriteria::EPS, 30, 0.01), cv::OPTFLOW_USE_INITIAL_FLOW);
             //cv::calcOpticalFlowPyrLK(cur_img, prev_img, cur_pts, reverse_pts, reverse_status, err, cv::Size(21, 21), 3); 
             for(size_t i = 0; i < status.size(); i++)
             {
+                if (i < reverse_pts.size())
+                    fb_error[i] = distance(prev_pts[i], reverse_pts[i]);
                 if(status[i] && reverse_status[i] && distance(prev_pts[i], reverse_pts[i]) <= 0.5)
                 {
                     status[i] = 1;
@@ -573,6 +588,16 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
         for (int i = 0; i < int(cur_pts.size()); i++)
             if (status[i] && !inBorder(cur_pts[i]))
                 status[i] = 0;
+        for (size_t i = 0; i < status.size() && i < ids.size(); i++)
+        {
+            if (!status[i])
+                continue;
+            const double lk_error =
+                i < forward_err.size() ? static_cast<double>(forward_err[i]) : 0.0;
+            left_measurement_weights[ids[i]] =
+                adaptive_factor::visualObservationWeight(
+                    lk_error, fb_error[i], track_cnt[i], visual_quality_config);
+        }
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
         reduceVector(ids, status);
@@ -625,6 +650,9 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             cur_pts.push_back(p);
             ids.push_back(n_id++);
             track_cnt.push_back(1);
+            // A newly detected corner has no temporal LK residual yet; retain
+            // neutral measurement confidence until the first verified track.
+            left_measurement_weights[ids.back()] = 1.0;
         }
         //printf("feature cnt after add %d\n", (int)ids.size());
     }
@@ -644,15 +672,19 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             //printf("stereo image; track feature on right image\n");
             vector<cv::Point2f> reverseLeftPts;
             vector<uchar> status, statusRightLeft;
-            vector<float> err;
+            vector<float> forward_err;
+            vector<double> fb_error(cur_pts.size(), 0.0);
             // cur left ---- cur right
-            cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, err, cv::Size(21, 21), 3);
+            cv::calcOpticalFlowPyrLK(cur_img, rightImg, cur_pts, cur_right_pts, status, forward_err, cv::Size(21, 21), 3);
             // reverse check cur right ---- cur left
             if(vinsConfig().flow_back)
             {
-                cv::calcOpticalFlowPyrLK(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft, err, cv::Size(21, 21), 3);
+                vector<float> reverse_err;
+                cv::calcOpticalFlowPyrLK(rightImg, cur_img, cur_right_pts, reverseLeftPts, statusRightLeft, reverse_err, cv::Size(21, 21), 3);
                 for(size_t i = 0; i < status.size(); i++)
                 {
+                    if (i < reverseLeftPts.size())
+                        fb_error[i] = distance(cur_pts[i], reverseLeftPts[i]);
                     if(status[i] && statusRightLeft[i] && inBorder(cur_right_pts[i]) && distance(cur_pts[i], reverseLeftPts[i]) <= 0.5)
                         status[i] = 1;
                     else
@@ -661,6 +693,16 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             }
 
             ids_right = ids;
+            for (size_t i = 0; i < status.size() && i < ids_right.size(); i++)
+            {
+                if (!status[i])
+                    continue;
+                const double lk_error =
+                    i < forward_err.size() ? static_cast<double>(forward_err[i]) : 0.0;
+                right_measurement_weights[ids_right[i]] =
+                    adaptive_factor::visualObservationWeight(
+                        lk_error, fb_error[i], track_cnt[i], visual_quality_config);
+            }
             reduceVector(cur_right_pts, status);
             reduceVector(ids_right, status);
             // only keep left-right pts
@@ -713,6 +755,9 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
         const auto weight_it = sem_geodf_feature_weights.find(feature_id);
         if (weight_it != sem_geodf_feature_weights.end())
             weight = weight_it->second;
+        const auto quality_it = left_measurement_weights.find(feature_id);
+        if (quality_it != left_measurement_weights.end())
+            weight *= quality_it->second;
         FeatureObservation xyz_uv_velocity;
         xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
         featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
@@ -738,6 +783,9 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             const auto weight_it = sem_geodf_feature_weights.find(feature_id);
             if (weight_it != sem_geodf_feature_weights.end())
                 weight = weight_it->second;
+            const auto quality_it = right_measurement_weights.find(feature_id);
+            if (quality_it != right_measurement_weights.end())
+                weight *= quality_it->second;
             FeatureObservation xyz_uv_velocity;
             xyz_uv_velocity << x, y, z, p_u, p_v, velocity_x, velocity_y, weight;
             featureFrame[feature_id].emplace_back(camera_id,  xyz_uv_velocity);
@@ -1017,7 +1065,9 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     return true;
 }
 
-int FeatureTracker::applyTrackRejection(const std::vector<int> &indices, GeoDynamicAnalysis *geo)
+int FeatureTracker::applyTrackRejection(const std::vector<int> &indices,
+                                        GeoDynamicAnalysis *geo,
+                                        const std::vector<double> *priority_scores)
 {
     auto &cfg = vinsConfig();
     const int total = static_cast<int>(cur_pts.size());
@@ -1025,7 +1075,28 @@ int FeatureTracker::applyTrackRejection(const std::vector<int> &indices, GeoDyna
         return 0;
 
     vector<int> to_reject = indices;
-    if (geo && static_cast<int>(geo->errors.size()) == total)
+    const bool have_priority_scores =
+        priority_scores && static_cast<int>(priority_scores->size()) == total;
+    if (have_priority_scores)
+    {
+        std::stable_sort(to_reject.begin(), to_reject.end(), [&](int a, int b) {
+            const double risk_delta = (*priority_scores)[a] - (*priority_scores)[b];
+            if (std::abs(risk_delta) > 1e-12)
+                return risk_delta > 0.0;
+            // Preserve geometric severity as a deterministic tie-breaker; all
+            // vote-confirmed tracks from one branch can share the same risk cap.
+            if (geo && static_cast<int>(geo->errors.size()) == total)
+            {
+                const double sa = std::max(
+                    geo->errors[a], geo->right_valid[a] ? geo->right_err[a] : 0.0);
+                const double sb = std::max(
+                    geo->errors[b], geo->right_valid[b] ? geo->right_err[b] : 0.0);
+                return sa > sb;
+            }
+            return false;
+        });
+    }
+    else if (geo && static_cast<int>(geo->errors.size()) == total)
     {
         std::sort(to_reject.begin(), to_reject.end(), [&](int a, int b) {
             const double sa = std::max(geo->errors[a],
@@ -1208,6 +1279,7 @@ void FeatureTracker::rejectSemGeoFused()
     double weight_sum = 0.0;
     double target_weight_sum = 0.0;
     double min_weight_seen = 1.0;
+    std::vector<double> fused_risk_scores(total, 0.0);
     if (cfg.sem_geodf_backend_weight)
     {
         std::set<int> sem_raw_set(sem_raw.begin(), sem_raw.end());
@@ -1235,6 +1307,11 @@ void FeatureTracker::rejectSemGeoFused()
                 ? 1.0
                 : (geo_ok ? clampDouble(geo_activation_ema / std::max(1e-6, geo.rho_on), 0.0, 1.0) : 0.0);
         const double overlap_conf = clampDouble(sem_geo_overlap_ema, 0.0, 1.0);
+        const sem_geodf::RiskConfig risk_config{
+            cfg.sem_geodf_backend_min_weight,
+            cfg.sem_geodf_backend_semantic_weight,
+            cfg.sem_geodf_backend_geo_weight,
+            cfg.sem_geodf_backend_agree_weight};
 
         std::map<int, double> next_weights;
         for (int i = 0; i < total; i++)
@@ -1259,38 +1336,28 @@ void FeatureTracker::rejectSemGeoFused()
             if (geo_confirmed_hit)
                 geo_error_conf = std::max(geo_error_conf, 1.0);
 
-            const double sem_risk =
-                sem_hit
-                    ? (1.0 - cfg.sem_geodf_backend_semantic_weight) *
-                          (sem_confirmed_hit ? 1.0 : sem_conf)
-                    : 0.0;
-            const double geo_risk =
-                (geo_raw_hit || geo_confirmed_hit)
-                    ? (1.0 - cfg.sem_geodf_backend_geo_weight) *
-                          std::max(geo_scene_conf, geo_error_conf)
-                    : 0.0;
-            const double consensus_risk =
-                (sem_hit && (geo_raw_hit || geo_confirmed_hit))
-                    ? (1.0 - cfg.sem_geodf_backend_agree_weight) *
-                          std::max(overlap_conf, std::min(sem_conf, std::max(geo_scene_conf, geo_error_conf)))
-                    : 0.0;
+            const sem_geodf::RiskEvidence evidence{
+                sem_hit,
+                sem_confirmed_hit,
+                geo_raw_hit || geo_confirmed_hit,
+                geo_confirmed_hit,
+                sem_conf,
+                geo_scene_conf,
+                geo_error_conf,
+                overlap_conf};
+            const sem_geodf::RiskResult risk =
+                sem_geodf::computeRisk(evidence, risk_config);
+            const double target = risk.target_weight;
+            fused_risk_scores[i] = risk.combined_risk;
 
-            const double combined_risk =
-                1.0 - (1.0 - sem_risk) * (1.0 - geo_risk) * (1.0 - consensus_risk);
-            double target = 1.0 - combined_risk;
-            if (sem_confirmed_hit)
-                target = std::min(target, cfg.sem_geodf_backend_semantic_weight);
-            if (geo_confirmed_hit)
-                target = std::min(target, cfg.sem_geodf_backend_geo_weight);
-            if (sem_confirmed_hit && geo_confirmed_hit)
-                target = std::min(target, cfg.sem_geodf_backend_agree_weight);
-            target = clampDouble(target, cfg.sem_geodf_backend_min_weight, 1.0);
-
-            double weight = target;
+            double previous_weight = target;
             const auto prev = sem_geodf_feature_weights.find(ids[i]);
-            if (prev != sem_geodf_feature_weights.end() && target > prev->second)
-                weight = prev->second + cfg.sem_geodf_backend_recovery * (target - prev->second);
-            next_weights[ids[i]] = clampDouble(weight, cfg.sem_geodf_backend_min_weight, 1.0);
+            if (prev != sem_geodf_feature_weights.end())
+                previous_weight = prev->second;
+            next_weights[ids[i]] =
+                sem_geodf::recoverWeight(previous_weight, target,
+                                         cfg.sem_geodf_backend_recovery,
+                                         cfg.sem_geodf_backend_min_weight);
             if (next_weights[ids[i]] < 0.999)
                 weighted_tracks++;
             weight_sum += next_weights[ids[i]];
@@ -1310,7 +1377,9 @@ void FeatureTracker::rejectSemGeoFused()
 
     std::vector<int> fused(fused_set.begin(), fused_set.end());
     GeoDynamicAnalysis mutable_geo = geo;
-    if (geo_ok && static_cast<int>(mutable_geo.errors.size()) == total)
+    const bool rank_by_risk =
+        cfg.sem_geodf_backend_weight && cfg.sem_geodf_rank_by_risk;
+    if (!rank_by_risk && geo_ok && static_cast<int>(mutable_geo.errors.size()) == total)
     {
         const double sem_sort_score = cfg.geodf_sampson_th + 1.0;
         for (int idx : fused)
@@ -1321,7 +1390,9 @@ void FeatureTracker::rejectSemGeoFused()
                 mutable_geo.errors[idx] = std::max(mutable_geo.errors[idx], sem_sort_score);
         }
     }
-    const int rejected = applyTrackRejection(fused, geo_ok ? &mutable_geo : nullptr);
+    const int rejected = applyTrackRejection(
+        fused, geo_ok ? &mutable_geo : nullptr,
+        rank_by_risk ? &fused_risk_scores : nullptr);
 
     if (!cfg.sem_geodf_stats_path.empty())
     {

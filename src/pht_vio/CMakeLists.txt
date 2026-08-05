@@ -52,6 +52,22 @@ add_executable(pht_vio_offline src/offline/vio_offline_main.cpp)
 target_link_libraries(pht_vio_offline pht_vio)
 ament_target_dependencies(pht_vio_offline pht_camera_models)
 
+if(BUILD_TESTING)
+  enable_testing()
+  add_executable(test_sem_geodf_risk test/test_sem_geodf_risk.cpp)
+  target_include_directories(test_sem_geodf_risk PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+  )
+  add_test(NAME sem_geodf_risk COMMAND test_sem_geodf_risk)
+
+  add_executable(test_adaptive_factor_quality test/test_adaptive_factor_quality.cpp)
+  target_include_directories(test_adaptive_factor_quality PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${EIGEN3_INCLUDE_DIRS}
+  )
+  add_test(NAME adaptive_factor_quality COMMAND test_adaptive_factor_quality)
+endif()
+
 install(TARGETS pht_vio_offline
   DESTINATION lib/${PROJECT_NAME}
 )

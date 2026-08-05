@@ -15,7 +15,11 @@ int FeaturePerId::endFrame()
 }
 
 FeatureManager::FeatureManager(Matrix3d _Rs[])
-    : Rs(_Rs)
+    : last_track_num(0),
+      last_average_parallax(0.0),
+      new_feature_num(0),
+      long_track_num(0),
+      Rs(_Rs)
 {
     for (int i = 0; i < vinsConfig().num_of_cam; i++)
         ric[i].setIdentity();
@@ -32,6 +36,10 @@ void FeatureManager::setRic(Matrix3d _ric[])
 void FeatureManager::clearState()
 {
     feature.clear();
+    last_track_num = 0;
+    last_average_parallax = 0.0;
+    new_feature_num = 0;
+    long_track_num = 0;
 }
 
 int FeatureManager::getFeatureCount()

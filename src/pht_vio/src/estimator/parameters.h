@@ -158,6 +158,50 @@ struct VinsConfig
     int sem_block_on_mask = 0;
     std::string sem_geodf_stats_path;
 
+    // Keep extension fields at the end to avoid shifting legacy field offsets
+    // when an algorithm-only rebuild is temporarily used with an older ROS node.
+    // A complete dependent-package rebuild is still recommended.
+    double visual_sigma_px = 1.5;
+    double visual_huber_delta = 1.0;
+    // Rank tracks competing for the shared hard-rejection budget with the same
+    // risk model used for backend weights. 0 preserves legacy Sampson sorting.
+    int sem_geodf_rank_by_risk = 0;
+
+    // Per-observation visual covariance proxy. The exported factor weight
+    // combines LK/forward-backward/track-age quality with Semantic-GeoDF risk.
+    int visual_adaptive_quality = 0;
+    double visual_quality_min_weight = 0.35;
+    double visual_lk_error_scale = 20.0;
+    double visual_fb_error_scale = 0.5;
+    int visual_quality_full_age = 4;
+
+    // Robust scale learned from the previous optimized window's whitened
+    // reprojection norms. Disabled by default for legacy configurations.
+    int visual_adaptive_huber = 0;
+    double visual_huber_delta_min = 0.75;
+    double visual_huber_delta_max = 3.0;
+    double visual_huber_k = 1.345;
+    double visual_huber_ema = 0.10;
+    int visual_huber_min_samples = 30;
+
+    // Inflate preintegration process noise only for observable IMU transport
+    // faults (large sample gaps or sensor saturation).
+    int imu_adaptive_covariance = 0;
+    double imu_gap_threshold_s = 0.015;
+    double imu_acc_saturation = 80.0;
+    double imu_gyr_saturation = 8.0;
+    double imu_gap_inflation_gain = 3.0;
+    double imu_saturation_inflation_gain = 10.0;
+    double imu_max_cov_inflation = 20.0;
+    std::string adaptive_factor_stats_path;
+
+    // Prevent online extrinsic/time-offset states from opening before the
+    // current window contains enough translational and visual excitation.
+    int calibration_observability_gate = 1;
+    double calibration_min_speed = 0.20;
+    double calibration_min_parallax_px = 5.0;
+    int calibration_min_tracked_features = 40;
+
     void reset();
     bool loadFromYaml(const std::string &config_file);
 };

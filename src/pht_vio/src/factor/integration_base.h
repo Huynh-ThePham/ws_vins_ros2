@@ -11,6 +11,7 @@
 
 #include <pht_slam_common/utility.hpp>
 #include "../estimator/parameters.h"
+#include "adaptive_factor_quality.h"
 
 #include <ceres/ceres.h>
 using namespace Eigen;
@@ -56,6 +57,9 @@ class IntegrationBase
         linearized_bg = _linearized_bg;
         jacobian.setIdentity();
         covariance.setZero();
+        noise_inflation_sum = 0.0;
+        noise_inflation_max = 1.0;
+        noise_inflation_count = 0;
         for (int i = 0; i < static_cast<int>(dt_buf.size()); i++)
             propagate(dt_buf[i], acc_buf[i], gyr_buf[i]);
     }
@@ -131,7 +135,23 @@ class IntegrationBase
             //step_jacobian = F;
             //step_V = V;
             jacobian = F * jacobian;
-            covariance = F * covariance * F.transpose() + V * noise * V.transpose();
+            const adaptive_factor::ImuQualityConfig imu_quality_config{
+                vinsConfig().imu_adaptive_covariance != 0,
+                vinsConfig().imu_gap_threshold_s,
+                vinsConfig().imu_acc_saturation,
+                vinsConfig().imu_gyr_saturation,
+                vinsConfig().imu_gap_inflation_gain,
+                vinsConfig().imu_saturation_inflation_gain,
+                vinsConfig().imu_max_cov_inflation};
+            const double noise_inflation =
+                adaptive_factor::imuNoiseInflation(
+                    _dt, _acc_0, _gyr_0, _acc_1, _gyr_1,
+                    imu_quality_config);
+            noise_inflation_sum += noise_inflation;
+            noise_inflation_max = std::max(noise_inflation_max, noise_inflation);
+            noise_inflation_count++;
+            covariance = F * covariance * F.transpose() +
+                         V * (noise_inflation * noise) * V.transpose();
         }
 
     }
@@ -205,6 +225,21 @@ class IntegrationBase
     Eigen::Matrix<double, 15, 15> step_jacobian;
     Eigen::Matrix<double, 15, 18> step_V;
     Eigen::Matrix<double, 18, 18> noise;
+    double noise_inflation_sum = 0.0;
+    double noise_inflation_max = 1.0;
+    int noise_inflation_count = 0;
+
+    double meanNoiseInflation() const
+    {
+        return noise_inflation_count > 0
+                   ? noise_inflation_sum / static_cast<double>(noise_inflation_count)
+                   : 1.0;
+    }
+
+    double maxNoiseInflation() const
+    {
+        return noise_inflation_max;
+    }
 
     double sum_dt;
     Eigen::Vector3d delta_p;

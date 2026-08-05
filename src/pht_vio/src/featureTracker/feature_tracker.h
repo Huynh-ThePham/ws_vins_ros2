@@ -154,7 +154,9 @@ public:
     };
 
     bool analyzeGeoDynamic(GeoDynamicAnalysis &out);
-    int applyTrackRejection(const std::vector<int> &indices, GeoDynamicAnalysis *geo);
+    int applyTrackRejection(const std::vector<int> &indices,
+                            GeoDynamicAnalysis *geo,
+                            const std::vector<double> *priority_scores = nullptr);
     void logGeoDynamicStats(const GeoDynamicAnalysis &analysis, int rejected);
     void updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
                                       int mask_available,

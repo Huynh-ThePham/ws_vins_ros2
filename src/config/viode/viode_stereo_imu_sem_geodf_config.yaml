@@ -55,9 +55,12 @@ sem_mask_gated: 0
 sem_vote_frames: 2
 sem_adaptive_policy: 1
 sem_policy_dynamic_level: -1
+# Defaults synced to results/sem_policy_tuning_postfix/selected_params.yaml
+# (thresholds selected on city_day train only). The paper runs load these
+# selected values; keeping the defaults identical avoids reproduction drift.
 sem_policy_burst_ratio: 0.18
-sem_policy_strong_ratio: 0.20
-sem_policy_hold_frames: 120
+sem_policy_strong_ratio: 0.18
+sem_policy_hold_frames: 180
 sem_policy_overlap_ratio: 0.35
 sem_policy_overlap_ema: 0.20
 sem_policy_min_geo_candidates: 2
@@ -70,6 +73,9 @@ sem_geodf_backend_semantic_weight: 0.55
 sem_geodf_backend_geo_weight: 0.75
 sem_geodf_backend_agree_weight: 0.25
 sem_geodf_backend_recovery: 0.20
+# Use the fused online risk, rather than mixing a synthetic semantic score with
+# Sampson distance, when candidates compete for the shared rejection budget.
+sem_geodf_rank_by_risk: 1
 sem_mask_max_age_ms: 150.0
 sem_use_latest_mask: 1
 sem_block_on_mask: 0
@@ -103,14 +109,40 @@ geodf_stereo_floor_max: 0.045
 
 max_solver_time: 0.04
 max_num_iterations: 8
+# Reprojection standard deviation in pixels and Huber transition after
+# whitening. Defaults reproduce the original fixed constants.
+visual_sigma_px: 1.5
+visual_huber_delta: 1.0
+visual_adaptive_quality: 1
+visual_quality_min_weight: 0.35
+visual_lk_error_scale: 20.0
+visual_fb_error_scale: 0.5
+visual_quality_full_age: 4
+visual_adaptive_huber: 0
+visual_huber_delta_min: 0.75
+visual_huber_delta_max: 3.0
+visual_huber_k: 1.345
+visual_huber_ema: 0.10
+visual_huber_min_samples: 30
 keyframe_parallax: 10.0
 
 acc_n: 0.2
 gyr_n: 0.05
 acc_w: 0.02
 gyr_w: 4.0e-5
+imu_adaptive_covariance: 1
+imu_gap_threshold_s: 0.015
+imu_acc_saturation: 80.0
+imu_gyr_saturation: 8.0
+imu_gap_inflation_gain: 3.0
+imu_saturation_inflation_gain: 10.0
+imu_max_cov_inflation: 20.0
 g_norm: 9.81007
 
+calibration_observability_gate: 1
+calibration_min_speed: 0.20
+calibration_min_parallax_px: 5.0
+calibration_min_tracked_features: 40
 estimate_td: 0
 td: 0.0
 

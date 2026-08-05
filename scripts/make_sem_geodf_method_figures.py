@@ -12,11 +12,20 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
+
+# Byte-reproducible output. Without this, matplotlib stamps a creation date into every
+# PDF and salts SVG element ids per run, so regenerating identical figures produces
+# different files and the paper-build CI check ("committed figures match the
+# generator") could never pass. Must be set before matplotlib is imported.
+os.environ.setdefault("SOURCE_DATE_EPOCH", "1704067200")  # 2024-01-01T00:00:00Z
 
 import matplotlib
 
 matplotlib.use("Agg")
+# Fixed hash salt so SVG ids are stable across runs.
+matplotlib.rcParams["svg.hashsalt"] = "sem-geodf"
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Rectangle
 
@@ -49,6 +58,12 @@ def _save(fig, figdir: Path, stem: str):
         if ext == "png":
             kw["dpi"] = 300
             kw["facecolor"] = "white"
+        # Empty metadata keeps creation dates and producer strings out of the file, so
+        # the same inputs always give the same bytes.
+        if ext == "pdf":
+            kw["metadata"] = {"CreationDate": None, "Producer": "", "Creator": ""}
+        elif ext == "svg":
+            kw["metadata"] = {"Date": None, "Creator": None}
         fig.savefig(figdir / f"{stem}.{ext}", **kw)
     plt.close(fig)
     print(f"wrote {figdir / stem}.*")
@@ -194,8 +209,9 @@ def fig_system_overview(figdir: Path):
         5.55,
         7.0,
         2.15,
-        "Bidirectional overlap",
-        r"$o=\max(|G{\cap}S|/|G|,\,|S{\cap}G|/|S|)$  on raw GeoDF pool",
+        "Overlap with support",
+        r"Dice $o_D=2|G{\cap}S|/(|G|{+}|S|)$" "\n"
+        r"support: $|G|{\geq}n_G,\ |S|{\geq}n_S,\ |G{\cap}S|{\geq}n_I$",
         fc=C["fill_amber"],
         ec=C["amber"],
         title_fs=10,
@@ -364,7 +380,9 @@ def fig_policy_fsm(figdir: Path):
         13.6,
         1.9,
         "Online triggers only",
-        r"burst: $r_t \geq \tau_b$   ·   strong: $\bar{r}_t \geq \tau_s$   ·   overlap: $\bar{o}_t \geq \tau_o$ on raw GeoDF pool"
+        r"burst: $r_t \geq \tau_b$   ·   strong: $\bar{r}_t \geq \tau_s$   ·   overlap: $\bar{o}_t \geq \tau_o$ with minimum support"
+        "\n"
+        r"holds are DURATIONS on the sensor clock ($t_{\mathrm{assist}}$, $t_{\mathrm{strong}}$), not frame counts"
         "\nno VIODE level · no GT · no ATE/RPE · no hold-out metrics",
         fc=C["fill_gray"],
         ec=C["muted"],
@@ -498,7 +516,7 @@ def fig_overlap_diagram(figdir: Path):
     ax.set_xlim(0, 14)
     ax.set_ylim(0, 6.5)
     ax.axis("off")
-    ax.text(7, 6.1, "Bidirectional overlap on raw GeoDF candidates", ha="center", fontsize=11, fontweight="bold", color=C["ink"])
+    ax.text(7, 6.1, "Overlap with minimum support (Dice)", ha="center", fontsize=11, fontweight="bold", color=C["ink"])
 
     # Two sets
     ax.add_patch(Circle((4.2, 3.2), 1.7, facecolor=C["fill_teal"], edgecolor=C["teal"], lw=1.8, alpha=0.95))
@@ -513,12 +531,12 @@ def fig_overlap_diagram(figdir: Path):
         1.5,
         4.5,
         3.6,
-        r"$o=\max(\cdot)$",
-        r"$|G{\cap}S|/|G|$"
-        "\n"
-        r"$|S{\cap}G|/|S|$"
+        r"$o_D=\dfrac{2|G{\cap}S|}{|G|+|S|}$",
+        r"support required:" "\n"
+        r"$|G|{\geq}n_G$, $|S|{\geq}n_S$, $|G{\cap}S|{\geq}n_I$"
         "\n\n"
-        "EMA → policy trigger\n(keeps uneven sets alive)",
+        "EMA → policy trigger\n"
+        "no support → $o=0$\n(a single shared feature\nis not agreement)",
         fc=C["fill_amber"],
         ec=C["amber"],
         title_fs=10,
@@ -529,7 +547,8 @@ def fig_overlap_diagram(figdir: Path):
     ax.text(
         5.25,
         0.55,
-        "Fallback: if raw pool empty → use GeoDF confirmed",
+        "Symmetric, so the smaller set cannot dominate.\n"
+        "Fallback: if the raw pool is empty → use GeoDF confirmed",
         ha="center",
         fontsize=7.5,
         color=C["muted"],

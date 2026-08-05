@@ -502,7 +502,12 @@ class LifecycleManager
   public:
     void configure(const LifecycleConfig &config) { config_ = config; }
     const LifecycleConfig &config() const { return config_; }
-    void clear() { tracks_.clear(); }
+    void clear()
+    {
+        tracks_.clear();
+        frame_started_ = false;
+        frame_deletion_allowance_ = 0;
+    }
     size_t size() const { return tracks_.size(); }
 
     const TrackRecord *find(int id) const
@@ -526,10 +531,25 @@ class LifecycleManager
         tracks_.swap(kept);
     }
 
+    // Deletions still permitted this frame. Exposed for telemetry.
+    int deletionAllowance() const { return frame_deletion_allowance_; }
+
     LifecycleDecision update(int id, double timestamp_s, const TrackEvidence &evidence,
                              const Health &health, int tracked_features,
                              const HealthConfig &health_config)
     {
+        // A per-frame deletion budget. Checking `tracked_features >= min_tracks` once
+        // per track is not enough: with N tracks flagged in the same frame, each check
+        // sees the pre-deletion count and the batch can overshoot the minimum. The
+        // allowance is what actually keeps the feature set above the floor.
+        if (timestamp_s != frame_timestamp_s_ || !frame_started_)
+        {
+            frame_timestamp_s_ = timestamp_s;
+            frame_started_ = true;
+            frame_deletion_allowance_ =
+                std::max(0, tracked_features - health_config.min_tracks_for_hard_reject);
+        }
+
         TrackRecord &record = tracks_.emplace(id, TrackRecord{}).first->second;
         if (record.state_entered_s == 0.0)
             record.state_entered_s = timestamp_s;
@@ -582,7 +602,10 @@ class LifecycleManager
             const bool experts_healthy =
                 (!evidence.semantic_hit || health.semantic_healthy) &&
                 (!evidence.geo_hit || health.geometric_healthy);
-            const bool redundant = tracked_features >= health_config.min_tracks_for_hard_reject;
+            // Both the standing floor and the remaining budget for THIS frame.
+            const bool redundant =
+                tracked_features >= health_config.min_tracks_for_hard_reject &&
+                frame_deletion_allowance_ > 0;
 
             if (!experts_healthy)
                 decision.hard_reject_blocked_by_health = true;
@@ -592,6 +615,7 @@ class LifecycleManager
                 decision.hard_reject_blocked_by_redundancy = true;
             else
             {
+                frame_deletion_allowance_--;
                 setState(record, TrackState::Rejected, timestamp_s);
                 decision.state = record.state;
                 decision.action = Action::HardReject;
@@ -611,6 +635,10 @@ class LifecycleManager
 
     LifecycleConfig config_;
     std::map<int, TrackRecord> tracks_;
+    // Per-frame deletion budget (see update()).
+    double frame_timestamp_s_ = 0.0;
+    bool frame_started_ = false;
+    int frame_deletion_allowance_ = 0;
 };
 
 }  // namespace sem_policy

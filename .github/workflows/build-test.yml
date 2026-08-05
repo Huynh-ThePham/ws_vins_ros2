@@ -1,0 +1,92 @@
+name: build-test
+
+# Plan section 9: colcon build + CTest + Python tests + shellcheck on every change.
+# Runs in a ROS 2 Humble container; no GPU and no dataset are required, which is why
+# every test added by the upgrade is header-only or synthetic.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  colcon:
+    runs-on: ubuntu-22.04
+    container: ros:humble-ros-base-jammy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential cmake git \
+            libeigen3-dev libceres-dev libboost-all-dev \
+            libopencv-dev python3-opencv \
+            ros-humble-cv-bridge python3-colcon-common-extensions
+
+      - name: colcon build
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/humble/setup.bash
+          colcon build \
+            --packages-up-to pht_vio \
+            --cmake-args -DBUILD_TESTING=ON \
+            --event-handlers console_direct+
+
+      - name: ctest
+        shell: bash
+        run: |
+          set -euo pipefail
+          source /opt/ros/humble/setup.bash
+          colcon test --packages-select pht_vio --event-handlers console_direct+
+          # Fail the job on any failing test; colcon test alone returns 0.
+          colcon test-result --verbose --all
+
+  python-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Unit tests (no ROS, no GPU, no dataset)
+        run: python3 -m unittest discover -s scripts/tests -v
+
+  lint:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          set -euo pipefail
+          sudo apt-get update && sudo apt-get install -y shellcheck
+          # Syntax errors fail; style warnings are informational for now.
+          failed=0
+          for f in scripts/*.sh scripts/lib/*.sh; do
+            [ -e "$f" ] || continue
+            bash -n "$f" || failed=1
+          done
+          [ "$failed" -eq 0 ] || { echo "::error::a shell script has a syntax error"; exit 1; }
+          shellcheck --severity=error scripts/*.sh scripts/lib/*.sh || \
+            { echo "::error::shellcheck reported an error-level finding"; exit 1; }
+
+      - name: clang-format check
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y clang-format
+          if [ ! -f .clang-format ]; then
+            echo "no .clang-format; skipping (upstream VINS style is not enforced)"
+            exit 0
+          fi
+          find src/pht_vio/src src/pht_vio/test -name '*.cpp' -o -name '*.h' \
+            | xargs clang-format --dry-run --Werror
+
+      - name: python syntax
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q scripts src/yolo_dynamic_mask

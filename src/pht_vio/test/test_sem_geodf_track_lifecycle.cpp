@@ -273,6 +273,54 @@ int main()
         }
     }
 
+    TEST_CASE("Lifecycle.PerFrameDeletionBudgetKeepsTheFeatureSetAboveTheFloor");
+    {
+        // Checking `tracked_features >= min_tracks` once per track is not enough: with
+        // many tracks flagged in the same frame, every check sees the pre-deletion
+        // count and the batch overshoots the floor. The per-frame allowance is what
+        // actually bounds it.
+        sp::LifecycleManager manager;
+        manager.configure(lifecycleConfig());
+        const sp::Health health = healthyAll();
+        const sp::HealthConfig hc = healthConfig();  // min_tracks_for_hard_reject = 40
+
+        const int tracked = 45;  // only 5 deletions may be afforded this frame
+        // Two frames of evidence to reach DOWNWEIGHTED for every track.
+        for (int id = 0; id < 30; id++)
+            manager.update(id, 0.0, agreeingEvidence(), health, tracked, hc);
+        int rejected = 0;
+        for (int id = 0; id < 30; id++)
+        {
+            const sp::LifecycleDecision d =
+                manager.update(id, 0.1, agreeingEvidence(), health, tracked, hc);
+            if (d.action == sp::Action::HardReject)
+                rejected++;
+            else
+                CHECK(d.action == sp::Action::DownWeight);
+        }
+        CHECK(rejected == tracked - hc.min_tracks_for_hard_reject);
+        CHECK(manager.deletionAllowance() == 0);
+
+        // A new frame refreshes the allowance from the new count.
+        const sp::LifecycleDecision next =
+            manager.update(0, 0.2, agreeingEvidence(), health, 100, hc);
+        (void)next;
+        CHECK(manager.deletionAllowance() >= 0);
+
+        // At or below the floor, nothing may be deleted at all.
+        sp::LifecycleManager starved;
+        starved.configure(lifecycleConfig());
+        for (int id = 0; id < 10; id++)
+            starved.update(id, 0.0, agreeingEvidence(), health, 40, hc);
+        for (int id = 0; id < 10; id++)
+        {
+            const sp::LifecycleDecision d =
+                starved.update(id, 0.1, agreeingEvidence(), health, 40, hc);
+            CHECK(d.action == sp::Action::DownWeight);
+            CHECK(d.hard_reject_blocked_by_redundancy);
+        }
+    }
+
     TEST_CASE("Lifecycle.RecoveryRequiresDwellTime");
     {
         sp::LifecycleManager manager;

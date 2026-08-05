@@ -1,0 +1,93 @@
+name: paper-build
+
+# Plan section 9: the manuscripts must compile, and the tables must be reproducible
+# from artifacts rather than hand-edited. Also blocks placeholder DOI/author text from
+# reaching a release.
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'paper/**'
+      - 'scripts/make_sem_geodf_*.py'
+      - '.github/workflows/paper-build.yml'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      release_check:
+        description: 'Also fail on placeholder DOI/author text (pre-release gate)'
+        type: boolean
+        default: false
+
+jobs:
+  latex:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install TeX Live and matplotlib
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
+            texlive-lang-other latexmk python3-matplotlib
+
+      - name: Regenerate the method figures (must be reproducible from the script)
+        run: |
+          set -euo pipefail
+          python3 scripts/make_sem_geodf_method_figures.py --out paper/sem_geodf/figures
+          if ! git diff --quiet -- paper/sem_geodf/figures; then
+            echo "::error::committed figures differ from what the generator produces."
+            echo "Regenerate with scripts/make_sem_geodf_method_figures.py and commit."
+            git diff --stat -- paper/sem_geodf/figures
+            exit 1
+          fi
+
+      - name: Compile the English manuscript
+        run: |
+          set -euo pipefail
+          cd paper/sem_geodf/en
+          latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+
+      - name: Compile the Vietnamese manuscript
+        run: |
+          set -euo pipefail
+          cd paper/sem_geodf/vi
+          latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+
+      - name: No undefined references or citations
+        run: |
+          set -euo pipefail
+          failed=0
+          for log in paper/sem_geodf/en/main.log paper/sem_geodf/vi/main.log; do
+            if grep -qE 'Reference .* undefined|Citation .* undefined|LaTeX Warning: There were undefined references' "$log"; then
+              echo "::error::$log has undefined references or citations"
+              grep -E 'undefined' "$log" | head -20
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ]
+
+      # Author/DOI placeholders are intentional in an anonymous draft, so this gates
+      # a RELEASE (tag or manual run with release_check), not every push.
+      - name: No placeholder DOI, author or TODO text
+        if: startsWith(github.ref, 'refs/tags/') || inputs.release_check
+        run: |
+          set -euo pipefail
+          failed=0
+          for tex in paper/sem_geodf/en/main.tex paper/sem_geodf/vi/main.tex; do
+            if grep -nE 'XXXX-XXXX|10\.XXXX|TODO|FIXME|Anonymous Author|First A\. Author|\bTBD\b' "$tex"; then
+              echo "::error::$tex still contains placeholder text"
+              failed=1
+            fi
+          done
+          [ "$failed" -eq 0 ] || { echo "placeholders must be resolved before release"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: manuscripts
+          path: |
+            paper/sem_geodf/en/main.pdf
+            paper/sem_geodf/vi/main.pdf

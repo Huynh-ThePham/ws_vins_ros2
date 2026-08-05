@@ -1,0 +1,58 @@
+name: protocol-audit
+
+# Plan section 9: the protocol guards must hold on every change, because a
+# regression here silently corrupts a published number rather than breaking a build.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Config fairness (methods differ only in the keys they own)
+        run: |
+          set -euo pipefail
+          python3 scripts/audit_method_config_diff.py --base src/config/paper/viode_common.yaml
+          python3 scripts/audit_method_config_diff.py --base src/config/paper/euroc_common.yaml
+
+      - name: Factor adaptation must not be enabled for "ours" alone
+        run: |
+          set -euo pipefail
+          # This MUST fail: full_adaptive enables adaptation the other methods lack.
+          if python3 scripts/audit_method_config_diff.py \
+               --base src/config/paper/viode_common.yaml \
+               --methods baseline,geodf,semantic,union_noweight,union_weight,full_adaptive; then
+            echo "::error::the config audit accepted a confounded matrix"
+            exit 1
+          fi
+          echo "confounded matrix correctly rejected"
+
+      - name: Publication hygiene (no || true, no oracle, no silent ATE filter, gated assets)
+        run: python3 scripts/audit_publication_hygiene.py
+
+      - name: Every overlay resolves on both dataset backbones
+        run: |
+          set -euo pipefail
+          for base in viode euroc; do
+            for overlay in src/config/paper/overlays/*.yaml; do
+              python3 scripts/generate_paper_config.py \
+                --base "src/config/paper/${base}_common.yaml" \
+                --overlay "$overlay" \
+                --out "/tmp/resolved/${base}/$(basename "$overlay" .yaml)/resolved_config.yaml"
+            done
+          done
+
+      - name: Expected-matrix validator behaves on fixtures
+        run: python3 -m unittest scripts.tests.test_fail_closed_pipeline -v
+
+      - name: Manifest and config schema tests
+        run: python3 -m unittest scripts.tests.test_paper_config -v

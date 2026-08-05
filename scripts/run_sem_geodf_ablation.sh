@@ -181,13 +181,34 @@ viode_gt_path() {
 write_run_manifest() {
     local out="$1" dataset="$2" scene="$3" method="$4" trial="$5" rate="$6" yolo="$7" status="$8" cfg="$9" bag="${10}"
     local policy_level="${11:--1}" oracle="${12:-0}"
+    # Map the runner's internal status values onto the three the manifest schema and
+    # the validator accept. write_run_manifest.py re-derives the final status from the
+    # metrics and from failure_status.json, so a caller cannot claim success for a
+    # diverged run.
+    local manifest_status="$status"
+    local reason="${failure_reason:-}"
+    case "$status" in
+        ok) manifest_status=ok ;;
+        *)  manifest_status=failed
+            reason="${reason:-$status}" ;;
+    esac
     python3 "${WS}/scripts/write_run_manifest.py" \
         --out-dir "$out" --dataset "$dataset" --scene "$scene" --method "$method" \
-        --trial "$trial" --bag-rate "$rate" --yolo "$yolo" --status "$status" \
+        --trial "$trial" --bag-rate "$rate" --yolo "$yolo" --status "$manifest_status" \
+        --failure-reason "$reason" \
         --config "$cfg" --bag "$bag" --ws "$WS" \
+        --seed "$(paired_seed "$trial")" \
+        --model "${YOLO_MODEL:-}" \
+        --model-manifest "${WS}/models/model_manifest.json" \
         --protocol-fair "$PROTOCOL_FAIR" --oracle-ablation "$oracle" \
         --sem-policy-dynamic-level "$policy_level" \
         --sem-policy-params-file "${SEM_POLICY_PARAMS_FILE:-}"
+}
+
+# Plan 10.2: every method uses the SAME seed for a given trial, so a per-method
+# difference can never be a difference in random draws.
+paired_seed() {
+    echo $(( 1000 + $1 ))
 }
 
 apply_sem_policy_params_if_needed() {
@@ -301,9 +322,16 @@ run_one() {
         local level="$scene"
         local bag_ros1="${VIODE}/${VIODE_ENV}/${level}.bag"
         local bag_ros2 gt_path run_name status=ok
+        # Plan P0.3: a missing bag is FATAL, not a skip. Skipping produced a summary
+        # over whatever happened to be available, with no record of the gap.
         bag_ros2="$(viode_ros2_bag_path "$level")" || {
-            echo "[skip] no VIODE ros2 bag for ${VIODE_ENV}/${level}"
-            return 0
+            echo "[fatal] required VIODE ros2 bag missing for ${VIODE_ENV}/${level}" >&2
+            if [ "${ALLOW_MISSING_DATA:-0}" = "1" ]; then
+                echo "[warn] ALLOW_MISSING_DATA=1: continuing without this cell. The" >&2
+                echo "       expected-matrix validator will still fail on it." >&2
+                return 0
+            fi
+            return 20
         }
         run_name="${VIODE_ENV}_${level}_${method}_t${trial}"
         out="${WS}/results/sem_geodf_ablation/${PROTOCOL_TAG}/viode/${run_name}"
@@ -339,8 +367,11 @@ run_one() {
                     --no-plot --run-name "$run_name" || status=eval_failed
             fi
         else
-            echo "[warn] no GT for ${VIODE_ENV}/${level}; trajectory+stats saved, skip ATE" >&2
-            status=no_gt
+            # No GT means no ATE, so this run cannot enter a table. Recorded as failed
+            # rather than left as a status the summary might treat as usable.
+            echo "[fatal] no ground truth for ${VIODE_ENV}/${level}; ATE cannot be computed" >&2
+            status=failed
+            failure_reason=missing_ground_truth
         fi
         write_run_manifest "$out" "viode" "${VIODE_ENV}_${level}" "$method" "$trial" "$rate" "$use_yolo" "$status" "$run_cfg" "$bag_ros2" \
             "$policy_level" "$oracle_flag"
@@ -355,7 +386,13 @@ for trial in $(seq 1 "$N"); do
     if [ -n "$EUROC" ]; then
         for seq in $EUROC_SEQS; do
             if ! euroc_bag_ready "$seq"; then
-                echo "[skip] EuRoC ${seq}: ros2 bag unavailable (mount dataset or run euroc_prepare.sh)"
+                echo "[fatal] required EuRoC ros2 bag missing for ${seq}" >&2
+                echo "        mount the dataset or run scripts/euroc_prepare.sh ${seq}" >&2
+                if [ "${ALLOW_MISSING_DATA:-0}" != "1" ]; then
+                    exit 20
+                fi
+                echo "[warn] ALLOW_MISSING_DATA=1: continuing; the expected-matrix" >&2
+                echo "       validator will still fail on this cell." >&2
                 continue
             fi
             for method in $METHODS; do

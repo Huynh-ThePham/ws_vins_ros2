@@ -1,0 +1,81 @@
+{
+  "_comment": [
+    "Declared experiment matrix for the paper (plan P0.3).",
+    "scripts/validate_experiment_matrix.py must return PASS against a finished run",
+    "tree BEFORE any publication asset is generated. A missing cell is a failure, not",
+    "a gap to be filled in silently by whatever runs happened to complete.",
+    "Method names are the overlay names in src/config/paper/overlays/."
+  ],
+  "paper_trials": 10,
+  "datasets": {
+    "viode": {
+      "scenes": [
+        "city_day_0_none",
+        "city_day_1_low",
+        "city_day_2_mid",
+        "city_day_3_high",
+        "city_night_0_none",
+        "city_night_1_low",
+        "city_night_2_mid",
+        "city_night_3_high",
+        "parking_lot_0_none",
+        "parking_lot_1_low",
+        "parking_lot_2_mid",
+        "parking_lot_3_high"
+      ],
+      "methods": ["baseline", "geodf", "semantic", "union_noweight", "union_weight"],
+      "trials": 10,
+      "base_config": "src/config/paper/viode_common.yaml",
+      "role": {
+        "train": ["city_day_0_none", "city_day_1_low", "city_day_2_mid", "city_day_3_high"],
+        "holdout": [
+          "city_night_0_none",
+          "city_night_1_low",
+          "city_night_2_mid",
+          "city_night_3_high",
+          "parking_lot_0_none",
+          "parking_lot_1_low",
+          "parking_lot_2_mid",
+          "parking_lot_3_high"
+        ]
+      }
+    },
+    "euroc": {
+      "scenes": [
+        "MH_01_easy",
+        "MH_02_easy",
+        "MH_03_medium",
+        "MH_04_difficult",
+        "MH_05_difficult"
+      ],
+      "methods": ["baseline", "geodf", "semantic", "union_noweight", "union_weight"],
+      "trials": 10,
+      "base_config": "src/config/paper/euroc_common.yaml",
+      "role": {
+        "train": [],
+        "holdout": [
+          "MH_01_easy",
+          "MH_02_easy",
+          "MH_03_medium",
+          "MH_04_difficult",
+          "MH_05_difficult"
+        ]
+      }
+    }
+  },
+  "requirements": {
+    "require_same_git_sha": true,
+    "require_clean_worktree": true,
+    "require_full_git_sha": true,
+    "require_resolved_config_hash": true,
+    "require_bag_hash": true,
+    "require_model_hash_when_semantic": true,
+    "min_trajectory_coverage": 0.90,
+    "forbid_oracle_runs": true,
+    "required_config_values": {
+      "sem_policy_dynamic_level": "-1",
+      "failure_detection_enable": "1"
+    },
+    "diverged_ate_threshold_m": 50.0
+  }
+}

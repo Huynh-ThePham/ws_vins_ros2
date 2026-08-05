@@ -49,7 +49,7 @@ if [ "${SKIP_EUROC:-0}" != "1" ]; then
     echo "[full-once] === EuRoC 5×MH ==="
     env "${COMMON[@]}" VIODE_LEVELS=__none__ \
         bash "${WS}/scripts/run_sem_geodf_ablation.sh" full \
-        2>&1 | tee "${LOG_DIR}/euroc.log" || true
+        2>&1 | tee "${LOG_DIR}/euroc.log"
 else
     echo "[full-once] SKIP_EUROC=1"
 fi
@@ -58,7 +58,7 @@ for env in city_day city_night parking_lot; do
     echo "[full-once] === VIODE env=$env ==="
     env "${COMMON[@]}" VIODE_ENV="$env" VIODE_LEVELS="$VIODE_LEVELS" EUROC_SEQS=__none__ SKIP_EUROC=1 \
         bash "${WS}/scripts/run_sem_geodf_ablation.sh" full \
-        2>&1 | tee "${LOG_DIR}/viode_${env}.log" || true
+        2>&1 | tee "${LOG_DIR}/viode_${env}.log"
 done
 
 echo "[full-once] === final summary ==="
@@ -73,7 +73,9 @@ python3 "${WS}/scripts/export_ablation_analysis.py" \
     --out-md "${ABLATION_ROOT}/ABLATION_ANALYSIS.md"
 
 cp -a "${ABLATION_ROOT}/ABLATION_SUMMARY.md" "${LOG_DIR}/"
+# Log-copy convenience only; absence does not affect any published number.
 cp -a "${ABLATION_ROOT}/ABLATION_ANALYSIS.csv" "${LOG_DIR}/" 2>/dev/null || true
+# Log-copy convenience only; absence does not affect any published number.
 cp -a "${ABLATION_ROOT}/ABLATION_ANALYSIS.md" "${LOG_DIR}/" 2>/dev/null || true
 
 echo "[full-once] done $(date -Is)"

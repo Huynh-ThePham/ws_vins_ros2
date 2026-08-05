@@ -127,7 +127,7 @@ echo "[postfix] === sensitivity / hold-out report ==="
 TRAIN_TAG="$TRAIN_TAG" \
 HOLDOUT_TAG="$TAG" \
 OUT_DIR="$OUT_DIR" \
-./scripts/run_sem_policy_protocol.sh report || true
+./scripts/run_sem_policy_protocol.sh report
 
 ROOT="results/sem_geodf_ablation/${TAG}"
 # Friendly alias for the gate (N=1) summary.

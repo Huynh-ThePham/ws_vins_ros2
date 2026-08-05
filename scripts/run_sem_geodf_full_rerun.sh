@@ -31,7 +31,9 @@ echo "[full-rerun] start $(date -Is) log=$LOG"
 echo "[full-rerun] N=$N FORCE=$FORCE FAIR_BAG_RATE=$FAIR_BAG_RATE SAD_BAG_RATE=$SAD_BAG_RATE PROTOCOL_TAG=$PROTOCOL_TAG"
 
 cd "$WS"
-bash "${WS}/scripts/setup_viode_gt_cache.sh" || true
+# Plan P0.3: no `|| true` on the publication path. A GT cache failure means every
+# downstream ATE is unavailable, so it must stop the run.
+bash "${WS}/scripts/setup_viode_gt_cache.sh"
 
 METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
 VIODE_LEVELS="0_none 1_low 2_mid 3_high"
@@ -41,13 +43,13 @@ COMMON=(N="$N" FORCE="$FORCE" FAIR_BAG_RATE="$FAIR_BAG_RATE" SAD_BAG_RATE="$SAD_
 if [ "${SKIP_EUROC:-0}" != "1" ]; then
   echo "[full-rerun] === EuRoC 5×MH ==="
   env "${COMMON[@]}" VIODE_LEVELS=__none__ EUROC_SEQS="MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult" \
-    bash "${WS}/scripts/run_sem_geodf_ablation.sh" full || true
+    bash "${WS}/scripts/run_sem_geodf_ablation.sh" full
 fi
 
 for env in city_day city_night parking_lot; do
   echo "[full-rerun] === VIODE env=$env ==="
   env "${COMMON[@]}" VIODE_ENV="$env" VIODE_LEVELS="$VIODE_LEVELS" EUROC_SEQS=__none__ SKIP_EUROC=1 \
-    bash "${WS}/scripts/run_sem_geodf_ablation.sh" full || true
+    bash "${WS}/scripts/run_sem_geodf_ablation.sh" full
 done
 
 echo "[full-rerun] done $(date -Is)"

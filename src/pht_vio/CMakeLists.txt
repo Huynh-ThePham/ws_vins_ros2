@@ -61,6 +61,7 @@ if(BUILD_TESTING)
     sem_geodf_risk_properties
     adaptive_factor_quality
     failure_detection
+    stereo_validity
   )
   foreach(test_name IN LISTS PHT_VIO_HEADER_TESTS)
     add_executable(test_${test_name} test/test_${test_name}.cpp)

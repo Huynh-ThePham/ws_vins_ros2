@@ -202,6 +202,18 @@ struct VinsConfig
     double calibration_min_parallax_px = 5.0;
     int calibration_min_tracked_features = 40;
 
+    // Stereo physical validity contract (plan P1.5/P1.6). One validated set of
+    // stereo matches feeds the stereo factor, depth init, the right-camera GeoDF
+    // branch and the backend weight evidence.
+    int stereo_validity_enable = 1;
+    double stereo_lr_cycle_max_px = 1.0;
+    double stereo_epipolar_max_px = 2.0;
+    double stereo_min_disparity_px = 0.5;
+    double stereo_max_disparity_px = 200.0;
+    double stereo_reprojection_max_px = 2.0;
+    int stereo_require_positive_depth = 1;
+    std::string stereo_stats_path;
+
     // Structured failure detection (plan P0.4). Enabled by default: a diverged run
     // must be reported as failed rather than emit a plausible-looking trajectory.
     int failure_detection_enable = 1;

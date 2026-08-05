@@ -685,12 +685,17 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
                 {
                     if (i < reverseLeftPts.size())
                         fb_error[i] = distance(cur_pts[i], reverseLeftPts[i]);
-                    if(status[i] && statusRightLeft[i] && inBorder(cur_right_pts[i]) && distance(cur_pts[i], reverseLeftPts[i]) <= 0.5)
-                        status[i] = 1;
-                    else
-                        status[i] = 0;
+                    // LK survival only. The physical contract below decides validity;
+                    // the old hard-coded 0.5 px cycle gate is now
+                    // stereo_lr_cycle_max_px inside that contract.
+                    status[i] = (status[i] && statusRightLeft[i]) ? 1 : 0;
                 }
             }
+
+            // Plan P1.5: one physical validity contract, applied here and nowhere
+            // else. Everything downstream (stereo factor, depth init, right-camera
+            // GeoDF, backend weight evidence) consumes only what survives.
+            applyStereoValidityContract(status, fb_error);
 
             ids_right = ids;
             for (size_t i = 0; i < status.size() && i < ids_right.size(); i++)
@@ -718,9 +723,17 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
         // (F) store id -> right pixel for next-frame stereo temporal cross-check.
+        // Only contract-validated matches are stored, so the GeoDF right branch can
+        // never see a match the backend rejected.
+        prev2_right_pts_map = std::move(prev_right_pts_map);
         prev_right_pts_map.clear();
         for (size_t i = 0; i < ids_right.size(); i++)
             prev_right_pts_map[ids_right[i]] = cur_right_pts[i];
+        logStereoValidityStats();
+    }
+    else
+    {
+        stereo_validity_by_id.clear();
     }
     if(vinsConfig().show_track)
         drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
@@ -897,13 +910,22 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     vector<uchar> right_outlier(total, 0);
     out.right_valid.assign(total, 0);
     if (cfg.geodf_stereo_check && stereo_cam && m_camera.size() > 1 &&
-        !cur_img1.empty() && !prev_right_pts_map.empty())
+        !prev_right_pts_map.empty() && !prev2_right_pts_map.empty())
     {
-        vector<cv::Point2f> cur_r;
-        vector<uchar> st;
-        vector<float> er;
-        cv::calcOpticalFlowPyrLK(cur_img, cur_img1, cur_pts, cur_r, st, er,
-                                 cv::Size(21, 21), 3);
+        // Plan P1.6. GeoDF used to run its OWN left->right LK here, with no reverse
+        // check and no physical validation, so its measurement of a track could
+        // disagree with the measurement the backend factor used for the same track.
+        //
+        // There is now exactly one stereo matcher. GeoDF reads only right-camera
+        // observations that passed the validity contract in trackImage(). Because the
+        // rejection stage runs before the stereo block, the current frame's right
+        // observation does not exist yet at this point, so this temporal cross-check
+        // uses the two most recent VALIDATED right frames (t-1, t-2) rather than
+        // manufacturing a t observation with a second matcher. That costs one frame
+        // of latency on a diagnostic branch and buys consistency with the backend.
+        //
+        // geodf_stereo_check is 0 in every paper config; this path is repaired so it
+        // can be enabled, not enabled by this change.
         vector<cv::Point2f> un_cr, un_pr;
         vector<int> ref_idx;
         un_cr.reserve(total);
@@ -913,16 +935,19 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         {
             if (track_cnt[i] < cfg.geodf_min_track_cnt)
                 continue;
-            if (i >= static_cast<int>(st.size()) || !st[i] || !inBorder(cur_r[i]))
-                continue;
-            auto it = prev_right_pts_map.find(ids[i]);
-            if (it == prev_right_pts_map.end())
+            const auto recent = prev_right_pts_map.find(ids[i]);
+            const auto older = prev2_right_pts_map.find(ids[i]);
+            if (recent == prev_right_pts_map.end() || older == prev2_right_pts_map.end())
                 continue;
             Eigen::Vector3d tp;
-            m_camera[1]->liftProjective(Eigen::Vector2d(cur_r[i].x, cur_r[i].y), tp);
+            m_camera[1]->liftProjective(Eigen::Vector2d(recent->second.x, recent->second.y), tp);
+            if (!(std::abs(tp.z()) > 1e-9))
+                continue;
             cv::Point2f cr(FOCAL_LENGTH * tp.x() / tp.z() + col / 2.0,
                            FOCAL_LENGTH * tp.y() / tp.z() + row / 2.0);
-            m_camera[1]->liftProjective(Eigen::Vector2d(it->second.x, it->second.y), tp);
+            m_camera[1]->liftProjective(Eigen::Vector2d(older->second.x, older->second.y), tp);
+            if (!(std::abs(tp.z()) > 1e-9))
+                continue;
             cv::Point2f pr(FOCAL_LENGTH * tp.x() / tp.z() + col / 2.0,
                            FOCAL_LENGTH * tp.y() / tp.z() + row / 2.0);
             un_cr.push_back(cr);
@@ -1452,6 +1477,144 @@ void FeatureTracker::rejectSemGeoFused()
                      << (survivors > 0 ? survivor_weight_sum / survivors : 1.0) << ","
                      << min_survivor_weight << "\n";
     }
+}
+
+stereo_validity::Config FeatureTracker::stereoValidityConfig() const
+{
+    const VinsConfig &cfg = vinsConfig();
+    stereo_validity::Config out;
+    out.enable = cfg.stereo_validity_enable != 0;
+    out.lr_cycle_max_px = cfg.stereo_lr_cycle_max_px;
+    out.epipolar_max_px = cfg.stereo_epipolar_max_px;
+    out.min_disparity_px = cfg.stereo_min_disparity_px;
+    out.max_disparity_px = cfg.stereo_max_disparity_px;
+    out.reprojection_max_px = cfg.stereo_reprojection_max_px;
+    out.require_positive_depth = cfg.stereo_require_positive_depth != 0;
+    return out;
+}
+
+// Derive cam1_T_cam0 from the two body_T_cam extrinsics. Nothing about the rig
+// geometry is assumed: the expected disparity direction is computed from this
+// transform per feature (plan P1.5).
+bool FeatureTracker::ensureStereoRig()
+{
+    if (stereo_rig_ready)
+        return stereo_rig.valid;
+    const VinsConfig &cfg = vinsConfig();
+    if (cfg.ric.size() < 2 || cfg.tic.size() < 2)
+        return false;
+    stereo_rig = stereo_validity::makeRig(cfg.ric[0], cfg.tic[0], cfg.ric[1], cfg.tic[1]);
+    stereo_rig_ready = true;
+    if (!stereo_rig.valid)
+        ROS_WARN("stereo validity contract: degenerate extrinsic (baseline=%.6f m); "
+                 "physical checks disabled for this run",
+                 stereo_rig.baseline);
+    else
+        ROS_INFO("stereo validity contract: baseline=%.4f m", stereo_rig.baseline);
+    return stereo_rig.valid;
+}
+
+void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
+                                                 const std::vector<double> &fb_error)
+{
+    stereo_validity_by_id.clear();
+    stereo_counters_frame.reset();
+
+    const stereo_validity::Config config = stereoValidityConfig();
+    const bool rig_ok = ensureStereoRig();
+    if (m_camera.size() < 2)
+        return;
+
+    const size_t total = std::min(status.size(), cur_right_pts.size());
+    for (size_t i = 0; i < total && i < ids.size(); i++)
+    {
+        const bool lk_ok = status[i] != 0;
+        const bool in_border = lk_ok && inBorder(cur_right_pts[i]);
+
+        stereo_validity::Result result;
+        if (!rig_ok)
+        {
+            // Fail-open only in the sense of preserving the previous LK+border
+            // behaviour: without a usable extrinsic no physical claim is possible,
+            // and disabling the whole stereo branch would change every dataset that
+            // has no calibrated rig.
+            stereo_validity::Config lk_only = config;
+            lk_only.enable = false;
+            result = stereo_validity::checkStereoMatch(
+                Eigen::Vector3d::UnitZ(), Eigen::Vector3d::UnitZ(), stereo_rig, lk_only,
+                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, FOCAL_LENGTH);
+        }
+        else
+        {
+            Eigen::Vector3d x0, x1;
+            m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y), x0);
+            m_camera[1]->liftProjective(
+                Eigen::Vector2d(cur_right_pts[i].x, cur_right_pts[i].y), x1);
+            // liftProjective returns a ray; normalize to z = 1 so the residuals below
+            // are in normalized image units for both camera models.
+            if (std::abs(x0.z()) > 1e-9)
+                x0 /= x0.z();
+            if (std::abs(x1.z()) > 1e-9)
+                x1 /= x1.z();
+            result = stereo_validity::checkStereoMatch(
+                x0, x1, stereo_rig, config,
+                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, FOCAL_LENGTH);
+        }
+
+        // Only count matches LK actually produced; a dead track is not a stereo
+        // measurement and would dilute every rejection rate.
+        if (lk_ok)
+            stereo_counters_frame.record(result.rejection);
+
+        if (!result.valid())
+        {
+            status[i] = 0;
+            continue;
+        }
+        stereo_validity_by_id[ids[i]] = stereo_validity::toTrackValidity(result);
+    }
+
+    const stereo_validity::Counters &f = stereo_counters_frame;
+    stereo_counters_total.stereo_match_total += f.stereo_match_total;
+    stereo_counters_total.stereo_lk_failed += f.stereo_lk_failed;
+    stereo_counters_total.stereo_border_failed += f.stereo_border_failed;
+    stereo_counters_total.stereo_lr_cycle_failed += f.stereo_lr_cycle_failed;
+    stereo_counters_total.stereo_epipolar_failed += f.stereo_epipolar_failed;
+    stereo_counters_total.stereo_wrong_disparity_sign += f.stereo_wrong_disparity_sign;
+    stereo_counters_total.stereo_disparity_range_failed += f.stereo_disparity_range_failed;
+    stereo_counters_total.stereo_negative_depth += f.stereo_negative_depth;
+    stereo_counters_total.stereo_reprojection_failed += f.stereo_reprojection_failed;
+    stereo_counters_total.stereo_valid_total += f.stereo_valid_total;
+}
+
+void FeatureTracker::logStereoValidityStats()
+{
+    const VinsConfig &cfg = vinsConfig();
+    if (cfg.stereo_stats_path.empty())
+        return;
+
+    double disparity_sum = 0.0;
+    double depth_sum = 0.0;
+    double epipolar_sum = 0.0;
+    for (const auto &entry : stereo_validity_by_id)
+    {
+        disparity_sum += entry.second.disparity_px;
+        depth_sum += entry.second.depth_cam0;
+        epipolar_sum += entry.second.epipolar_px;
+    }
+    const double n = static_cast<double>(std::max<size_t>(1, stereo_validity_by_id.size()));
+
+    std::ofstream out(cfg.stereo_stats_path, std::ios::app);
+    const stereo_validity::Counters &c = stereo_counters_frame;
+    out << static_cast<long long>(cur_time * 1e9) << ","
+        << c.stereo_match_total << "," << c.stereo_lk_failed << ","
+        << c.stereo_border_failed << "," << c.stereo_lr_cycle_failed << ","
+        << c.stereo_epipolar_failed << "," << c.stereo_wrong_disparity_sign << ","
+        << c.stereo_disparity_range_failed << "," << c.stereo_negative_depth << ","
+        << c.stereo_reprojection_failed << "," << c.stereo_valid_total << ","
+        << (stereo_validity_by_id.empty() ? 0.0 : disparity_sum / n) << ","
+        << (stereo_validity_by_id.empty() ? 0.0 : depth_sum / n) << ","
+        << (stereo_validity_by_id.empty() ? 0.0 : epipolar_sum / n) << "\n";
 }
 
 void FeatureTracker::readIntrinsicParameter(const vector<string> &calib_file)

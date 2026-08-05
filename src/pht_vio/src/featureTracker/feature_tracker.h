@@ -23,6 +23,7 @@
 #include "camodocal/camera_models/CataCamera.h"
 #include "camodocal/camera_models/PinholeCamera.h"
 #include "../estimator/parameters.h"
+#include "stereo_validity.h"
 #include <pht_slam_common/tic_toc.hpp>
 
 using namespace std;
@@ -102,7 +103,25 @@ public:
     long long geo_frame_count = 0;
     // (F) stereo temporal cross-check state.
     cv::Mat cur_img1;                            // current right image (set in trackImage)
-    std::map<int, cv::Point2f> prev_right_pts_map;  // id -> previous-frame right pixel
+    std::map<int, cv::Point2f> prev_right_pts_map;   // id -> right pixel at t-1 (validated)
+    std::map<int, cv::Point2f> prev2_right_pts_map;  // id -> right pixel at t-2 (validated)
+
+    // Plan P1.5/P1.6: the single source of truth for stereo measurements. Populated
+    // once per frame by applyStereoValidityContract(); GeoDF reads it instead of
+    // running a second, unvalidated stereo matcher of its own.
+    stereo_validity::ValidityById stereo_validity_by_id;
+    stereo_validity::Counters stereo_counters_frame;
+    stereo_validity::Counters stereo_counters_total;
+    stereo_validity::Rig stereo_rig;
+    bool stereo_rig_ready = false;
+
+    // Marks status[i] = 0 for every left-right match that fails the physical
+    // contract, and refreshes stereo_validity_by_id / the frame counters.
+    void applyStereoValidityContract(std::vector<uchar> &status,
+                                     const std::vector<double> &fb_error);
+    void logStereoValidityStats();
+    stereo_validity::Config stereoValidityConfig() const;
+    bool ensureStereoRig();
 
     // SAD-VINS scene-aware semantic activation (EMA of dynamic pixel ratio).
     double sem_activation_ema = -1.0;

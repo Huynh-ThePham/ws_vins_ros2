@@ -178,6 +178,23 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         calibration_min_tracked_features =
             static_cast<int>(fsSettings["calibration_min_tracked_features"]);
 
+    if (!fsSettings["stereo_validity_enable"].empty())
+        stereo_validity_enable = static_cast<int>(fsSettings["stereo_validity_enable"]);
+    if (!fsSettings["stereo_lr_cycle_max_px"].empty())
+        stereo_lr_cycle_max_px = static_cast<double>(fsSettings["stereo_lr_cycle_max_px"]);
+    if (!fsSettings["stereo_epipolar_max_px"].empty())
+        stereo_epipolar_max_px = static_cast<double>(fsSettings["stereo_epipolar_max_px"]);
+    if (!fsSettings["stereo_min_disparity_px"].empty())
+        stereo_min_disparity_px = static_cast<double>(fsSettings["stereo_min_disparity_px"]);
+    if (!fsSettings["stereo_max_disparity_px"].empty())
+        stereo_max_disparity_px = static_cast<double>(fsSettings["stereo_max_disparity_px"]);
+    if (!fsSettings["stereo_reprojection_max_px"].empty())
+        stereo_reprojection_max_px =
+            static_cast<double>(fsSettings["stereo_reprojection_max_px"]);
+    if (!fsSettings["stereo_require_positive_depth"].empty())
+        stereo_require_positive_depth =
+            static_cast<int>(fsSettings["stereo_require_positive_depth"]);
+
     if (!fsSettings["failure_detection_enable"].empty())
         failure_detection_enable = static_cast<int>(fsSettings["failure_detection_enable"]);
     if (!fsSettings["failure_max_acc_bias"].empty())
@@ -222,6 +239,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::min(1000.0, std::max(0.0, calibration_min_parallax_px));
     calibration_min_tracked_features =
         std::min(NUM_OF_F, std::max(0, calibration_min_tracked_features));
+    stereo_validity_enable = stereo_validity_enable ? 1 : 0;
+    stereo_lr_cycle_max_px = std::min(100.0, std::max(0.05, stereo_lr_cycle_max_px));
+    stereo_epipolar_max_px = std::min(100.0, std::max(0.05, stereo_epipolar_max_px));
+    stereo_min_disparity_px = std::max(0.0, stereo_min_disparity_px);
+    stereo_max_disparity_px =
+        std::max(stereo_min_disparity_px + 1e-6, stereo_max_disparity_px);
+    stereo_reprojection_max_px = std::min(100.0, std::max(0.05, stereo_reprojection_max_px));
+    stereo_require_positive_depth = stereo_require_positive_depth ? 1 : 0;
     failure_detection_enable = failure_detection_enable ? 1 : 0;
     failure_max_acc_bias = std::min(1000.0, std::max(0.01, failure_max_acc_bias));
     failure_max_gyro_bias = std::min(1000.0, std::max(0.001, failure_max_gyro_bias));
@@ -468,6 +493,26 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         "rejected_weighted_tracks,mean_target_weight_pre_guard,"
                         "mean_applied_weight_post_guard,min_survivor_weight\n";
         fusion_stats.close();
+    }
+
+    if (num_of_cam == 2 && stereo_validity_enable && !output_folder.empty()) {
+        stereo_stats_path = output_folder + "/stereo_stats.csv";
+        std::ofstream stereo_stats(stereo_stats_path, std::ios::out);
+        stereo_stats << "timestamp_ns,stereo_match_total,stereo_lk_failed,"
+                        "stereo_border_failed,stereo_lr_cycle_failed,"
+                        "stereo_epipolar_failed,stereo_wrong_disparity_sign,"
+                        "stereo_disparity_range_failed,stereo_negative_depth,"
+                        "stereo_reprojection_failed,stereo_valid_total,"
+                        "mean_disparity_px,mean_depth_m,mean_epipolar_px\n";
+        stereo_stats.close();
+        ROS_INFO("Stereo validity contract enabled (lr_cycle<=%.2fpx, epipolar<=%.2fpx, "
+                 "reproj<=%.2fpx, disparity in [%.2f, %.1f]px, positive_depth=%d)",
+                 stereo_lr_cycle_max_px, stereo_epipolar_max_px, stereo_reprojection_max_px,
+                 stereo_min_disparity_px, stereo_max_disparity_px,
+                 stereo_require_positive_depth);
+    }
+
+    if (sem_enable && geodf_enable && sem_geodf_fusion) {
         ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
                         << sem_adaptive_policy
                         << ", backend_weight=" << sem_geodf_backend_weight

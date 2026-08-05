@@ -20,9 +20,9 @@ ProjectionOneFrameTwoCamFactor::ProjectionOneFrameTwoCamFactor(const Eigen::Vect
                                                                const Eigen::Vector2d &_velocity_i, const Eigen::Vector2d &_velocity_j,
                                                                const double _td_i, const double _td_j, const double _weight) :
                                                                pts_i(_pts_i), pts_j(_pts_j),
-                                                               td_i(_td_i), td_j(_td_j)
+                                                               td_i(_td_i), td_j(_td_j),
+                                                               sqrt_weight(std::sqrt(std::min(1.0, std::max(0.0, _weight))))
 {
-    sqrt_weight = std::sqrt(std::min(1.0, std::max(0.0, _weight)));
     velocity_i.x() = _velocity_i.x();
     velocity_i.y() = _velocity_i.y();
     velocity_i.z() = 0;
@@ -119,7 +119,11 @@ bool ProjectionOneFrameTwoCamFactor::Evaluate(double const *const *parameters, d
         {
             Eigen::Map<Eigen::Vector2d> jacobian_feature(jacobians[2]);
 #if 1
-            jacobian_feature = reduce * ric2.transpose() * ric * pts_i * -1.0 / (inv_dep_i * inv_dep_i);
+            // pts_camera_i = pts_i_td / inv_dep_i, so the derivative must use the
+            // td-corrected measurement. Using the raw pts_i made this block wrong
+            // whenever td != td_i (i.e. whenever estimate_td is enabled); the two
+            // other projection factors already used pts_i_td.
+            jacobian_feature = reduce * ric2.transpose() * ric * pts_i_td * -1.0 / (inv_dep_i * inv_dep_i);
 #else
             jacobian_feature = reduce * ric.transpose() * Rj.transpose() * Ri * ric * pts_i;
 #endif

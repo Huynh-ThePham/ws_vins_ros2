@@ -1275,11 +1275,16 @@ void FeatureTracker::rejectSemGeoFused()
             fused_set.insert(idx);
     }
 
-    int weighted_tracks = 0;
-    double weight_sum = 0.0;
+    // Pre-guard weighting telemetry. Post-guard survivor statistics are computed
+    // after applyTrackRejection() below, because the paper describes weighting as
+    // acting on suspicious *survivors* of the shared rejection budget.
+    int weighted_candidates_pre_guard = 0;
+    double applied_weight_sum = 0.0;
     double target_weight_sum = 0.0;
     double min_weight_seen = 1.0;
-    std::vector<double> fused_risk_scores(total, 0.0);
+    // Ranking severity (1 - target_weight), not the raw fused risk: confirmation
+    // caps must be visible to the shared rejection budget as well.
+    std::vector<double> ranking_risk_scores(total, 0.0);
     if (cfg.sem_geodf_backend_weight)
     {
         std::set<int> sem_raw_set(sem_raw.begin(), sem_raw.end());
@@ -1345,32 +1350,33 @@ void FeatureTracker::rejectSemGeoFused()
                 geo_scene_conf,
                 geo_error_conf,
                 overlap_conf};
-            const sem_geodf::RiskResult risk =
-                sem_geodf::computeRisk(evidence, risk_config);
-            const double target = risk.target_weight;
-            fused_risk_scores[i] = risk.combined_risk;
+            const sem_geodf::WeightResult weighting =
+                sem_geodf::computeMeasurementWeight(evidence, risk_config);
+            const double target_weight = weighting.target_weight;
+            ranking_risk_scores[i] = weighting.ranking_risk;
 
-            double previous_weight = target;
+            double previous_weight = target_weight;
             const auto prev = sem_geodf_feature_weights.find(ids[i]);
             if (prev != sem_geodf_feature_weights.end())
                 previous_weight = prev->second;
-            next_weights[ids[i]] =
-                sem_geodf::recoverWeight(previous_weight, target,
+            const double applied_weight =
+                sem_geodf::recoverWeight(previous_weight, target_weight,
                                          cfg.sem_geodf_backend_recovery,
                                          cfg.sem_geodf_backend_min_weight);
-            if (next_weights[ids[i]] < 0.999)
-                weighted_tracks++;
-            weight_sum += next_weights[ids[i]];
-            target_weight_sum += target;
-            min_weight_seen = std::min(min_weight_seen, next_weights[ids[i]]);
+            next_weights[ids[i]] = applied_weight;
+            if (applied_weight < 0.999)
+                weighted_candidates_pre_guard++;
+            applied_weight_sum += applied_weight;
+            target_weight_sum += target_weight;
+            min_weight_seen = std::min(min_weight_seen, applied_weight);
         }
         sem_geodf_feature_weights.swap(next_weights);
     }
     else
     {
         sem_geodf_feature_weights.clear();
-        weighted_tracks = 0;
-        weight_sum = static_cast<double>(total);
+        weighted_candidates_pre_guard = 0;
+        applied_weight_sum = static_cast<double>(total);
         target_weight_sum = static_cast<double>(total);
         min_weight_seen = 1.0;
     }
@@ -1392,7 +1398,25 @@ void FeatureTracker::rejectSemGeoFused()
     }
     const int rejected = applyTrackRejection(
         fused, geo_ok ? &mutable_geo : nullptr,
-        rank_by_risk ? &fused_risk_scores : nullptr);
+        rank_by_risk ? &ranking_risk_scores : nullptr);
+
+    // P1.12: survivors of the shared rejection budget are what the backend
+    // actually down-weights, so report them separately from the pre-guard pool.
+    int weighted_survivors_post_guard = 0;
+    double survivor_weight_sum = 0.0;
+    double min_survivor_weight = 1.0;
+    const int survivors = static_cast<int>(ids.size());
+    for (int id : ids)
+    {
+        const auto it = sem_geodf_feature_weights.find(id);
+        const double w = it != sem_geodf_feature_weights.end() ? it->second : 1.0;
+        if (w < 0.999)
+            weighted_survivors_post_guard++;
+        survivor_weight_sum += w;
+        min_survivor_weight = std::min(min_survivor_weight, w);
+    }
+    const int rejected_weighted_tracks =
+        std::max(0, weighted_candidates_pre_guard - weighted_survivors_post_guard);
 
     if (!cfg.sem_geodf_stats_path.empty())
     {
@@ -1415,11 +1439,18 @@ void FeatureTracker::rejectSemGeoFused()
                      << sem_geo_overlap_last << "," << sem_geo_overlap_ema << ","
                      << (sem_hard_reject ? 1 : 0) << ","
                      << sem_policy_trigger_burst << "," << sem_policy_trigger_strong << ","
-                     << sem_policy_trigger_overlap << "," << weighted_tracks << ","
-                     << (total > 0 ? weight_sum / total : 1.0) << ","
+                     << sem_policy_trigger_overlap << ","
+                     << weighted_candidates_pre_guard << ","
+                     << (total > 0 ? applied_weight_sum / total : 1.0) << ","
                      << (geo_ok ? 1 : 0) << "," << geo_raw_candidates << ","
                      << geo_overlap_pool << "," << min_weight_seen << ","
-                     << (total > 0 ? target_weight_sum / total : 1.0) << "\n";
+                     << (total > 0 ? target_weight_sum / total : 1.0) << ","
+                     << weighted_candidates_pre_guard << ","
+                     << weighted_survivors_post_guard << ","
+                     << rejected_weighted_tracks << ","
+                     << (total > 0 ? target_weight_sum / total : 1.0) << ","
+                     << (survivors > 0 ? survivor_weight_sum / survivors : 1.0) << ","
+                     << min_survivor_weight << "\n";
     }
 }
 

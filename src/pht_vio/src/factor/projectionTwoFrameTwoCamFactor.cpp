@@ -20,9 +20,9 @@ ProjectionTwoFrameTwoCamFactor::ProjectionTwoFrameTwoCamFactor(const Eigen::Vect
                                                                const Eigen::Vector2d &_velocity_i, const Eigen::Vector2d &_velocity_j,
                                                                const double _td_i, const double _td_j, const double _weight) :
                                                                pts_i(_pts_i), pts_j(_pts_j),
-                                                               td_i(_td_i), td_j(_td_j)
+                                                               td_i(_td_i), td_j(_td_j),
+                                                               sqrt_weight(std::sqrt(std::min(1.0, std::max(0.0, _weight))))
 {
-    sqrt_weight = std::sqrt(std::min(1.0, std::max(0.0, _weight)));
     velocity_i.x() = _velocity_i.x();
     velocity_i.y() = _velocity_i.y();
     velocity_i.z() = 0;

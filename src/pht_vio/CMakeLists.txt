@@ -54,18 +54,42 @@ ament_target_dependencies(pht_vio_offline pht_camera_models)
 
 if(BUILD_TESTING)
   enable_testing()
-  add_executable(test_sem_geodf_risk test/test_sem_geodf_risk.cpp)
-  target_include_directories(test_sem_geodf_risk PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-  )
-  add_test(NAME sem_geodf_risk COMMAND test_sem_geodf_risk)
 
-  add_executable(test_adaptive_factor_quality test/test_adaptive_factor_quality.cpp)
-  target_include_directories(test_adaptive_factor_quality PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${EIGEN3_INCLUDE_DIRS}
+  # Header-only tests: no ROS, no GPU, no dataset. Kept fast so CI can gate on them.
+  set(PHT_VIO_HEADER_TESTS
+    sem_geodf_risk
+    sem_geodf_risk_properties
+    adaptive_factor_quality
   )
-  add_test(NAME adaptive_factor_quality COMMAND test_adaptive_factor_quality)
+  foreach(test_name IN LISTS PHT_VIO_HEADER_TESTS)
+    add_executable(test_${test_name} test/test_${test_name}.cpp)
+    target_include_directories(test_${test_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/test
+      ${EIGEN3_INCLUDE_DIRS}
+    )
+    add_test(NAME ${test_name} COMMAND test_${test_name})
+  endforeach()
+
+  # Tests that need the compiled estimator (Ceres factors, marginalization).
+  # Still ROS-node-free and dataset-free.
+  set(PHT_VIO_LINKED_TESTS
+    marginalization_weight_freeze
+    projection_two_frame_one_cam_gradient
+    projection_two_frame_two_cam_gradient
+    projection_one_frame_two_cam_gradient
+  )
+  foreach(test_name IN LISTS PHT_VIO_LINKED_TESTS)
+    add_executable(test_${test_name} test/test_${test_name}.cpp)
+    target_include_directories(test_${test_name} PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/test
+      ${EIGEN3_INCLUDE_DIRS}
+      ${CERES_INCLUDE_DIRS}
+    )
+    target_link_libraries(test_${test_name} pht_vio)
+    add_test(NAME ${test_name} COMMAND test_${test_name})
+  endforeach()
 endif()
 
 install(TARGETS pht_vio_offline

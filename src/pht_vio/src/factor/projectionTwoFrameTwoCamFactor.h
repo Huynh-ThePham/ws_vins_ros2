@@ -30,7 +30,10 @@ class ProjectionTwoFrameTwoCamFactor : public ceres::SizedCostFunction<2, 7, 7, 
     Eigen::Vector3d pts_i, pts_j;
     Eigen::Vector3d velocity_i, velocity_j;
     double td_i, td_j;
-    double sqrt_weight;
+    // Frozen at construction: an observation's weight must never be mutated
+    // after its residual block exists, or a marginalized prior would silently
+    // disagree with the weight it was linearized at.
+    const double sqrt_weight;
     Eigen::Matrix<double, 2, 3> tangent_base;
     static Eigen::Matrix2d sqrt_info;
     static double sum_t;

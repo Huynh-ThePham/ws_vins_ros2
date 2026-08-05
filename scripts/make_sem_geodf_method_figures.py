@@ -239,7 +239,7 @@ def fig_system_overview(figdir: Path):
         6.2,
         2.05,
         "Residual weights $w_i$",
-        r"risk OR → $\tilde w_i$ → $\sqrt{w_i}$ in Ceres",
+        r"fused risk $r_i$ → $\tilde w_i = 1 - r_i$ → $\sqrt{w_i}$ in Ceres",
         fc=C["fill_green"],
         ec=C["green"],
         title_fs=10,
@@ -424,8 +424,10 @@ def fig_weight_flow(figdir: Path):
     ax.text(9, 6.55, "Adaptive residual weighting for suspicious survivors", ha="center", fontsize=11, fontweight="bold", color=C["ink"])
 
     _box(ax, 0.4, 3.5, 3.5, 2.2, "Online evidence", "sem / geo hits\nSampson excess\nscene + overlap", fc=C["fill_teal"], ec=C["teal"])
-    _box(ax, 4.6, 3.5, 3.6, 2.2, r"Risks $\rho^{\mathrm{sem,geo,agr}}$", "engineered scores\nin $[0,1]$", fc=C["fill_amber"], ec=C["amber"])
-    _box(ax, 9.0, 3.5, 3.8, 2.2, r"Target $\tilde w_i$", r"$1-\prod(1-\rho)$\n+ caps + $w_{\min}$", fc=C["fill_coral"], ec=C["coral"])
+    # Keep this figure, the EN/VI equations and sem_geodf_risk.h in lockstep:
+    # fused risk r = 1 - prod(1 - rho); target weight is its INVERSE, 1 - r.
+    _box(ax, 4.6, 3.5, 3.6, 2.2, r"Fused risk $r_i$", r"$1-\prod(1-\rho^b_i)$", fc=C["fill_amber"], ec=C["amber"])
+    _box(ax, 9.0, 3.5, 3.8, 2.2, r"Target $\tilde w_i = 1 - r_i$", r"$\prod(1-\rho^b_i)$\n+ caps + $w_{\min}$", fc=C["fill_coral"], ec=C["coral"])
     _box(ax, 13.5, 3.5, 4.0, 2.2, r"Ceres $\sqrt{w_i}$", "residual + Jacobian\n(incl. time offset)", fc=C["fill_navy"], ec=C["navy"])
 
     for x0, x1 in ((3.9, 4.6), (8.2, 9.0), (12.8, 13.5)):

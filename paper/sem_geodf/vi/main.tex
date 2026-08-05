@@ -274,7 +274,7 @@ Trọng số là độ tin cậy theo track, không phải mô hình nhiễu đ�
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{backend_weight_flow.pdf}
-\caption{Luồng trọng số dư thích nghi cho track sống sót ngân sách loại bỏ chung. Rủi ro semantic/hình học online tạo mục tiêu OR xác suất \(\tilde{w}_i\), phục hồi theo id, rồi áp \(\sqrt{w_i}\) trong Ceres.}
+\caption{Luồng trọng số dư thích nghi cho track sống sót ngân sách loại bỏ chung. Bằng chứng semantic/hình học online tạo rủi ro hợp nhất \(r_i\) bằng hợp nhân tính (noisy-OR-inspired); trọng số mục tiêu là nghịch đảo của nó \(\tilde{w}_i{=}\mathrm{clip}(1{-}r_i,w_{\min},1)\), phục hồi theo id, rồi áp \(\sqrt{w_i}\) trong Ceres.}
 \label{fig:weight}
 \end{figure}
 
@@ -285,11 +285,20 @@ Từ bằng chứng online ở khung hiện tại ta tạo ba hạng rủi ro tr
 \rho^{\mathrm{agr}}_i &= \mathbb{1}^{\mathrm{sem}}_i\mathbb{1}^{\mathrm{geo}}_i\,(1{-}w_{\mathrm{agr}})\,\max(\bar{o}_t,\,\min(c^{\mathrm{sem}}_i,\max(c^{\mathrm{geo}},e_i))),
 \end{align}
 trong đó \(\mathbb{1}^{\mathrm{sem}}_i\) / \(\mathbb{1}^{\mathrm{geo}}_i\) cờ hit semantic / GeoDF raw-hoặc-confirmed, \(c^{\mathrm{sem}}\) / \(c^{\mathrm{geo}}\) là độ tin cậy cảnh từ EMA+hysteresis (và trạng thái chính sách), và \(e_i\) là dư Sampson chuẩn hóa.
-Hợp OR xác suất cho trọng số mục tiêu
+Hợp nhân tính (lấy cảm hứng từ noisy-OR; chúng tôi \emph{không} giả định ba nguồn bằng chứng độc lập nên tránh gọi là OR xác suất) gộp chúng thành một \emph{rủi ro hợp nhất}
 \begin{equation}
-\tilde{w}_i = \mathrm{clip}\!\left(1-(1{-}\rho^{\mathrm{sem}}_i)(1{-}\rho^{\mathrm{geo}}_i)(1{-}\rho^{\mathrm{agr}}_i),\; w_{\min},\;1\right),
+\label{eq:fused-risk}
+r_i = 1-\!\!\prod_{b\in\{\mathrm{sem},\mathrm{geo},\mathrm{agr}\}}\!\!\left(1-\rho^{b}_i\right),
 \end{equation}
-rồi cắt \(\tilde{w}_i\) bởi \(w_{\mathrm{sem}}\), \(w_{\mathrm{geo}}\), hoặc \(w_{\mathrm{agr}}\) khi cờ xác nhận tương ứng bật.
+sau đó \emph{nghịch đảo} rủi ro để được trọng số mục tiêu
+\begin{equation}
+\label{eq:target-weight}
+\tilde{w}_i = \mathrm{clip}\!\left(1-r_i,\; w_{\min},\;1\right)
+            = \mathrm{clip}\!\left(\prod_{b}\left(1-\rho^{b}_i\right),\; w_{\min},\;1\right),
+\end{equation}
+nhờ vậy bằng chứng động càng nhiều thì trọng số càng \emph{nhỏ}.
+Tiếp đó \(\tilde{w}_i\) bị cắt bởi \(w_{\mathrm{sem}}\), \(w_{\mathrm{geo}}\), hoặc \(w_{\mathrm{agr}}\) khi cờ xác nhận tương ứng bật, rồi cắt lại về \([w_{\min},1]\).
+Công thức~\eqref{eq:fused-risk}--\eqref{eq:target-weight} được ràng buộc với mã nguồn bằng property test \texttt{PaperEquationMatchesImplementation}, cùng tính chất đơn điệu: tăng bất kỳ độ tin cậy bằng chứng nào cũng không làm tăng \(\tilde{w}_i\).
 Phục hồi theo id với tốc độ \(\alpha_{\mathrm{rec}}\) nâng \(w_i\) dần về mục tiêu cao hơn để dương tính giả thoáng qua không vĩnh viễn đè track:
 \begin{equation}
 w_i \leftarrow
@@ -298,7 +307,14 @@ w_i^{\mathrm{prev}}+\alpha_{\mathrm{rec}}(\tilde{w}_i-w_i^{\mathrm{prev}}) & \te
 \tilde{w}_i & \text{ngược lại.}
 \end{cases}
 \end{equation}
-Cột audit trong \(\texttt{sem\_geodf\_stats.csv}\) ghi \(\texttt{weighted\_tracks}\), \(\texttt{mean\_backend\_weight}\), và chẩn đoán liên quan.
+\paragraph{Nhất quán với marginalization}
+Trọng số của mỗi quan sát bị \emph{đóng băng} khi khối dư của nó được tạo (\(\sqrt{w_i}\) là thành viên \texttt{const} của factor), do đó:
+\begin{quote}
+Recovery thay đổi trọng số cho các quan sát \emph{mới} của cùng track; các residual đã được marginalize giữ trọng số tại thời điểm được tạo.
+\end{quote}
+Nhờ vậy marginalization factor không bao giờ đọc một trọng số toàn cục khả biến, và việc cập nhật trọng số hiện tại của một track không thể hồi tố làm đổi prior đã hình thành. Bất biến này được kiểm tra bởi \texttt{test\_marginalization\_weight\_freeze}.
+
+Cột audit trong \(\texttt{sem\_geodf\_stats.csv}\) tách riêng ba đại lượng ở Mục~\ref{sec:weight}: \(\texttt{mean\_target\_weight\_pre\_guard}\) (đầu ra của mapping), \(\texttt{mean\_applied\_weight\_post\_guard}\) và \(\texttt{min\_survivor\_weight}\) (sau recovery, trên các track sống sót ngân sách loại bỏ chung), cùng \(\texttt{weighted\_candidates\_pre\_guard}\), \(\texttt{weighted\_survivors\_post\_guard}\) và \(\texttt{rejected\_weighted\_tracks}\) để việc giảm trọng số được báo cho survivor thay vì cho candidate.
 Bảng~\ref{tab:ablation_weight} liệt kê mặc định dùng trong cấu hình paper.
 
 \begin{algorithm}[t]

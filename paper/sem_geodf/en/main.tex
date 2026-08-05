@@ -258,7 +258,7 @@ The weight is thus a per-track confidence, not an independent per-observation no
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{backend_weight_flow.pdf}
-\caption{Adaptive residual-weight path for tracks that survive the shared reject budget. Online semantic/geometric risks form a probabilistic-OR target \(\tilde{w}_i\), recovered per id, then applied as \(\sqrt{w_i}\) in Ceres.}
+\caption{Adaptive residual-weight path for tracks that survive the shared reject budget. Online semantic/geometric evidence forms a fused risk \(r_i\) by multiplicative (noisy-OR-inspired) fusion; the target weight is its inverse \(\tilde{w}_i{=}\mathrm{clip}(1{-}r_i,w_{\min},1)\), recovered per id, then applied as \(\sqrt{w_i}\) in Ceres.}
 \label{fig:weight}
 \end{figure}
 
@@ -269,11 +269,20 @@ From online evidence at the current frame we form three risk terms in \([0,1]\):
 \rho^{\mathrm{agr}}_i &= \mathbb{1}^{\mathrm{sem}}_i\mathbb{1}^{\mathrm{geo}}_i\,(1{-}w_{\mathrm{agr}})\,\max(\bar{o}_t,\,\min(c^{\mathrm{sem}}_i,\max(c^{\mathrm{geo}},e_i))),
 \end{align}
 where \(\mathbb{1}^{\mathrm{sem}}_i\) / \(\mathbb{1}^{\mathrm{geo}}_i\) flag semantic / GeoDF raw-or-confirmed hits, \(c^{\mathrm{sem}}\) / \(c^{\mathrm{geo}}\) are scene confidences from EMA+hysteresis (and policy state), and \(e_i\) is the normalized Sampson excess.
-A probabilistic-OR combines them into a target weight
+A multiplicative fusion (noisy-OR-inspired; we do \emph{not} assume the three evidence terms are independent, so we avoid calling it a probabilistic OR) combines them into a single \emph{fused risk}
 \begin{equation}
-\tilde{w}_i = \mathrm{clip}\!\left(1-(1{-}\rho^{\mathrm{sem}}_i)(1{-}\rho^{\mathrm{geo}}_i)(1{-}\rho^{\mathrm{agr}}_i),\; w_{\min},\;1\right),
+\label{eq:fused-risk}
+r_i = 1-\!\!\prod_{b\in\{\mathrm{sem},\mathrm{geo},\mathrm{agr}\}}\!\!\left(1-\rho^{b}_i\right),
 \end{equation}
-then caps \(\tilde{w}_i\) by \(w_{\mathrm{sem}}\), \(w_{\mathrm{geo}}\), or \(w_{\mathrm{agr}}\) when the corresponding confirmation flags fire.
+which is then mapped to a target weight by \emph{inverting} the risk,
+\begin{equation}
+\label{eq:target-weight}
+\tilde{w}_i = \mathrm{clip}\!\left(1-r_i,\; w_{\min},\;1\right)
+            = \mathrm{clip}\!\left(\prod_{b}\left(1-\rho^{b}_i\right),\; w_{\min},\;1\right),
+\end{equation}
+so that more dynamic evidence always yields a \emph{smaller} weight.
+Afterwards \(\tilde{w}_i\) is capped by \(w_{\mathrm{sem}}\), \(w_{\mathrm{geo}}\), or \(w_{\mathrm{agr}}\) when the corresponding confirmation flags fire, and re-clipped to \([w_{\min},1]\).
+Eqs.~\eqref{eq:fused-risk}--\eqref{eq:target-weight} are enforced against the implementation by the property test \texttt{PaperEquationMatchesImplementation}, together with the monotonicity property that raising any evidence confidence never raises \(\tilde{w}_i\).
 Per-id recovery with rate \(\alpha_{\mathrm{rec}}\) raises \(w_i\) toward a higher target gradually so transient false positives do not permanently suppress a track:
 \begin{equation}
 w_i \leftarrow
@@ -282,7 +291,14 @@ w_i^{\mathrm{prev}}+\alpha_{\mathrm{rec}}(\tilde{w}_i-w_i^{\mathrm{prev}}) & \te
 \tilde{w}_i & \text{otherwise.}
 \end{cases}
 \end{equation}
-Audit columns in \(\texttt{sem\_geodf\_stats.csv}\) record \(\texttt{weighted\_tracks}\), \(\texttt{mean\_backend\_weight}\), and related diagnostics.
+\paragraph{Consistency with marginalization}
+Each observation's weight is frozen when its residual block is constructed (\(\sqrt{w_i}\) is a \texttt{const} member of the factor), so:
+\begin{quote}
+Recovery changes the weight of \emph{new} observations of the same track; residuals that have already been marginalized retain the weight they were created with.
+\end{quote}
+The marginalization factor therefore never reads a mutable global weight, and updating a track's current weight cannot retroactively alter a prior that has already been formed. This invariant is checked by \texttt{test\_marginalization\_weight\_freeze}.
+
+Audit columns in \(\texttt{sem\_geodf\_stats.csv}\) separate the three quantities of Sec.~\ref{sec:weight}: \(\texttt{mean\_target\_weight\_pre\_guard}\) (mapping output), \(\texttt{mean\_applied\_weight\_post\_guard}\) and \(\texttt{min\_survivor\_weight}\) (after recovery, over tracks that survived the shared reject budget), plus \(\texttt{weighted\_candidates\_pre\_guard}\), \(\texttt{weighted\_survivors\_post\_guard}\) and \(\texttt{rejected\_weighted\_tracks}\) so that down-weighting is reported for survivors rather than for candidates.
 Table~\ref{tab:ablation_weight} lists the defaults used in paper configs.
 
 \begin{algorithm}[t]

@@ -430,7 +430,12 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         "sem_policy_trigger_burst,sem_policy_trigger_strong,"
                         "sem_policy_trigger_overlap,weighted_tracks,mean_backend_weight,"
                         "geo_valid,geo_raw_candidates,geo_overlap_pool,"
-                        "min_backend_weight,mean_backend_target\n";
+                        "min_backend_weight,mean_backend_target,"
+                        // P1.12: weighting acts on survivors of the shared reject
+                        // budget, so pre-guard and post-guard are logged apart.
+                        "weighted_candidates_pre_guard,weighted_survivors_post_guard,"
+                        "rejected_weighted_tracks,mean_target_weight_pre_guard,"
+                        "mean_applied_weight_post_guard,min_survivor_weight\n";
         fusion_stats.close();
         ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
                         << sem_adaptive_policy

@@ -41,7 +41,7 @@ echo "=============================================="
 cd "$WS"
 bash "${WS}/scripts/setup_viode_gt_cache.sh" | tee "${LOG_DIR}/gt_cache.log"
 
-METHODS="baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated"
+METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
 VIODE_LEVELS="0_none 1_low 2_mid 3_high"
 COMMON=(N=1 FORCE="$FORCE" FAIR_BAG_RATE="$FAIR_BAG_RATE" SAD_BAG_RATE="$SAD_BAG_RATE" METHODS="$METHODS")
 

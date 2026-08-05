@@ -16,7 +16,7 @@
 #   TRAIN_TAG=sem_policy_train_city_day
 #   HOLDOUT_TAG=sem_policy_holdout_fair1p0
 #   OUT_DIR=results/sem_policy_tuning
-#   HOLDOUT_METHODS="baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated"
+#   HOLDOUT_METHODS="baseline adaptive sad_sem sem_geodf"
 #   ALLOW_INCOMPLETE_TRAIN=0  # set 1 only for draft/debug
 set -eo pipefail
 
@@ -29,7 +29,7 @@ HOLDOUT_N="${HOLDOUT_N:-3}"
 TRAIN_TAG="${TRAIN_TAG:-sem_policy_train_city_day}"
 HOLDOUT_TAG="${HOLDOUT_TAG:-sem_policy_holdout_fair1p0}"
 OUT_DIR="${OUT_DIR:-results/sem_policy_tuning}"
-HOLDOUT_METHODS="${HOLDOUT_METHODS:-baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated}"
+HOLDOUT_METHODS="${HOLDOUT_METHODS:-baseline adaptive sad_sem sem_geodf}"
 VIODE_LEVELS_ALL="${VIODE_LEVELS_ALL:-0_none 1_low 2_mid 3_high}"
 EUROC_SEQS_ALL="${EUROC_SEQS_ALL:-MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult}"
 SELECTED_PARAMS_FILE="${SELECTED_PARAMS_FILE:-${OUT_DIR}/selected_params.yaml}"

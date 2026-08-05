@@ -8,9 +8,11 @@ import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Longest method names first so folder parsing never maps mask_gated -> sem_geodf.
+# Longest method names first so folder parsing never maps a longer name (e.g.
+# sem_geodf_mask_gated / sem_geodf_noweight) onto the shorter sem_geodf.
 METHODS_ORDER = (
     "sem_geodf_mask_gated",
+    "sem_geodf_noweight",
     "sem_geodf",
     "sequential",
     "sad_sem",
@@ -18,12 +20,14 @@ METHODS_ORDER = (
     "baseline",
 )
 
+# Paper default display order (4). Optional ablations still parse if present.
 METHODS_ORDER_DISPLAY = (
     "baseline",
     "adaptive",
     "sad_sem",
-    "sequential",
     "sem_geodf",
+    "sem_geodf_noweight",
+    "sequential",
     "sem_geodf_mask_gated",
 )
 

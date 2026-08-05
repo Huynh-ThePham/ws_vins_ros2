@@ -48,7 +48,7 @@ export SAD_BAG_RATE="${SAD_BAG_RATE:-1.0}"
 export YOLO_DEVICE="${YOLO_DEVICE:-cuda}"
 export VIODE_LEVELS=__none__
 export SKIP_EUROC=0
-METHODS="${METHODS:-baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated}"
+METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
 export METHODS
 
 echo "[queue-euroc] EuRoC root OK: $EUROC_ROOT"

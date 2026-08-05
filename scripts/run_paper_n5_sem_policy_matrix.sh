@@ -4,7 +4,8 @@
 # Runs:
 #   - VIODE city_day, city_night, parking_lot; levels 0_none..3_high
 #   - EuRoC MH_01..MH_05
-#   - methods: baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated
+#   - methods (default paper set): baseline adaptive sad_sem sem_geodf
+#     Override with METHODS="..." (optional extras: sequential sem_geodf_mask_gated)
 #
 # The Semantic-GeoDF method receives the train-selected semantic policy params.
 # FORCE is intentionally default 0 so the script can resume after interruption.
@@ -15,7 +16,7 @@ cd "$WS"
 
 TAG="${TAG:-paper_n5_sem_policy}"
 N="${N:-5}"
-METHODS="${METHODS:-baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated}"
+METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
 VIODE_LEVELS="${VIODE_LEVELS:-0_none 1_low 2_mid 3_high}"
 EUROC_SEQS="${EUROC_SEQS:-MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult}"
 SELECTED_PARAMS_FILE="${SELECTED_PARAMS_FILE:-results/sem_policy_tuning/selected_params.yaml}"

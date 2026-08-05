@@ -30,7 +30,8 @@ mkdir -p "${WS}/logs" "${WS}/results/sem_geodf_ablation"
 
 if [ "$SCOPE" = "full" ]; then
     N="${N:-3}"
-    METHODS="${METHODS:-baseline adaptive sad_sem sequential sem_geodf sem_geodf_mask_gated}"
+    # Paper default: 4 methods. Optional ablations via METHODS=... sequential / sem_geodf_mask_gated
+    METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
     EUROC_SEQS="${EUROC_SEQS:-MH_01_easy MH_02_easy MH_03_medium MH_04_difficult MH_05_difficult}"
     VIODE_LEVELS="${VIODE_LEVELS:-0_none 1_low 2_mid 3_high}"
 else
@@ -86,7 +87,7 @@ fi
 
 method_needs_yolo() {
     case "$1" in
-        sad_sem|sequential|sem_geodf|sem_geodf_mask_gated) return 0 ;;
+        sad_sem|sequential|sem_geodf|sem_geodf_noweight|sem_geodf_mask_gated) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -99,6 +100,7 @@ resolve_mode() {
         sad_sem) sad_method_to_mode sad_sem ;;
         sequential) geodf_method_to_mode sequential ;;
         sem_geodf) geodf_method_to_mode sem_geodf ;;
+        sem_geodf_noweight) geodf_method_to_mode sem_geodf_noweight ;;
         sem_geodf_mask_gated) geodf_method_to_mode sem_geodf_mask_gated ;;
         *) echo "Unknown method: $method" >&2; return 1 ;;
     esac
@@ -193,7 +195,7 @@ apply_sem_policy_params_if_needed() {
     if [ -z "${SEM_POLICY_PARAMS_FILE:-}" ]; then
         return 0
     fi
-    if [ "$method" != "sem_geodf" ]; then
+    if [ "$method" != "sem_geodf" ] && [ "$method" != "sem_geodf_noweight" ]; then
         return 0
     fi
     if [ ! -f "$SEM_POLICY_PARAMS_FILE" ]; then
@@ -212,6 +214,21 @@ apply_sem_policy_params_if_needed() {
     python3 "${WS}/scripts/apply_sem_policy_params.py" \
         --config "$cfg" \
         --params "$SEM_POLICY_PARAMS_FILE"
+}
+
+# Ablation: force adaptive backend residual weights OFF for sem_geodf_noweight.
+# Same fusion/union config and train-selected policy thresholds as sem_geodf; the
+# only difference is sem_geodf_backend_weight=0, isolating the weighting term.
+force_backend_weight_off_if_needed() {
+    local method="$1" cfg="$2"
+    if [ "$method" != "sem_geodf_noweight" ]; then
+        return 0
+    fi
+    if ! grep -q '^sem_geodf_backend_weight:' "$cfg"; then
+        echo "[error] $cfg has no sem_geodf_backend_weight key for noweight ablation" >&2
+        exit 1
+    fi
+    sed -i 's|^sem_geodf_backend_weight:.*|sem_geodf_backend_weight: 0|' "$cfg"
 }
 
 read_sem_policy_level() {
@@ -259,12 +276,13 @@ run_one() {
         tag="$(start_tag "$start")"
         out="${WS}/results/sem_geodf_ablation/${PROTOCOL_TAG}/euroc/${seq}_${method}_t${trial}_s${tag}"
         EUROC_CFG="$(ros2 pkg prefix pht_vio_ros)/share/pht_vio_ros/config/euroc"
-        run_cfg="${EUROC_CFG}/euroc_${mode}_config_run_${seq}_t${trial}.yaml"
+        run_cfg="${EUROC_CFG}/euroc_${mode}_config_run_${method}_${seq}_t${trial}.yaml"
         mkdir -p "$out"
         cp "${EUROC_CFG}/euroc_${mode}_config.yaml" "$run_cfg"
         sed -i "s|output_path: \"~/output/\"|output_path: \"${out}/\"|" "$run_cfg"
         sed -i "s|pose_graph_save_path: \"~/output/pose_graph/\"|pose_graph_save_path: \"${out}/pose_graph/\"|" "$run_cfg"
         apply_sem_policy_params_if_needed "$method" "$run_cfg"
+        force_backend_weight_off_if_needed "$method" "$run_cfg"
         audit_run_config "$run_cfg" "0"
         echo "=== EuRoC $seq $method trial=$trial rate=$rate yolo=$use_yolo ==="
         killall -9 pht_vio_node mask_node 2>/dev/null || true
@@ -292,12 +310,13 @@ run_one() {
         local oracle_flag=0
         local policy_level=-1
         VIODE_CFG="$(ros2 pkg prefix pht_vio_ros)/share/pht_vio_ros/config/viode"
-        run_cfg="${VIODE_CFG}/viode_${mode}_config_run_${level}_t${trial}.yaml"
+        run_cfg="${VIODE_CFG}/viode_${mode}_config_run_${method}_${level}_t${trial}.yaml"
         mkdir -p "$out"
         cp "${VIODE_CFG}/viode_${mode}_config.yaml" "$run_cfg"
         sed -i "s|output_path: \"~/output/\"|output_path: \"${out}/\"|" "$run_cfg"
         sed -i "s|pose_graph_save_path: \"~/output/pose_graph/\"|pose_graph_save_path: \"${out}/pose_graph/\"|" "$run_cfg"
         apply_sem_policy_params_if_needed "$method" "$run_cfg"
+        force_backend_weight_off_if_needed "$method" "$run_cfg"
         if [ "$method" = "sem_geodf" ] && [ "${SEM_POLICY_VIODE_LEVEL_OVERRIDE:-0}" = "1" ]; then
             policy_level="$(viode_sem_policy_level "$level")"
             sed -i "s|^sem_policy_dynamic_level:.*|sem_policy_dynamic_level: ${policy_level}|" "$run_cfg"

@@ -74,6 +74,9 @@ geodf_method_to_mode() {
         geodf_dump_v2|alwayson_v2) echo stereo_imu_geodf_dump_v2 ;;
         geodf_noguard) echo stereo_imu_geodf_noguard ;;
         sem_geodf|fusion) echo stereo_imu_sem_geodf ;;
+        # Ablation: same fusion config as sem_geodf but backend residual weights off
+        # (backend_weight forced to 0 in run_one). Isolates the union vs. weighting split.
+        sem_geodf_noweight|sem_geodf_now) echo stereo_imu_sem_geodf ;;
         sequential|sem_geodf_seq) echo stereo_imu_sem_geodf_sequential ;;
         sem_geodf_mask_gated|mask_gated) echo stereo_imu_sem_geodf_mask_gated ;;
         *)

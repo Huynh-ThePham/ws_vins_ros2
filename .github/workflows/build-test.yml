@@ -36,8 +36,9 @@ jobs:
 
       - name: colcon build
         run: |
-          set -euo pipefail
+          set -eo pipefail
           source /opt/ros/humble/setup.bash
+          set -u
           colcon build \
             --packages-up-to pht_vio \
             --cmake-args -DBUILD_TESTING=ON \
@@ -45,8 +46,9 @@ jobs:
 
       - name: ctest
         run: |
-          set -euo pipefail
+          set -eo pipefail
           source /opt/ros/humble/setup.bash
+          set -u
           colcon test --packages-select pht_vio --event-handlers console_direct+
           # Fail the job on any failing test; colcon test alone returns 0.
           colcon test-result --verbose --all

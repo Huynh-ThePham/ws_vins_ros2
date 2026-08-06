@@ -67,6 +67,8 @@ if(BUILD_TESTING)
     sem_geodf_track_lifecycle
     geodf_degeneracy
     synthetic_integration
+    temporal_smoothing
+    robust_scale_mc
   )
   foreach(test_name IN LISTS PHT_VIO_HEADER_TESTS)
     add_executable(test_${test_name} test/test_${test_name}.cpp)

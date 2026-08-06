@@ -11,6 +11,8 @@
 
 #include "feature_tracker.h"
 #include "sem_geodf_risk.h"
+#include "temporal_smoothing.h"
+#include "camera_focal_scale.h"
 #include "../factor/adaptive_factor_quality.h"
 #include <opencv2/imgproc/imgproc_c.h>
 #include <fstream>
@@ -162,11 +164,19 @@ void FeatureTracker::updateSemanticSceneGate()
 
     int mask_available = 0;
     const double dynamic_pixel_ratio = computeDynamicPixelRatio(mask_available);
+    // Continuous-time EMA: convert the legacy per-frame alpha (defined near 20 Hz)
+    // into attack/release time constants so 10/20/30 Hz sampling stays consistent.
+    const double tau_attack =
+        temporal_smooth::tauFromFrameAlpha(cfg.sem_activate_ema, 20.0);
+    const double tau_release = std::max(tau_attack * 2.5, tau_attack);
+    const double dt = (prev_time > 0.0 && cur_time > prev_time)
+                          ? (cur_time - prev_time)
+                          : (1.0 / 20.0);
     if (sem_activation_ema < 0.0)
         sem_activation_ema = dynamic_pixel_ratio;
     else
-        sem_activation_ema = cfg.sem_activate_ema * dynamic_pixel_ratio +
-                               (1.0 - cfg.sem_activate_ema) * sem_activation_ema;
+        sem_activation_ema = temporal_smooth::emaUpdate(
+            sem_activation_ema, dynamic_pixel_ratio, dt, tau_attack, tau_release);
 
     const double sem_rho_off = cfg.sem_activate_ratio * cfg.sem_deactivate_frac;
     sem_scene_active = sem_scene_active ? (sem_activation_ema >= sem_rho_off)
@@ -305,8 +315,16 @@ void FeatureTracker::updateSemanticAdaptivePolicy(double dynamic_pixel_ratio,
     if (sem_geo_overlap_ema < 0.0)
         sem_geo_overlap_ema = sem_geo_overlap_last;
     else
-        sem_geo_overlap_ema = cfg.sem_policy_overlap_ema * sem_geo_overlap_last +
-                              (1.0 - cfg.sem_policy_overlap_ema) * sem_geo_overlap_ema;
+    {
+        const double tau_attack =
+            temporal_smooth::tauFromFrameAlpha(cfg.sem_policy_overlap_ema, 20.0);
+        const double tau_release = std::max(tau_attack * 2.5, tau_attack);
+        const double dt = (prev_time > 0.0 && cur_time > prev_time)
+                              ? (cur_time - prev_time)
+                              : (1.0 / 20.0);
+        sem_geo_overlap_ema = temporal_smooth::emaUpdate(
+            sem_geo_overlap_ema, sem_geo_overlap_last, dt, tau_attack, tau_release);
+    }
 
     const bool semantic_burst = dynamic_pixel_ratio >= cfg.sem_policy_burst_ratio;
     const bool semantic_strong = sem_activation_ema >= cfg.sem_policy_strong_ratio;
@@ -958,22 +976,33 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         degeneracy_config.min_grid_occupancy = cfg.geodf_min_grid_occupancy;
         degeneracy_config.min_median_parallax_px = cfg.geodf_min_median_parallax_px;
         degeneracy_config.max_design_condition_number = cfg.geodf_max_design_condition_number;
+        degeneracy_config.max_effective_design_condition = cfg.geodf_max_design_condition_number;
         degeneracy_config.min_ransac_inliers = cfg.geodf_min_ransac_inliers;
         degeneracy_config.min_ransac_inlier_ratio = cfg.geodf_min_ransac_inlier_ratio;
         degeneracy_config.max_mover_share = cfg.geodf_max_mover_share;
+        degeneracy_config.require_known_conditioning = true;
 
         geodf_degeneracy::Observation degeneracy_obs;
         degeneracy_obs.fundamental_valid = !out.F.empty();
         degeneracy_obs.median_parallax_px = geodf_degeneracy::median(parallax);
         degeneracy_obs.grid_occupancy = geodf_degeneracy::gridOccupancy(
             scored_points, static_cast<double>(col), static_cast<double>(row));
-        // Sampson residual spread is the practical stand-in for the design matrix's
-        // conditioning: a well-conditioned F has a tight residual distribution, and
-        // MAD is the robust way to measure it with movers present.
-        const double residual_mad = geodf_degeneracy::medianAbsoluteDeviation(scored_errors);
-        const double residual_median = geodf_degeneracy::median(scored_errors);
+
+        // Real normalized eight-point design-matrix metrics from the same
+        // correspondences used to estimate F. Sampson median/MAD are residual
+        // diagnostics only — never a stand-in for κ.
+        const geodf_degeneracy::DesignMatrixMetrics design =
+            geodf_degeneracy::computeDesignMatrixMetricsFromPoints(
+                un_cur_pts, un_prev_pts, scored_errors);
+        degeneracy_obs.sampson_median = design.sampson_median;
+        degeneracy_obs.sampson_mad = design.sampson_mad;
+        degeneracy_obs.effective_design_condition = design.effective_design_condition;
+        degeneracy_obs.nullspace_gap = design.nullspace_gap;
+        degeneracy_obs.design_metrics_valid = design.valid;
+        // Legacy field: only populated when metrics are valid, never median/MAD.
         degeneracy_obs.design_condition_number =
-            residual_mad > 1e-9 ? std::max(1.0, residual_median / residual_mad) : 1.0;
+            design.valid ? design.effective_design_condition : 0.0;
+
         degeneracy_obs.ransac_inliers = f_inliers;
         degeneracy_obs.ransac_total = scored;
         degeneracy_obs.mover_share =
@@ -988,9 +1017,15 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         out.grid_occupancy = degeneracy_obs.grid_occupancy;
 
         if (!geo_degeneracy.mayHardReject())
-            ROS_DEBUG("GeoDF geometry %s (%s): hard rejection suppressed this frame",
+            ROS_DEBUG("GeoDF geometry %s (%s): hard rejection suppressed this frame "
+                      "(κ_eff=%.3g valid=%d nullspace_gap=%.3g sampson_med/mad=%.3g/%.3g)",
                       geodf_degeneracy::toString(geo_degeneracy.health),
-                      geodf_degeneracy::toString(geo_degeneracy.cause));
+                      geodf_degeneracy::toString(geo_degeneracy.cause),
+                      degeneracy_obs.effective_design_condition,
+                      degeneracy_obs.design_metrics_valid ? 1 : 0,
+                      degeneracy_obs.nullspace_gap,
+                      degeneracy_obs.sampson_median,
+                      degeneracy_obs.sampson_mad);
     }
 
     out.right_err.assign(total, 0.0);
@@ -1099,20 +1134,31 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
 
     const double frame_outlier_ratio =
         scored > 0 ? static_cast<double>(ransac_outliers) / scored : 0.0;
+    const double dt_geo = (prev_time > 0.0 && cur_time > prev_time)
+                              ? (cur_time - prev_time)
+                              : (1.0 / 20.0);
     if (geo_activation_ema < 0.0)
         geo_activation_ema = frame_outlier_ratio;
     else
-        geo_activation_ema = cfg.geodf_activate_ema * frame_outlier_ratio +
-                             (1.0 - cfg.geodf_activate_ema) * geo_activation_ema;
+    {
+        const double tau_attack =
+            temporal_smooth::tauFromFrameAlpha(cfg.geodf_activate_ema, 20.0);
+        const double tau_release = std::max(tau_attack * 2.5, tau_attack);
+        geo_activation_ema = temporal_smooth::emaUpdate(
+            geo_activation_ema, frame_outlier_ratio, dt_geo, tau_attack, tau_release);
+    }
 
     if (geo_outlier_floor < 0.0)
         geo_outlier_floor = frame_outlier_ratio;
     else
     {
-        const double b = (frame_outlier_ratio < geo_outlier_floor)
-                             ? cfg.geodf_auto_floor_down
-                             : cfg.geodf_auto_floor_up;
-        geo_outlier_floor = b * frame_outlier_ratio + (1.0 - b) * geo_outlier_floor;
+        // Preserve the asymmetric floor gains, but convert them to continuous time.
+        const double alpha_frame = (frame_outlier_ratio < geo_outlier_floor)
+                                       ? cfg.geodf_auto_floor_down
+                                       : cfg.geodf_auto_floor_up;
+        const double tau = temporal_smooth::tauFromFrameAlpha(alpha_frame, 20.0);
+        geo_outlier_floor = temporal_smooth::emaUpdate(
+            geo_outlier_floor, frame_outlier_ratio, dt_geo, tau, tau);
     }
 
     out.rho_on = cfg.geodf_activate_ratio;
@@ -1531,9 +1577,16 @@ void FeatureTracker::rejectSemGeoFused()
             const auto prev = sem_geodf_feature_weights.find(ids[i]);
             if (prev != sem_geodf_feature_weights.end())
                 previous_weight = prev->second;
+            // Recovery is continuous-time: drops are immediate; rises use the
+            // legacy per-frame recovery rate converted at 20 Hz reference.
+            const double dt_w = (prev_time > 0.0 && cur_time > prev_time)
+                                    ? (cur_time - prev_time)
+                                    : (1.0 / 20.0);
+            const double tau_recover =
+                temporal_smooth::tauFromFrameAlpha(cfg.sem_geodf_backend_recovery, 20.0);
             const double applied_weight =
                 sem_geodf::recoverWeight(previous_weight, target_weight,
-                                         cfg.sem_geodf_backend_recovery,
+                                         temporal_smooth::alphaFromDt(dt_w, tau_recover),
                                          cfg.sem_geodf_backend_min_weight);
             next_weights[ids[i]] = applied_weight;
             if (applied_weight < 0.999)
@@ -1814,9 +1867,17 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
                 x0 /= x0.z();
             if (std::abs(x1.z()) > 1e-9)
                 x1 /= x1.z();
+            // Per-camera local focal from the real projection model — never a
+            // single global FOCAL_LENGTH for every lens / principal-point offset.
+            const double f0 = camera_focal::localFocalPx(
+                m_camera[0], Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y), FOCAL_LENGTH);
+            const double f1 = camera_focal::localFocalPx(
+                m_camera[1],
+                Eigen::Vector2d(cur_right_pts[i].x, cur_right_pts[i].y), FOCAL_LENGTH);
+            const double focal_px = 0.5 * (f0 + f1);
             result = stereo_validity::checkStereoMatch(
                 x0, x1, stereo_rig, config,
-                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, FOCAL_LENGTH);
+                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, focal_px);
         }
 
         if (lk_ok)

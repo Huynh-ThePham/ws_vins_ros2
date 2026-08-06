@@ -185,6 +185,10 @@ stereo_min_disparity_px: 0.5
 stereo_max_disparity_px: 200.0
 stereo_reprojection_max_px: 2.0
 stereo_require_positive_depth: 1
+# Publication stereo contract (P1.1): invalid rig must hard-fail, never LK-only.
+stereo_contract_enable: 1
+stereo_contract_require_calibration: 1
+stereo_contract_allow_lk_fallback: 0
 
 # ------------------------------------------------------------------ backend ---
 max_solver_time: 0.04

@@ -227,6 +227,7 @@ int main()
             {fd::FailureReason::ROTATION_JUMP, "ROTATION_JUMP"},
             {fd::FailureReason::SOLVER_FAILURE, "SOLVER_FAILURE"},
             {fd::FailureReason::NAN_STATE, "NAN_STATE"},
+            {fd::FailureReason::STEREO_CALIBRATION_INVALID, "STEREO_CALIBRATION_INVALID"},
         };
         for (const auto &entry : expected)
             CHECK(std::string(fd::toString(entry.first)) == entry.second);

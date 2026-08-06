@@ -127,11 +127,33 @@ run_sad_vio_benchmark() {
 
     local yolo_pid=""
     if [ "$use_yolo" = "1" ]; then
+        local model_args=()
+        local model_path="${YOLO_MODEL:-}"
+        local model_manifest="${YOLO_MODEL_MANIFEST:-}"
+        local require_verified="${REQUIRE_VERIFIED_MODEL:-0}"
+        if [ -n "$model_manifest" ]; then
+            model_args+=(-p "model_manifest:=${model_manifest}")
+        fi
+        if [ -n "$model_path" ]; then
+            model_args+=(-p "model_path:=${model_path}")
+        fi
+        if [ "$require_verified" = "1" ] || [ "${PUBLICATION_MODE:-0}" = "1" ]; then
+            if [ -z "$model_manifest" ] || [ ! -f "$model_manifest" ]; then
+                echo "[fatal] publication YOLO requires YOLO_MODEL_MANIFEST pointing to a verified manifest" >&2
+                return 1
+            fi
+            if [ -z "$model_path" ] || [ ! -f "$model_path" ]; then
+                echo "[fatal] publication YOLO requires YOLO_MODEL pointing to the frozen model file" >&2
+                return 1
+            fi
+            model_args+=(-p require_verified_model:=true)
+        fi
         ros2 run yolo_dynamic_mask mask_node --ros-args \
             -p use_sim_time:=true \
             -p image_topic:="${image_topic}" \
             -p mask_topic:=/dynamic_mask \
             -p device:="${yolo_device}" \
+            "${model_args[@]}" \
             > "${out}/yolo_mask_node.log" 2>&1 &
         yolo_pid=$!
         sleep 15

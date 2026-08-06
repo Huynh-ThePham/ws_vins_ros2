@@ -122,6 +122,11 @@ def check_asset_scripts_are_gated(failures: list[str]) -> None:
                 f"{rel}: does not check for validation.json, so publication assets could "
                 f"be built from a run tree that never passed "
                 f"scripts/validate_experiment_matrix.py.")
+        if "validation_receipt" not in text and "require-receipt" not in text and \
+                "require_receipt" not in text:
+            failures.append(
+                f"{rel}: does not require validation_receipt.json; paper numbers could be "
+                f"emitted without a hashed matrix receipt.")
 
 
 def check_manifest_provenance(failures: list[str]) -> None:
@@ -142,12 +147,7 @@ def check_manifest_provenance(failures: list[str]) -> None:
 
 
 def check_mask_freshness_is_honest(failures: list[str]) -> None:
-    """Plan P1.8: a reused mask must keep its original stamp.
-
-    Static, because the node cannot be imported without ROS. It checks the two
-    structural properties that made the old code dishonest: the reuse path must
-    republish the STORED message, and it must not assign header.stamp.
-    """
+    """Plan P1.8: a reused mask must keep its original stamp."""
     path = REPO / "src/yolo_dynamic_mask/yolo_dynamic_mask/mask_node.py"
     if not path.is_file():
         failures.append("src/yolo_dynamic_mask/.../mask_node.py is missing")
@@ -160,7 +160,6 @@ def check_mask_freshness_is_honest(failures: list[str]) -> None:
             "the array forces the reuse path to build a new header, which is how a stale "
             "mask acquired a fresh stamp and defeated sem_mask_max_age_ms.")
 
-    # Isolate the reuse path and require it to be stamp-free.
     match = re.search(r"def _republish_last_mask\(self.*?\n(?=\n    def |\nclass |\Z)",
                       text, re.S)
     if not match:
@@ -182,7 +181,6 @@ def check_mask_freshness_is_honest(failures: list[str]) -> None:
             failures.append(f"mask_node.py: missing the /{topic} diagnostic the plan requires "
                             f"for measuring mask age and reuse from a bag")
 
-    # P1.9: a real latest-frame worker, not a busy flag.
     if "worker_thread" not in text or "latest_lock" not in text:
         failures.append("mask_node.py: no latest-frame worker (worker_thread/latest_lock). A "
                         "`busy` flag in the callback drops frames but does not implement "
@@ -190,6 +188,9 @@ def check_mask_freshness_is_honest(failures: list[str]) -> None:
     if re.search(r"self\.busy\s*=", text):
         failures.append("mask_node.py: still uses a `busy` flag; replace it with the "
                         "latest-frame worker handoff")
+    if "mean_model_latency_ms" not in text and "inference_count" not in text:
+        failures.append("mask_node.py: latency must be averaged over inference_count, not "
+                        "frame_count (including reused frames)")
 
 
 def check_dependencies_are_locked(failures: list[str]) -> None:
@@ -205,6 +206,17 @@ def check_dependencies_are_locked(failures: list[str]) -> None:
             continue
         if "==" not in stripped:
             failures.append(f"requirements-lock.txt: '{stripped}' is not pinned with ==")
+
+    test_req = REPO / "scripts/requirements-test.txt"
+    if not test_req.is_file():
+        failures.append("scripts/requirements-test.txt is missing; CI Python tests must pin deps")
+    else:
+        for line in test_req.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            if "==" not in stripped:
+                failures.append(f"scripts/requirements-test.txt: '{stripped}' is not pinned")
 
     manifest = REPO / "models/model_manifest.json"
     if not manifest.is_file():
@@ -225,11 +237,61 @@ def check_dependencies_are_locked(failures: list[str]) -> None:
         failures.append("models/model_manifest.json: sha256 is not a full 64-char digest")
 
 
+def check_fair_config_is_wired(failures: list[str]) -> None:
+    """P0.1: the live ablation runner must generate resolved configs, not copy legacy YAML."""
+    path = REPO / "scripts/run_sem_geodf_ablation.sh"
+    if not path.is_file():
+        failures.append("scripts/run_sem_geodf_ablation.sh is missing")
+        return
+    text = path.read_text()
+    if "generate_paper_config.py" not in text:
+        failures.append("run_sem_geodf_ablation.sh never calls generate_paper_config.py")
+    if "resolved_config.yaml" not in text:
+        failures.append("run_sem_geodf_ablation.sh does not write resolved_config.yaml")
+    if re.search(r"cp\s+.*\$\{?(EUROC|VIODE)_CFG\}?/[a-z]+_\$\{?mode\}?", text) or \
+            re.search(r"cp\s+\".*/(euroc|viode)_\$\{mode\}_config\.yaml\"", text) or \
+            "euroc_${mode}_config.yaml" in text or "viode_${mode}_config.yaml" in text:
+        failures.append(
+            "run_sem_geodf_ablation.sh still copies legacy per-method YAMLs from "
+            "src/config/{euroc,viode}/; publication must use base+overlay only")
+    if 'METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"' in text or \
+            "METHODS:-baseline adaptive" in text:
+        failures.append(
+            "run_sem_geodf_ablation.sh still defaults to the confounded method list "
+            "(adaptive/sad_sem/sem_geodf); expected baseline geodf semantic "
+            "union_noweight union_weight")
+    if "validate_reusable_run.py" not in text:
+        failures.append("run_sem_geodf_ablation.sh does not call validate_reusable_run.py "
+                        "before skipping an existing cell")
+    if "PUBLICATION_MODE" not in text:
+        failures.append("run_sem_geodf_ablation.sh missing PUBLICATION_MODE fail-closed switch")
+
+
+def check_hold_frames_not_publication_primary(failures: list[str]) -> None:
+    for path in sorted((REPO / "src/config/paper").glob("*_common.yaml")):
+        text = path.read_text()
+        if "sem_policy_assist_hold_s:" not in text:
+            failures.append(f"{path.relative_to(REPO)}: missing timestamp hold "
+                            f"sem_policy_assist_hold_s")
+        # hold_frames may exist for compatibility, but publication must declare hold_s > 0.
+        for line in text.splitlines():
+            if line.startswith("sem_policy_assist_hold_s:"):
+                value = line.split(":", 1)[1].split("#", 1)[0].strip()
+                try:
+                    if float(value) <= 0:
+                        failures.append(f"{path.relative_to(REPO)}: assist_hold_s must be > 0 "
+                                        f"for publication")
+                except ValueError:
+                    failures.append(f"{path.relative_to(REPO)}: unreadable assist_hold_s")
+
+
 def check_validator_exists(failures: list[str]) -> None:
     for rel in ("scripts/validate_experiment_matrix.py",
                 "scripts/audit_method_config_diff.py",
                 "scripts/generate_paper_config.py",
+                "scripts/validate_reusable_run.py",
                 "src/config/paper/expected_matrix.json",
+                "experiments/sem_geodf_expected_matrix.json",
                 "src/config/paper/allowed_differences.yaml"):
         if not (REPO / rel).exists():
             failures.append(f"{rel} is missing; the fail-closed protocol depends on it")
@@ -249,6 +311,8 @@ def main() -> int:
     check_manifest_provenance(failures)
     check_mask_freshness_is_honest(failures)
     check_dependencies_are_locked(failures)
+    check_fair_config_is_wired(failures)
+    check_hold_frames_not_publication_primary(failures)
 
     if failures:
         print(f"FAIL: {len(failures)} publication-hygiene violation(s)\n")
@@ -258,7 +322,7 @@ def main() -> int:
 
     print("PASS: publication path is fail-closed, no oracle default, assets are gated, "
           "manifests carry full provenance, mask reuse keeps its original stamp, "
-          "dependencies and model are pinned.")
+          "dependencies and model are pinned, fair configs drive the live runner.")
     return 0
 
 

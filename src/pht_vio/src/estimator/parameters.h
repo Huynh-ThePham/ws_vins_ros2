@@ -253,7 +253,14 @@ struct VinsConfig
     double stereo_max_disparity_px = 200.0;
     double stereo_reprojection_max_px = 2.0;
     int stereo_require_positive_depth = 1;
+    // Publication stereo contract: without a calibrated rig, publication mode must
+    // hard-fail rather than silently admitting LK-only stereo measurements.
+    int stereo_contract_enable = 1;
+    int stereo_contract_require_calibration = 1;
+    int stereo_contract_allow_lk_fallback = 0;
     std::string stereo_stats_path;
+    // Recorded mode string for the manifest / failure status.
+    std::string stereo_contract_mode = "unset";
 
     // Structured failure detection (plan P0.4). Enabled by default: a diverged run
     // must be reported as failed rather than emit a plausible-looking trajectory.

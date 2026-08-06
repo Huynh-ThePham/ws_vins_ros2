@@ -265,6 +265,14 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     if (!fsSettings["stereo_require_positive_depth"].empty())
         stereo_require_positive_depth =
             static_cast<int>(fsSettings["stereo_require_positive_depth"]);
+    if (!fsSettings["stereo_contract_enable"].empty())
+        stereo_contract_enable = static_cast<int>(fsSettings["stereo_contract_enable"]);
+    if (!fsSettings["stereo_contract_require_calibration"].empty())
+        stereo_contract_require_calibration =
+            static_cast<int>(fsSettings["stereo_contract_require_calibration"]);
+    if (!fsSettings["stereo_contract_allow_lk_fallback"].empty())
+        stereo_contract_allow_lk_fallback =
+            static_cast<int>(fsSettings["stereo_contract_allow_lk_fallback"]);
 
     if (!fsSettings["failure_detection_enable"].empty())
         failure_detection_enable = static_cast<int>(fsSettings["failure_detection_enable"]);
@@ -351,6 +359,9 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::max(stereo_min_disparity_px + 1e-6, stereo_max_disparity_px);
     stereo_reprojection_max_px = std::min(100.0, std::max(0.05, stereo_reprojection_max_px));
     stereo_require_positive_depth = stereo_require_positive_depth ? 1 : 0;
+    stereo_contract_enable = stereo_contract_enable ? 1 : 0;
+    stereo_contract_require_calibration = stereo_contract_require_calibration ? 1 : 0;
+    stereo_contract_allow_lk_fallback = stereo_contract_allow_lk_fallback ? 1 : 0;
     failure_detection_enable = failure_detection_enable ? 1 : 0;
     failure_max_acc_bias = std::min(1000.0, std::max(0.01, failure_max_acc_bias));
     failure_max_gyro_bias = std::min(1000.0, std::max(0.001, failure_max_gyro_bias));

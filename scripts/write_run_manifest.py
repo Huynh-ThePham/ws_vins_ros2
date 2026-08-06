@@ -56,16 +56,31 @@ def git_provenance(ws: Path) -> dict:
 
 
 def sha256_file(path: str | None) -> str | None:
+    """Hash a regular file, or a ROS 2 bag directory (metadata + payloads)."""
     if not path:
         return None
     p = Path(path)
-    if not p.is_file():
-        return None
-    digest = hashlib.sha256()
-    with p.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    if p.is_file():
+        digest = hashlib.sha256()
+        with p.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    if p.is_dir():
+        files = sorted(f for f in p.rglob("*") if f.is_file())
+        if not files:
+            return None
+        digest = hashlib.sha256()
+        for file_path in files:
+            rel = file_path.relative_to(p).as_posix()
+            digest.update(rel.encode("utf-8"))
+            digest.update(b"\0")
+            with file_path.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            digest.update(b"\0")
+        return digest.hexdigest()
+    return None
 
 
 def environment() -> dict:
@@ -144,6 +159,10 @@ def main() -> int:
     ap.add_argument("--oracle-ablation", type=int, default=0)
     ap.add_argument("--sem-policy-dynamic-level", type=int, default=-1)
     ap.add_argument("--sem-policy-params-file", default="")
+    ap.add_argument("--gt", default="",
+                    help="Ground-truth trajectory file; hashed into the manifest.")
+    ap.add_argument("--protocol-tag", default="")
+    ap.add_argument("--protocol-version", default="")
     ap.add_argument("--diverged-ate-m", type=float, default=DIVERGED_ATE_DEFAULT_M)
     ap.add_argument("--ws", type=Path, default=None)
     args = ap.parse_args()
@@ -190,8 +209,13 @@ def main() -> int:
         failure_reason = "unspecified"
 
     resolved_config = args.config or str(out_dir / "resolved_config.yaml")
-    model_manifest = read_json(Path(args.model_manifest)) if args.model_manifest else None
+    model_manifest_path = Path(args.model_manifest) if args.model_manifest else None
+    model_manifest = read_json(model_manifest_path) if model_manifest_path else None
     model_path = args.model or (model_manifest or {}).get("file", "")
+    if model_path and not Path(model_path).is_file() and model_manifest_path is not None:
+        candidate = model_manifest_path.parent / Path(model_path).name
+        if candidate.is_file():
+            model_path = str(candidate)
 
     manifest = {
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -211,11 +235,16 @@ def main() -> int:
         "resolved_config_sha256": sha256_file(resolved_config),
         "bag": args.bag,
         "bag_sha256": sha256_file(args.bag),
+        "gt": args.gt or None,
+        "gt_sha256": sha256_file(args.gt),
         "model": model_path or None,
         "model_sha256": sha256_file(model_path),
         "model_manifest": model_manifest,
+        "model_manifest_sha256": sha256_file(str(model_manifest_path) if model_manifest_path else None),
 
         "protocol_fair": bool(args.protocol_fair),
+        "protocol_tag": args.protocol_tag or None,
+        "protocol_version": args.protocol_version or args.protocol_tag or None,
         "oracle_ablation": bool(args.oracle_ablation),
         "sem_policy_dynamic_level": args.sem_policy_dynamic_level,
         "sem_policy_params_file": args.sem_policy_params_file or None,

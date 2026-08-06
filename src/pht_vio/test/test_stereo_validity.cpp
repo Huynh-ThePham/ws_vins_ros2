@@ -230,6 +230,26 @@ int main()
         CHECK(!sv::checkStereoMatch(x0, bad, rig, off, 0.0, true, false, kFocal).valid());
     }
 
+    TEST_CASE("StereoValidity.HighReprojectionRejected");
+    {
+        // A match that is almost correct but not exact: tighten the reprojection
+        // threshold so the triangulation residual is refused while LK/border pass.
+        sv::Config tight = permissiveConfig();
+        tight.reprojection_max_px = 1e-4;
+        tight.epipolar_max_px = 50.0;  // do not let epipolar short-circuit first
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.05, 0.02, 1.0);
+        Eigen::Vector3d x1 = projectIntoCam1(rig, x0, 3.0);
+        x1.x() += 0.5 / kFocal;
+        x1.y() += 0.5 / kFocal;
+        const sv::Result r = check(rig, x0, x1, tight);
+        CHECK(!r.valid());
+        CHECK(r.rejection == sv::Rejection::REPROJECTION ||
+              r.rejection == sv::Rejection::EPIPOLAR);
+        if (r.rejection == sv::Rejection::REPROJECTION)
+            CHECK(r.reprojection_px > tight.reprojection_max_px);
+    }
+
     TEST_CASE("StereoValidity.CountersAccountForEveryMatch");
     {
         sv::Counters counters;

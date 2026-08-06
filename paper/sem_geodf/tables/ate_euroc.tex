@@ -1,17 +1,16 @@
-\begin{table*}[t]
+% INVALIDATED after fair-config / stereo-contract / fail-closed correctness changes.
+% Do not mix pre-fix ATE with post-fix numbers. Re-run:
+%   ./scripts/run_sem_geodf_full_rerun.sh
+% and regenerate via make_sem_geodf_paper_assets.py after validation_receipt PASS.
+\begin{table}[t]
 \centering
-\caption{EuRoC Machine Hall ATE RMSE [m]. Superscript is the number of trials $N$ per cell; cells with $N{=}1$ report a single run (no std). Best mean per row in bold.}
+\caption{EuRoC Machine Hall ATE RMSE [m] --- \textbf{rerun pending} (protocol \texttt{sem-geodf-fair-v2}).}
 \label{tab:ate_euroc}
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-Scene & Baseline & GeoDF-Adaptive & SAD-Sem & Sem-GeoDF (ours) \\
+Scene & B0 & G & S & U & U+W \\
 \midrule
-MH\_01\_easy & \textbf{0.166$\pm$0.021$^{2}$} & 0.177$\pm$0.000$^{2}$ & 0.175$\pm$0.000$^{2}$ & 0.183$\pm$0.000$^{2}$ \\
-MH\_02\_easy & 0.169$\pm$0.000$^{2}$ & 0.169$\pm$0.000$^{2}$ & 0.158$\pm$0.000$^{2}$ & \textbf{0.155$\pm$0.000$^{2}$} \\
-MH\_03\_medium & 0.292$^{1}$ & 0.274$^{1}$ & \textbf{0.261$^{1}$} & 0.274$^{1}$ \\
-MH\_04\_difficult & 0.447$^{1}$ & 0.441$^{1}$ & 0.440$^{1}$ & \textbf{0.432$^{1}$} \\
-MH\_05\_difficult & 0.298$^{1}$ & 0.298$^{1}$ & 0.294$^{1}$ & \textbf{0.293$^{1}$} \\
+\multicolumn{6}{c}{\emph{Numbers invalidated; publication matrix not yet re-run}} \\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}

@@ -1730,9 +1730,58 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
     stereo_counters_frame.reset();
 
     const stereo_validity::Config config = stereoValidityConfig();
+    VinsConfig &cfg = vinsConfig();
+    const bool contract_on = cfg.stereo_contract_enable != 0 && config.enable;
     const bool rig_ok = ensureStereoRig();
     if (m_camera.size() < 2)
         return;
+
+    // Publication stereo contract (P1.1): an invalid rig must not silently feed
+    // LK-only measurements into the backend. Development may allow a marked fallback.
+    if (contract_on && !rig_ok)
+    {
+        if (cfg.stereo_contract_allow_lk_fallback != 0)
+        {
+            cfg.stereo_contract_mode = "lk_fallback";
+            ROS_WARN(
+                "stereo_contract: invalid rig; LK-only fallback ENABLED "
+                "(stereo_contract_mode=lk_fallback). This run must not enter a "
+                "publication table.");
+        }
+        else if (cfg.stereo_contract_require_calibration != 0)
+        {
+            cfg.stereo_contract_mode = "calibration_failed";
+            ROS_ERROR("stereo_contract: stereo enabled but extrinsic/rig is invalid; "
+                      "refusing LK-only measurements (publication fail-closed)");
+            // Reject every stereo observation for this frame.
+            for (size_t i = 0; i < status.size() && i < cur_right_pts.size(); i++)
+                status[i] = 0;
+            // Persist a structural failure once so the manifest cannot become ok.
+            if (!cfg.failure_status_path.empty())
+            {
+                static bool written = false;
+                if (!written)
+                {
+                    std::ofstream ofs(cfg.failure_status_path);
+                    if (ofs)
+                    {
+                        ofs << "{\n"
+                            << "  \"status\": \"failed\",\n"
+                            << "  \"failure_reason\": \"STEREO_CALIBRATION_INVALID\",\n"
+                            << "  \"stereo_contract_mode\": \"calibration_failed\",\n"
+                            << "  \"failure_count\": 1\n"
+                            << "}\n";
+                        written = true;
+                    }
+                }
+            }
+            return;
+        }
+    }
+    else if (rig_ok)
+    {
+        cfg.stereo_contract_mode = "enforced";
+    }
 
     const size_t total = std::min(status.size(), cur_right_pts.size());
     for (size_t i = 0; i < total && i < ids.size(); i++)
@@ -1743,10 +1792,12 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
         stereo_validity::Result result;
         if (!rig_ok)
         {
-            // Fail-open only in the sense of preserving the previous LK+border
-            // behaviour: without a usable extrinsic no physical claim is possible,
-            // and disabling the whole stereo branch would change every dataset that
-            // has no calibrated rig.
+            if (cfg.stereo_contract_allow_lk_fallback == 0 && contract_on)
+            {
+                status[i] = 0;
+                continue;
+            }
+            // Development fallback only: LK+border, explicitly unverified.
             stereo_validity::Config lk_only = config;
             lk_only.enable = false;
             result = stereo_validity::checkStereoMatch(
@@ -1759,8 +1810,6 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
             m_camera[0]->liftProjective(Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y), x0);
             m_camera[1]->liftProjective(
                 Eigen::Vector2d(cur_right_pts[i].x, cur_right_pts[i].y), x1);
-            // liftProjective returns a ray; normalize to z = 1 so the residuals below
-            // are in normalized image units for both camera models.
             if (std::abs(x0.z()) > 1e-9)
                 x0 /= x0.z();
             if (std::abs(x1.z()) > 1e-9)
@@ -1770,8 +1819,6 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
                 i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, FOCAL_LENGTH);
         }
 
-        // Only count matches LK actually produced; a dead track is not a stereo
-        // measurement and would dilute every rejection rate.
         if (lk_ok)
             stereo_counters_frame.record(result.rejection);
 

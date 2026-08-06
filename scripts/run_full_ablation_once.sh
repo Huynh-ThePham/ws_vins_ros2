@@ -41,24 +41,25 @@ echo "=============================================="
 cd "$WS"
 bash "${WS}/scripts/setup_viode_gt_cache.sh" | tee "${LOG_DIR}/gt_cache.log"
 
-METHODS="${METHODS:-baseline adaptive sad_sem sem_geodf}"
+METHODS="${METHODS:-baseline geodf semantic union_noweight union_weight}"
 VIODE_LEVELS="0_none 1_low 2_mid 3_high"
-COMMON=(N=1 FORCE="$FORCE" FAIR_BAG_RATE="$FAIR_BAG_RATE" SAD_BAG_RATE="$SAD_BAG_RATE" METHODS="$METHODS")
+COMMON=(N=1 FORCE="$FORCE" FAIR_BAG_RATE="$FAIR_BAG_RATE" SAD_BAG_RATE="$SAD_BAG_RATE" METHODS="$METHODS"
+        PROTOCOL_TAG="$PROTOCOL_TAG" PUBLICATION_MODE="${PUBLICATION_MODE:-0}")
 
 if [ "${SKIP_EUROC:-0}" != "1" ]; then
     echo "[full-once] === EuRoC 5×MH ==="
-    env "${COMMON[@]}" VIODE_LEVELS=__none__ \
+    env "${COMMON[@]}" VIODE_LEVELS=__none__ SKIP_VIODE=1 \
         bash "${WS}/scripts/run_sem_geodf_ablation.sh" full \
         2>&1 | tee "${LOG_DIR}/euroc.log"
 else
     echo "[full-once] SKIP_EUROC=1"
 fi
 
-for env in city_day city_night parking_lot; do
-    echo "[full-once] === VIODE env=$env ==="
-    env "${COMMON[@]}" VIODE_ENV="$env" VIODE_LEVELS="$VIODE_LEVELS" EUROC_SEQS=__none__ SKIP_EUROC=1 \
+for env_name in city_day city_night parking_lot; do
+    echo "[full-once] === VIODE env=$env_name ==="
+    env "${COMMON[@]}" VIODE_ENV="$env_name" VIODE_LEVELS="$VIODE_LEVELS" EUROC_SEQS=__none__ SKIP_EUROC=1 \
         bash "${WS}/scripts/run_sem_geodf_ablation.sh" full \
-        2>&1 | tee "${LOG_DIR}/viode_${env}.log"
+        2>&1 | tee "${LOG_DIR}/viode_${env_name}.log"
 done
 
 echo "[full-once] === final summary ==="

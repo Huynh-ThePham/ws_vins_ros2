@@ -238,6 +238,54 @@ def validate(root: Path, expected: dict, report: Report,
                      f"{', '.join(sorted(str(s)[:12] for s in git_shas))}. One table may "
                      f"not mix builds.")
 
+    # Protocol version must match the expected matrix.
+    want_protocol = requirements.get("require_protocol_version") or \
+        expected.get("protocol_version")
+    if want_protocol:
+        for run_dir in run_dirs:
+            manifest = load_json(run_dir / "run_manifest.json")
+            if not isinstance(manifest, dict):
+                continue
+            got = manifest.get("protocol_version") or manifest.get("protocol_tag")
+            if got != want_protocol:
+                rel = run_dir.relative_to(root)
+                report.error(f"{rel}: protocol_version={got!r}, expected {want_protocol!r}")
+
+    # full_adaptive (and friends) must never appear in the fixed-backbone claim tree.
+    forbidden = set(expected.get("forbidden_methods_in_main_claim", []))
+    for key in cells:
+        if key[2] in forbidden:
+            report.error(f"{key[0]}/{key[1]}/{key[2]}: method '{key[2]}' is forbidden in "
+                         f"the fixed-backbone main claim matrix")
+
+    # Paired cells: same trial seed, bag rate, and bag identity across methods.
+    by_scene_trial: dict[tuple[str, str, int], list[dict]] = defaultdict(list)
+    for key, trials in cells.items():
+        dataset, scene, method = key
+        for trial, record in trials.items():
+            by_scene_trial[(dataset, scene, trial)].append(
+                {"method": method, **record})
+
+    for (dataset, scene, trial), records in sorted(by_scene_trial.items()):
+        if requirements.get("require_paired_seeds"):
+            seeds = {r["manifest"].get("seed") for r in records}
+            if len(seeds) > 1:
+                report.error(f"{dataset}/{scene} trial {trial}: paired methods have "
+                             f"different seeds {sorted(seeds)}")
+        if requirements.get("require_same_bag_rate"):
+            rates = {r["manifest"].get("bag_rate") for r in records}
+            if len(rates) > 1:
+                report.error(f"{dataset}/{scene} trial {trial}: bag_rate differs across "
+                             f"methods: {sorted(rates)}")
+        if requirements.get("require_same_bag_identity"):
+            bags = {r["manifest"].get("bag_sha256") for r in records}
+            if None in bags:
+                report.error(f"{dataset}/{scene} trial {trial}: at least one method lacks "
+                             f"bag_sha256")
+            elif len(bags) > 1:
+                report.error(f"{dataset}/{scene} trial {trial}: bag identity differs across "
+                             f"methods")
+
     # --- declared matrix completeness ---------------------------------------
     for dataset, spec in expected.get("datasets", {}).items():
         required_trials = int(spec.get("trials", 1))
@@ -247,6 +295,9 @@ def validate(root: Path, expected: dict, report: Report,
                         f"count is what the paper must ultimately report)")
             required_trials = min_trials
 
+        expected_rate = spec.get("expected_bag_rate")
+        required_artifacts = list(spec.get("required_artifacts", []))
+
         for scene in spec.get("scenes", []):
             for method in spec.get("methods", []):
                 key = (dataset, scene, method)
@@ -255,19 +306,26 @@ def validate(root: Path, expected: dict, report: Report,
                     report.error(f"{dataset}/{scene}/{method}: no runs at all "
                                  f"(expected {required_trials})")
                     continue
-                # Trials must be 1..N with nothing missing in between: a gap means a
-                # run failed and was not noticed.
                 missing = [t for t in range(1, required_trials + 1) if t not in trials]
                 if missing:
                     report.error(f"{dataset}/{scene}/{method}: missing trial(s) "
                                  f"{missing} (have {sorted(trials)})")
+                for trial, record in trials.items():
+                    run_rel = Path(record["dir"])
+                    run_abs = root / run_rel
+                    for artifact in required_artifacts:
+                        if not (run_abs / artifact).exists():
+                            report.error(f"{run_rel}: missing required artifact {artifact}")
+                    if expected_rate is not None:
+                        got_rate = record["manifest"].get("bag_rate")
+                        if got_rate is None or abs(float(got_rate) - float(expected_rate)) > 1e-9:
+                            report.error(f"{run_rel}: bag_rate={got_rate}, expected "
+                                         f"{expected_rate}")
                 usable = [t for t, r in trials.items() if r.get("status") == "ok"]
                 if not usable:
                     report.error(f"{dataset}/{scene}/{method}: every trial failed or "
                                  f"diverged; this cell has no usable result")
 
-    # Anything present that the matrix does not declare is also a problem: it means
-    # the tree and the declared protocol disagree.
     declared = {
         (dataset, scene, method)
         for dataset, spec in expected.get("datasets", {}).items()
@@ -282,6 +340,33 @@ def validate(root: Path, expected: dict, report: Report,
     return {"summary": summary, "cells": {"/".join(k): sorted(v) for k, v in cells.items()}}
 
 
+def write_receipt(root: Path, expected: Path, payload: dict, receipt_path: Path) -> None:
+    """Hash every validated run_manifest.json into an immutable receipt (P0.5)."""
+    import hashlib
+    digest = hashlib.sha256()
+    manifests = sorted(root.rglob("run_manifest.json"))
+    for path in manifests:
+        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    expected_hash = hashlib.sha256(expected.read_bytes()).hexdigest() if expected.is_file() else None
+    validation_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    receipt = {
+        "result": payload.get("result"),
+        "root": str(root),
+        "expected_matrix": str(expected),
+        "expected_matrix_sha256": expected_hash,
+        "validation_payload_sha256": validation_hash,
+        "manifests_sha256": digest.hexdigest(),
+        "manifest_count": len(manifests),
+        "protocol_version": payload.get("protocol_version"),
+    }
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -289,6 +374,8 @@ def main() -> int:
     ap.add_argument("--expected", type=Path, default=DEFAULT_EXPECTED)
     ap.add_argument("--report", type=Path, default=None,
                     help="Write a JSON report here (also written as <root>/validation.json)")
+    ap.add_argument("--write-receipt", type=Path, default=None,
+                    help="Write validation_receipt.json here on PASS")
     ap.add_argument("--min-trials", type=int, default=None,
                     help="Accept fewer trials than declared, for a gate run. The shortfall "
                          "is reported, never silent.")
@@ -320,6 +407,8 @@ def main() -> int:
     payload = {
         "root": str(args.root),
         "expected": str(args.expected),
+        "protocol_version": expected.get("protocol_version"),
+        "claim_matrix": expected.get("claim_matrix"),
         "result": "PASS" if report.ok else "FAIL",
         "errors": report.errors,
         "notes": report.notes,
@@ -339,6 +428,9 @@ def main() -> int:
         print("\nDo not generate publication assets from this tree.")
         return 1
 
+    receipt_path = args.write_receipt or (args.root / "validation_receipt.json")
+    write_receipt(args.root, args.expected, payload, receipt_path)
+    print(f"[validate] receipt: {receipt_path}")
     print("\nPASS: the run tree matches the declared matrix and every run is traceable.")
     return 0
 

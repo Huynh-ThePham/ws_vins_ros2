@@ -109,8 +109,12 @@ class YoloDynamicMask(Node):
         self.total_time = 0.0
         self.frame_count = 0
         self.callback_count = 0
+        self.inference_count = 0
         self.reused_count = 0
         self.dropped_count = 0
+        self.inference_error_count = 0
+        self.latency_samples_ms = []
+        self.mask_age_samples_ms = []
 
         # P1.8: the whole mask MESSAGE is kept, header included, so a reuse cannot
         # accidentally acquire a fresh stamp.
@@ -233,6 +237,7 @@ class YoloDynamicMask(Node):
                 try:
                     self._process(msg)
                 except Exception as exc:  # a bad frame must not kill the worker
+                    self.inference_error_count += 1
                     self.get_logger().error(f'YOLO mask error: {exc}')
                 if not self.keep_latest_only:
                     break
@@ -275,16 +280,35 @@ class YoloDynamicMask(Node):
                 debug_img = result.plot()
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0
+        self.inference_count += 1
+        self.total_time += latency_ms
+        self.latency_samples_ms.append(latency_ms)
         self._publish_fresh_mask(msg, final_mask, latency_ms, debug_img)
 
-        self.total_time += latency_ms
-        if self.frame_count % 30 == 0:
-            processed = max(1, self.frame_count)
+        if self.inference_count % 30 == 0:
+            mean_inf = self.total_time / max(1, self.inference_count)
+            reuse_rate = self.reused_count / max(1, self.callback_count)
+            drop_rate = self.dropped_count / max(1, self.callback_count)
+            inf_rate = self.inference_count / max(1, self.callback_count)
             self.get_logger().info(
-                f'YOLO avg latency: {self.total_time / processed:.2f} ms, '
-                f'reused={self.reused_count}, displaced={self.dropped_count}, '
-                f'callbacks={self.callback_count}'
+                f'YOLO mean_model_latency_ms={mean_inf:.2f} '
+                f'(inference_count={self.inference_count}, callbacks={self.callback_count}), '
+                f'inference_rate={inf_rate:.3f}, reuse_rate={reuse_rate:.3f}, '
+                f'drop/displacement_rate={drop_rate:.3f}, '
+                f'errors={self.inference_error_count}, '
+                f'latency_p50/p90/p95/p99={self._percentile(self.latency_samples_ms, 50):.1f}/'
+                f'{self._percentile(self.latency_samples_ms, 90):.1f}/'
+                f'{self._percentile(self.latency_samples_ms, 95):.1f}/'
+                f'{self._percentile(self.latency_samples_ms, 99):.1f}'
             )
+
+    @staticmethod
+    def _percentile(samples, pct):
+        if not samples:
+            return 0.0
+        ordered = sorted(samples)
+        idx = min(len(ordered) - 1, max(0, int(round((pct / 100.0) * (len(ordered) - 1)))))
+        return float(ordered[idx])
 
     def _to_bgr(self, msg):
         if msg.encoding in ('mono8', '8UC1'):

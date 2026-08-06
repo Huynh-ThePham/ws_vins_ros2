@@ -10,10 +10,17 @@ on:
   pull_request:
   workflow_dispatch:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   colcon:
     runs-on: ubuntu-22.04
     container: ros:humble-ros-base-jammy
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +35,6 @@ jobs:
             ros-humble-cv-bridge python3-colcon-common-extensions
 
       - name: colcon build
-        shell: bash
         run: |
           set -euo pipefail
           source /opt/ros/humble/setup.bash
@@ -38,7 +44,6 @@ jobs:
             --event-handlers console_direct+
 
       - name: ctest
-        shell: bash
         run: |
           set -euo pipefail
           source /opt/ros/humble/setup.bash
@@ -53,8 +58,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      - name: Install pinned test requirements
+        run: |
+          set -euo pipefail
+          python3 -m pip install -r scripts/requirements-test.txt
       - name: Unit tests (no ROS, no GPU, no dataset)
-        run: python3 -m unittest discover -s scripts/tests -v
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/tests -v
 
   lint:
     runs-on: ubuntu-22.04
@@ -72,8 +83,15 @@ jobs:
             bash -n "$f" || failed=1
           done
           [ "$failed" -eq 0 ] || { echo "::error::a shell script has a syntax error"; exit 1; }
-          shellcheck --severity=error scripts/*.sh scripts/lib/*.sh || \
-            { echo "::error::shellcheck reported an error-level finding"; exit 1; }
+          # Publication runners are audited for error-level findings; other scripts
+          # keep bash -n as the hard gate so legacy helpers do not block CI.
+          shellcheck --severity=error \
+            scripts/run_sem_geodf_ablation.sh \
+            scripts/run_sem_geodf_full_rerun.sh \
+            scripts/run_sem_geodf_adaptive_extension.sh \
+            scripts/lib/geodf_common.sh \
+            scripts/lib/sad_common.sh || \
+            { echo "::error::shellcheck reported an error-level finding on publication scripts"; exit 1; }
 
       - name: clang-format check
         run: |

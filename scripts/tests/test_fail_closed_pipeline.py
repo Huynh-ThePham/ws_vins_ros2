@@ -81,6 +81,8 @@ class TreeBuilder:
 
         manifest = {
             "dataset": dataset, "scene": scene, "method": method, "trial": trial,
+            "seed": 1000 + int(trial),
+            "bag_rate": 1.0,
             "status": status,
             "failure_reason": failure_reason,
             "git_sha": git_sha,
@@ -300,6 +302,15 @@ class TestAssetGate(unittest.TestCase):
             result = run([str(ASSETS), "--root", str(root), "--out", str(Path(tmp) / "paper")])
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("missing trial(s)", result.stderr + result.stdout)
+
+    def test_assets_refuse_missing_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "results"
+            root.mkdir()
+            (root / "validation.json").write_text(json.dumps({"result": "PASS", "errors": []}))
+            result = run([str(ASSETS), "--root", str(root), "--out", str(Path(tmp) / "paper")])
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("validation_receipt", result.stderr + result.stdout)
 
 
 class TestNoSilentContinueOnThePublicationPath(unittest.TestCase):

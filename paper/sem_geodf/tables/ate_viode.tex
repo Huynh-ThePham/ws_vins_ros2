@@ -1,24 +1,16 @@
-\begin{table*}[t]
+% INVALIDATED after fair-config / stereo-contract / fail-closed correctness changes.
+% Do not mix pre-fix ATE with post-fix numbers. Re-run:
+%   ./scripts/run_sem_geodf_full_rerun.sh
+% and regenerate via make_sem_geodf_paper_assets.py after validation_receipt PASS.
+\begin{table}[t]
 \centering
-\caption{VIODE ATE RMSE [m] (mean$\pm$std). Superscript is the number of trials $N$ per cell; cells with $N{=}1$ report a single run (no std). Best mean per row in bold.}
+\caption{VIODE ATE RMSE [m] --- \textbf{rerun pending} (protocol \texttt{sem-geodf-fair-v2}).}
 \label{tab:ate_viode}
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lcccc}
+\begin{tabular}{lccccc}
 \toprule
-Scene & Baseline & GeoDF-Adaptive & SAD-Sem & Sem-GeoDF (ours) \\
+Scene & B0 & G & S & U & U+W \\
 \midrule
-city\_day\_0\_none & \textbf{0.110$\pm$0.000$^{3}$} & 0.120$\pm$0.000$^{3}$ & 0.150$\pm$0.012$^{3}$ & 0.116$\pm$0.000$^{3}$ \\
-city\_day\_1\_low & 0.139$\pm$0.001$^{3}$ & 0.155$\pm$0.000$^{3}$ & \textbf{0.137$\pm$0.000$^{3}$} & 0.154$\pm$0.002$^{3}$ \\
-city\_day\_2\_mid & 0.166$\pm$0.000$^{3}$ & \textbf{0.142$\pm$0.000$^{3}$} & 0.148$\pm$0.001$^{3}$ & 0.159$\pm$0.000$^{3}$ \\
-city\_day\_3\_high & 0.345$\pm$0.002$^{3}$ & 0.297$\pm$0.020$^{3}$ & \textbf{0.162$\pm$0.019$^{3}$} & 0.245$\pm$0.020$^{3}$ \\
-city\_night\_0\_none & 0.418$\pm$0.000$^{3}$ & 0.307$\pm$0.107$^{3}$ & \textbf{0.298$\pm$0.005$^{3}$} & 0.342$\pm$0.000$^{3}$ \\
-city\_night\_1\_low & 0.500$\pm$0.000$^{3}$ & 0.568$\pm$0.000$^{3}$ & \textbf{0.357$\pm$0.073$^{3}$} & 0.452$\pm$0.000$^{3}$ \\
-city\_night\_2\_mid & 0.497$\pm$0.000$^{3}$ & 0.460$\pm$0.000$^{3}$ & 0.372$\pm$0.000$^{3}$ & \textbf{0.281$\pm$0.013$^{3}$} \\
-city\_night\_3\_high & 0.883$\pm$0.001$^{3}$ & 0.822$\pm$0.000$^{3}$ & \textbf{0.273$\pm$0.030$^{3}$} & 0.354$\pm$0.000$^{3}$ \\
-parking\_lot\_0\_none & 0.168$\pm$0.001$^{3}$ & 0.149$\pm$0.000$^{3}$ & 0.188$\pm$0.000$^{3}$ & \textbf{0.139$\pm$0.000$^{3}$} \\
-parking\_lot\_1\_low & 0.107$\pm$0.018$^{3}$ & \textbf{0.106$\pm$0.000$^{3}$} & 0.132$\pm$0.000$^{3}$ & 0.113$\pm$0.006$^{3}$ \\
-parking\_lot\_2\_mid & 0.144$\pm$0.000$^{3}$ & 0.205$\pm$0.000$^{3}$ & \textbf{0.088$\pm$0.000$^{3}$} & 0.099$\pm$0.000$^{3}$ \\
-parking\_lot\_3\_high & 0.119$\pm$0.000$^{3}$ & 0.172$\pm$0.000$^{3}$ & 0.146$\pm$0.003$^{3}$ & \textbf{0.106$\pm$0.037$^{3}$} \\
+\multicolumn{6}{c}{\emph{Numbers invalidated; publication matrix not yet re-run}} \\
 \bottomrule
 \end{tabular}
-\end{table*}
+\end{table}

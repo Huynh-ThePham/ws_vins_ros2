@@ -631,12 +631,9 @@ def write_failure_table(data, scenes, path: Path, caption: str, label: str):
     print("wrote", path)
 
 
-def require_validated(root: Path, allow_unvalidated: bool) -> None:
-    """Refuse to build publication assets from an unvalidated run tree (plan P0.3).
-
-    The asset script is the last step before a number reaches the paper, so this is
-    where fail-closed matters most.
-    """
+def require_validated(root: Path, allow_unvalidated: bool,
+                      require_receipt: Path | None = None) -> None:
+    """Refuse to build publication assets from an unvalidated run tree (plan P0.3/P0.5)."""
     report = root / "validation.json"
     if allow_unvalidated:
         print("[warn] --allow-unvalidated: assets are being built WITHOUT the expected-matrix "
@@ -658,7 +655,21 @@ def require_validated(root: Path, allow_unvalidated: bool) -> None:
             f"[fatal] {report} reports {payload.get('result')} with {len(errors)} problem(s); "
             f"the first is:\n          {errors[0] if errors else '(none recorded)'}\n"
             f"        Fix the run tree and re-validate before building assets.")
+
+    receipt = require_receipt or (root / "validation_receipt.json")
+    if not receipt.is_file():
+        raise SystemExit(
+            f"[fatal] {receipt} not found.\n"
+            f"        Re-run validate_experiment_matrix.py with --write-receipt so paper "
+            f"assets can prove which manifests were gated.")
+    try:
+        receipt_payload = json.loads(receipt.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"[fatal] cannot read {receipt}: {exc}")
+    if receipt_payload.get("result") != "PASS":
+        raise SystemExit(f"[fatal] validation receipt is not PASS: {receipt}")
     print(f"[ok] expected-matrix gate passed for {root}")
+    print(f"[ok] validation receipt: {receipt}")
 
 
 def main():
@@ -668,10 +679,12 @@ def main():
     ap.add_argument("--allow-unvalidated", action="store_true",
                     help="Skip the expected-matrix gate. For local inspection only; the "
                          "output must not go into the paper.")
+    ap.add_argument("--require-receipt", type=Path, default=None,
+                    help="Path to validation_receipt.json (default: <root>/validation_receipt.json)")
     args = ap.parse_args()
     root = args.root.resolve()
     out = args.out.resolve()
-    require_validated(root, args.allow_unvalidated)
+    require_validated(root, args.allow_unvalidated, args.require_receipt)
     figdir = out / "figures"
     tabdir = out / "tables"
     figdir.mkdir(parents=True, exist_ok=True)

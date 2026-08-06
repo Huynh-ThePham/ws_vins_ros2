@@ -26,6 +26,7 @@ enum class FailureReason
     ROTATION_JUMP,
     SOLVER_FAILURE,
     NAN_STATE,
+    STEREO_CALIBRATION_INVALID,
 };
 
 inline const char *toString(FailureReason reason)
@@ -40,6 +41,8 @@ inline const char *toString(FailureReason reason)
         case FailureReason::ROTATION_JUMP:       return "ROTATION_JUMP";
         case FailureReason::SOLVER_FAILURE:      return "SOLVER_FAILURE";
         case FailureReason::NAN_STATE:           return "NAN_STATE";
+        case FailureReason::STEREO_CALIBRATION_INVALID:
+            return "STEREO_CALIBRATION_INVALID";
     }
     return "UNKNOWN";
 }

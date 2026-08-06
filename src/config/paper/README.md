@@ -79,6 +79,12 @@ The audit fails when:
 - factor adaptation is on for some methods but not all;
 - `U` and `U+W` differ in anything other than `sem_geodf_backend_weight`.
 
+Backend weight semantics (publication / precision interpretation):
+`sem_geodf_backend_weight` enables Σ_w = Σ / w via √w residual/Jacobian scaling.
+Derived `w` is a precision/trust multiplier from online risk heuristics — not a
+calibrated posterior inlier probability. Huber is applied on the already √w-scaled
+residual. `min(w_i, w_j)` is a conservative heuristic, not covariance propagation.
+
 ## Adding a knob
 
 Declare it in **both** backbones at its off/neutral value, then let the owning

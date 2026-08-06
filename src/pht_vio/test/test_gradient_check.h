@@ -175,10 +175,10 @@ void check(const Factor &factor,
     }
 }
 
-// Weights the plan requires every gradient test to cover.
+// Weights every projection-factor gradient test must cover (plan P0 Jacobian).
 inline const std::vector<double> &weights()
 {
-    static const std::vector<double> w{1.0, 0.75, 0.25};
+    static const std::vector<double> w{1.0, 0.5, 0.25, 0.01, 1e-4};
     return w;
 }
 

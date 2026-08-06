@@ -89,8 +89,11 @@ class Estimator
     void predictPtsInNextFrame();
     void outliersRejection(set<int> &removeIndex);
     double reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
-                                     Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
-                                     double depth, Vector3d &uvi, Vector3d &uvj);
+                                 Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
+                                 double depth, Vector3d &uvi, Vector3d &uvj);
+    void reprojectionResidual(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
+                              Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj,
+                              double depth, Vector3d &uvi, Vector3d &uvj, Vector2d &residual);
     void updateLatestStates();
     void fastPredictIMU(double t, Eigen::Vector3d linear_acceleration, Eigen::Vector3d angular_velocity);
     bool IMUAvailable(double t);

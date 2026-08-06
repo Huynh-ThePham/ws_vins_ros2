@@ -33,6 +33,14 @@ class ProjectionTwoFrameTwoCamFactor : public ceres::SizedCostFunction<2, 7, 7, 
     // Frozen at construction: an observation's weight must never be mutated
     // after its residual block exists, or a marginalized prior would silently
     // disagree with the weight it was linearized at.
+    // Frozen at construction: an observation's weight must never be mutated
+    // after its residual block exists, or a marginalized prior would silently
+    // disagree with the weight it was linearized at.
+    //
+    // Semantics (publication / precision interpretation):
+    //   w ∈ (0, 1] is a measurement-precision multiplier: Σ_w = Σ / w.
+    //   Implemented by scaling the whitened residual and Jacobian by √w.
+    //   w is NOT a calibrated posterior inlier probability.
     const double sqrt_weight;
     Eigen::Matrix<double, 2, 3> tangent_base;
     static Eigen::Matrix2d sqrt_info;

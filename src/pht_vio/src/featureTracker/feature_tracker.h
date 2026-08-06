@@ -125,6 +125,20 @@ public:
     stereo_validity::Config stereoValidityConfig() const;
     bool ensureStereoRig();
 
+    // Live track reliability for active-window factor construction. Returns the
+    // current Sem-GeoDF weight for `id`, or 1.0 if the track is unweighted.
+    // Marginalized priors keep the weight frozen into their ResidualBlockInfo;
+    // only newly built factors see this value.
+    double currentFeatureWeight(int id) const
+    {
+        if (sem_geodf_feature_weights.empty())
+            return 1.0;
+        const auto it = sem_geodf_feature_weights.find(id);
+        if (it == sem_geodf_feature_weights.end())
+            return 1.0;
+        return std::min(1.0, std::max(0.0, it->second));
+    }
+
     // SAD-VINS scene-aware semantic activation (EMA of dynamic pixel ratio).
     double sem_activation_ema = -1.0;
     bool sem_scene_active = false;

@@ -101,7 +101,18 @@ inline FusedRisk computeFusedRisk(const RiskEvidence &evidence, const RiskConfig
 }
 
 // w_i = clip(1 - r_i, w_min, 1), then tightened by the confirmation caps.
-// Monotone non-increasing in fused_risk by construction.
+//
+// Publication semantics (precision interpretation, Hướng A):
+//   The resulting w is a measurement-precision multiplier consumed by the
+//   projection factors as Σ_w = Σ / w (implemented via √w residual/Jacobian
+//   scaling). It is derived from fused risk heuristics and confirmation caps;
+//   it is NOT a calibrated posterior inlier probability unless an explicit
+//   calibration study says otherwise. Do not mix this with Huber ρ(·): Ceres
+//   applies the robust loss on top of the already √w-scaled residual.
+//
+// Combining two observation qualities with min(w_i, w_j) is a conservative
+// heuristic, not covariance propagation. Harmonic / full-covariance fusion is
+// an optional ablation, not the main publication method.
 inline double riskToWeight(double fused_risk,
                            const RiskEvidence &evidence,
                            const RiskConfig &config)

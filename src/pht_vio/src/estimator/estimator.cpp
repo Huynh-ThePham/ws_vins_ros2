@@ -1175,7 +1175,13 @@ void Estimator::optimization()
                 Vector3d pts_j = it_per_frame.point;
                 ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                 std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weight));
+                                                                 // Conservative heuristic for combining two observation qualities:
+                                                                 // min(w_i, w_j). This is NOT covariance propagation. Live track
+                                                                 // reliability can only lower the weight further (never raise a
+                                                                 // frozen high weight after a track is marked dynamic).
+                                                                 std::min({it_per_id.feature_per_frame[0].weight,
+                                                                           it_per_frame.weight,
+                                                                           featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                 problem.AddResidualBlock(f_td, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]);
             }
 
@@ -1186,14 +1192,14 @@ void Estimator::optimization()
                 {
                     ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                 std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight));
+                                                                 std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                     problem.AddResidualBlock(f, loss_function, para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                 else
                 {
                     ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                  it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                 std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight));
+                                                                 std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                     problem.AddResidualBlock(f, loss_function, para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]);
                 }
                
@@ -1298,7 +1304,7 @@ void Estimator::optimization()
                         Vector3d pts_j = it_per_frame.point;
                         ProjectionTwoFrameOneCamFactor *f_td = new ProjectionTwoFrameOneCamFactor(pts_i, pts_j, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocity,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                          std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weight));
+                                                                          std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                         ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f_td, loss_function,
                                                                                         vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Feature[feature_index], para_Td[0]},
                                                                                         vector<int>{0, 3});
@@ -1311,7 +1317,7 @@ void Estimator::optimization()
                         {
                             ProjectionTwoFrameTwoCamFactor *f = new ProjectionTwoFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                          std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight));
+                                                                          std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Pose[imu_i], para_Pose[imu_j], para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{0, 4});
@@ -1321,7 +1327,7 @@ void Estimator::optimization()
                         {
                             ProjectionOneFrameTwoCamFactor *f = new ProjectionOneFrameTwoCamFactor(pts_i, pts_j_right, it_per_id.feature_per_frame[0].velocity, it_per_frame.velocityRight,
                                                                           it_per_id.feature_per_frame[0].cur_td, it_per_frame.cur_td,
-                                                                          std::min(it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight));
+                                                                          std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weightRight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                             ResidualBlockInfo *residual_block_info = new ResidualBlockInfo(f, loss_function,
                                                                                            vector<double *>{para_Ex_Pose[0], para_Ex_Pose[1], para_Feature[feature_index], para_Td[0]},
                                                                                            vector<int>{2});
@@ -1606,12 +1612,18 @@ double Estimator::reprojectionError(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, 
                                  Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj, 
                                  double depth, Vector3d &uvi, Vector3d &uvj)
 {
+    Vector2d residual;
+    reprojectionResidual(Ri, Pi, rici, tici, Rj, Pj, ricj, ticj, depth, uvi, uvj, residual);
+    return residual.norm();
+}
+
+void Estimator::reprojectionResidual(Matrix3d &Ri, Vector3d &Pi, Matrix3d &rici, Vector3d &tici,
+                                     Matrix3d &Rj, Vector3d &Pj, Matrix3d &ricj, Vector3d &ticj,
+                                     double depth, Vector3d &uvi, Vector3d &uvj, Vector2d &residual)
+{
     Vector3d pts_w = Ri * (rici * (depth * uvi) + tici) + Pi;
     Vector3d pts_cj = ricj.transpose() * (Rj.transpose() * (pts_w - Pj) - ticj);
-    Vector2d residual = (pts_cj / pts_cj.z()).head<2>() - uvj.head<2>();
-    double rx = residual.x();
-    double ry = residual.y();
-    return sqrt(rx * rx + ry * ry);
+    residual = (pts_cj / pts_cj.z()).head<2>() - uvj.head<2>();
 }
 
 void Estimator::outliersRejection(set<int> &removeIndex)
@@ -1621,13 +1633,15 @@ void Estimator::outliersRejection(set<int> &removeIndex)
     std::vector<double> visual_factor_weights;
     const double visual_sqrt_info =
         FOCAL_LENGTH / vinsConfig().visual_sigma_px;
-    auto recordVisualNorm = [&](double normalized_error, double weight) {
-        const double bounded_weight =
-            std::min(1.0, std::max(0.0, weight));
-        whitened_visual_norms.push_back(
-            normalized_error * visual_sqrt_info *
-            std::sqrt(bounded_weight));
-        visual_factor_weights.push_back(bounded_weight);
+    auto recordVisualNorm = [&](double rx, double ry) {
+        // Scale estimation uses UNWEIGHTED whitened residual COMPONENTS so that
+        // semantic/GeoDF measurement weights cannot bias the robust scale, and so
+        // the Gaussian MAD constant 1.4826 applies to (approximately) 1-D Gaussians
+        // rather than to a Rayleigh radial norm.
+        if (std::isfinite(rx))
+            whitened_visual_norms.push_back(std::abs(rx) * visual_sqrt_info);
+        if (std::isfinite(ry))
+            whitened_visual_norms.push_back(std::abs(ry) * visual_sqrt_info);
     };
     int feature_index = -1;
     for (auto &it_per_id : f_manager.feature)
@@ -1646,17 +1660,17 @@ void Estimator::outliersRejection(set<int> &removeIndex)
             imu_j++;
             if (imu_i != imu_j)
             {
-                Vector3d pts_j = it_per_frame.point;             
-                double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
-                                                    Rs[imu_j], Ps[imu_j], ric[0], tic[0],
-                                                    depth, pts_i, pts_j);
+                Vector3d pts_j = it_per_frame.point;
+                Vector2d residual;
+                reprojectionResidual(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
+                                     Rs[imu_j], Ps[imu_j], ric[0], tic[0],
+                                     depth, pts_i, pts_j, residual);
+                const double tmp_error = residual.norm();
                 err += tmp_error;
                 errCnt++;
-                recordVisualNorm(
-                    tmp_error,
-                    std::min(it_per_id.feature_per_frame[0].weight,
-                             it_per_frame.weight));
-                //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
+                recordVisualNorm(residual.x(), residual.y());
+                visual_factor_weights.push_back(
+                    std::min({it_per_id.feature_per_frame[0].weight, it_per_frame.weight, featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
             }
             // need to rewrite projecton factor.........
             if(vinsConfig().stereo && it_per_frame.is_stereo)
@@ -1664,30 +1678,34 @@ void Estimator::outliersRejection(set<int> &removeIndex)
                 
                 Vector3d pts_j_right = it_per_frame.pointRight;
                 if(imu_i != imu_j)
-                {            
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
-                                                        Rs[imu_j], Ps[imu_j], ric[1], tic[1],
-                                                        depth, pts_i, pts_j_right);
+                {
+                    Vector2d residual;
+                    reprojectionResidual(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
+                                         Rs[imu_j], Ps[imu_j], ric[1], tic[1],
+                                         depth, pts_i, pts_j_right, residual);
+                    const double tmp_error = residual.norm();
                     err += tmp_error;
                     errCnt++;
-                    recordVisualNorm(
-                        tmp_error,
-                        std::min(it_per_id.feature_per_frame[0].weight,
-                                 it_per_frame.weightRight));
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
+                    recordVisualNorm(residual.x(), residual.y());
+                    visual_factor_weights.push_back(
+                        std::min({it_per_id.feature_per_frame[0].weight,
+                                  it_per_frame.weightRight,
+                                  featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                 }
                 else
                 {
-                    double tmp_error = reprojectionError(Rs[imu_i], Ps[imu_i], ric[0], tic[0], 
-                                                        Rs[imu_j], Ps[imu_j], ric[1], tic[1],
-                                                        depth, pts_i, pts_j_right);
+                    Vector2d residual;
+                    reprojectionResidual(Rs[imu_i], Ps[imu_i], ric[0], tic[0],
+                                         Rs[imu_j], Ps[imu_j], ric[1], tic[1],
+                                         depth, pts_i, pts_j_right, residual);
+                    const double tmp_error = residual.norm();
                     err += tmp_error;
                     errCnt++;
-                    recordVisualNorm(
-                        tmp_error,
-                        std::min(it_per_id.feature_per_frame[0].weight,
-                                 it_per_frame.weightRight));
-                    //printf("tmp_error %f\n", FOCAL_LENGTH / 1.5 * tmp_error);
+                    recordVisualNorm(residual.x(), residual.y());
+                    visual_factor_weights.push_back(
+                        std::min({it_per_id.feature_per_frame[0].weight,
+                                  it_per_frame.weightRight,
+                                  featureTracker.currentFeatureWeight(it_per_id.feature_id)}));
                 }       
             }
         }

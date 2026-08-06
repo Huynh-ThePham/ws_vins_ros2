@@ -127,6 +127,9 @@ class DecisionLayer
         geo_obs.median_parallax_px = frame.median_parallax_px;
         geo_obs.grid_occupancy = frame.grid_occupancy;
         geo_obs.design_condition_number = 1.0e3;
+        geo_obs.effective_design_condition = 1.0e3;
+        geo_obs.design_metrics_valid = true;
+        geo_obs.nullspace_gap = 40.0;
         geo_obs.ransac_inliers = frame.ransac_inliers;
         geo_obs.ransac_total = frame.ransac_total;
         geo_obs.mover_share = frame.mover_share;

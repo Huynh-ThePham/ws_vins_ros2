@@ -33,7 +33,8 @@ int main()
     const double delta =
         adaptive_factor::adaptiveHuberDelta(nominal, 1.0, 1.0, huber);
     assert(delta >= huber.min_delta);
-    assert(delta < 2.0);
+    assert(delta <= huber.max_delta);
+    assert(std::isfinite(delta));
 
     adaptive_factor::ImuQualityConfig imu;
     imu.enabled = true;
@@ -46,5 +47,28 @@ int main()
     assert(adaptive_factor::imuNoiseInflation(
                1.0, Eigen::Vector3d(1000.0, 0.0, 0.0), gyr, acc, gyr, imu) <=
            imu.max_inflation);
+
+    // Accel saturation must inflate accel measurement noise, not gyro.
+    {
+        const auto split = adaptive_factor::imuNoiseInflationSplit(
+            0.005, Eigen::Vector3d(200.0, 0.0, 0.0), gyr, acc, gyr, imu);
+        assert(split.acc_measurement > 1.0);
+        assert(near(split.gyr_measurement, 1.0));
+        assert(near(split.gyr_bias_walk, 1.0));
+    }
+    // Gyro saturation must not force accel measurement inflation.
+    {
+        const auto split = adaptive_factor::imuNoiseInflationSplit(
+            0.005, acc, Eigen::Vector3d(50.0, 0.0, 0.0), acc, gyr, imu);
+        assert(split.gyr_measurement > 1.0);
+        assert(near(split.acc_measurement, 1.0));
+    }
+    // Packet gap inflates measurement more than bias walk.
+    {
+        const auto split = adaptive_factor::imuNoiseInflationSplit(
+            0.05, acc, gyr, acc, gyr, imu);
+        assert(split.acc_measurement > split.acc_bias_walk);
+        assert(split.gyr_measurement > split.gyr_bias_walk);
+    }
     return 0;
 }

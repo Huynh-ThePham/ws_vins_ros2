@@ -143,15 +143,24 @@ class IntegrationBase
                 vinsConfig().imu_gap_inflation_gain,
                 vinsConfig().imu_saturation_inflation_gain,
                 vinsConfig().imu_max_cov_inflation};
-            const double noise_inflation =
-                adaptive_factor::imuNoiseInflation(
+            const adaptive_factor::ImuNoiseInflation noise_inflation =
+                adaptive_factor::imuNoiseInflationSplit(
                     _dt, _acc_0, _gyr_0, _acc_1, _gyr_1,
                     imu_quality_config);
-            noise_inflation_sum += noise_inflation;
-            noise_inflation_max = std::max(noise_inflation_max, noise_inflation);
+            noise_inflation_sum += noise_inflation.maxFactor();
+            noise_inflation_max = std::max(noise_inflation_max, noise_inflation.maxFactor());
             noise_inflation_count++;
+            // Scale noise blocks independently; keep the 18x18 matrix SPD by
+            // applying positive diagonal multipliers only.
+            Eigen::Matrix<double, 18, 18> inflated = noise;
+            inflated.block<3, 3>(0, 0) *= noise_inflation.acc_measurement;
+            inflated.block<3, 3>(3, 3) *= noise_inflation.gyr_measurement;
+            inflated.block<3, 3>(6, 6) *= noise_inflation.acc_measurement;
+            inflated.block<3, 3>(9, 9) *= noise_inflation.gyr_measurement;
+            inflated.block<3, 3>(12, 12) *= noise_inflation.acc_bias_walk;
+            inflated.block<3, 3>(15, 15) *= noise_inflation.gyr_bias_walk;
             covariance = F * covariance * F.transpose() +
-                         V * (noise_inflation * noise) * V.transpose();
+                         V * inflated * V.transpose();
         }
 
     }

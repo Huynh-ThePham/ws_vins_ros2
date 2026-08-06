@@ -100,12 +100,16 @@ inline double adaptiveHuberDelta(const std::vector<double> &whitened_norms,
     for (double value : finite)
         deviations.push_back(std::abs(value - med));
 
-    // A 2-D whitened Gaussian has a Rayleigh-distributed norm whose median is
-    // sqrt(2 log 2) times its component standard deviation. MAD is retained as
-    // a safeguard for mixed/heavy-tailed residual sets.
-    constexpr double rayleigh_median = 1.1774100225154747;
-    const double sigma_from_median = med / rayleigh_median;
-    const double sigma_from_mad = 1.4826 * median(deviations);
+    // A whitened 1-D Gaussian residual component has MAD ≈ 0.6745 σ, so
+    // σ ≈ 1.4826 * MAD. Callers must pass COMPONENT residuals (after whitening),
+    // never Rayleigh radial norms and never residuals already multiplied by
+    // semantic/GeoDF measurement weights.
+    constexpr double gaussian_mad_to_sigma = 1.4826;
+    const double sigma_from_mad = gaussian_mad_to_sigma * median(deviations);
+    // Median of |component| for a standard normal is ≈ 0.6745; keep as a second
+    // robust scale estimate and take the more conservative of the two.
+    constexpr double gaussian_median_abs = 0.6744897501960817;
+    const double sigma_from_median = med / gaussian_median_abs;
     const double robust_sigma =
         std::max(0.1, std::max(sigma_from_median, sigma_from_mad));
     const double target =
@@ -129,15 +133,32 @@ struct ImuQualityConfig
     double max_inflation = 20.0;
 };
 
-inline double imuNoiseInflation(double dt,
-                                const Eigen::Vector3d &acc0,
-                                const Eigen::Vector3d &gyr0,
-                                const Eigen::Vector3d &acc1,
-                                const Eigen::Vector3d &gyr1,
-                                const ImuQualityConfig &config)
+struct ImuNoiseInflation
 {
+    double acc_measurement = 1.0;
+    double gyr_measurement = 1.0;
+    double acc_bias_walk = 1.0;
+    double gyr_bias_walk = 1.0;
+
+    double maxFactor() const
+    {
+        return std::max({acc_measurement, gyr_measurement, acc_bias_walk, gyr_bias_walk});
+    }
+};
+
+// Inflate IMU noise blocks independently from failure evidence.
+// Accel saturation must NOT automatically inflate gyro noise (and vice versa).
+// Packet gaps inflate measurement noise more than bias random walk.
+inline ImuNoiseInflation imuNoiseInflationSplit(double dt,
+                                                const Eigen::Vector3d &acc0,
+                                                const Eigen::Vector3d &gyr0,
+                                                const Eigen::Vector3d &acc1,
+                                                const Eigen::Vector3d &gyr1,
+                                                const ImuQualityConfig &config)
+{
+    ImuNoiseInflation out;
     if (!config.enabled)
-        return 1.0;
+        return out;
 
     const double gap_threshold = std::max(1e-6, config.gap_threshold_s);
     const double acc_limit = std::max(1e-6, config.acc_saturation);
@@ -148,13 +169,39 @@ inline double imuNoiseInflation(double dt,
     const double gyr_excess =
         std::max(0.0, std::max(gyr0.norm(), gyr1.norm()) / gyr_limit - 1.0);
 
-    double inflation =
-        1.0 + std::max(0.0, config.gap_gain) * gap_excess * gap_excess +
-        std::max(0.0, config.saturation_gain) *
-            (acc_excess * acc_excess + gyr_excess * gyr_excess);
-    if (!std::isfinite(inflation))
-        inflation = config.max_inflation;
-    return clamp(inflation, 1.0, std::max(1.0, config.max_inflation));
+    const double gap_term =
+        std::max(0.0, config.gap_gain) * gap_excess * gap_excess;
+    const double acc_term =
+        std::max(0.0, config.saturation_gain) * acc_excess * acc_excess;
+    const double gyr_term =
+        std::max(0.0, config.saturation_gain) * gyr_excess * gyr_excess;
+    const double max_inf = std::max(1.0, config.max_inflation);
+
+    out.acc_measurement = clamp(1.0 + gap_term + acc_term, 1.0, max_inf);
+    out.gyr_measurement = clamp(1.0 + gap_term + gyr_term, 1.0, max_inf);
+    // Bias random walk: milder inflation; gap evidence only (not saturation of
+    // a single sample, which is a measurement event).
+    out.acc_bias_walk = clamp(1.0 + 0.25 * gap_term, 1.0, max_inf);
+    out.gyr_bias_walk = clamp(1.0 + 0.25 * gap_term, 1.0, max_inf);
+
+    if (!std::isfinite(out.acc_measurement) || !std::isfinite(out.gyr_measurement) ||
+        !std::isfinite(out.acc_bias_walk) || !std::isfinite(out.gyr_bias_walk))
+    {
+        out.acc_measurement = out.gyr_measurement = out.acc_bias_walk =
+            out.gyr_bias_walk = max_inf;
+    }
+    return out;
+}
+
+// Backward-compatible scalar: max block inflation (for logging / mean stats).
+inline double imuNoiseInflation(double dt,
+                                const Eigen::Vector3d &acc0,
+                                const Eigen::Vector3d &gyr0,
+                                const Eigen::Vector3d &acc1,
+                                const Eigen::Vector3d &gyr1,
+                                const ImuQualityConfig &config)
+{
+    return imuNoiseInflationSplit(dt, acc0, gyr0, acc1, gyr1, config).maxFactor();
 }
 
 }  // namespace adaptive_factor

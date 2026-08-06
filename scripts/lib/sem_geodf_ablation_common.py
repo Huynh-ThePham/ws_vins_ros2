@@ -8,28 +8,44 @@ import statistics
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Longest method names first so folder parsing never maps a longer name (e.g.
-# sem_geodf_mask_gated / sem_geodf_noweight) onto the shorter sem_geodf.
+# Canonical publication method names (longest aliases first for folder parsing).
+# Legacy aliases remain parseable so old run trees can still be read; they must
+# not appear as primary methods in new paper assets.
 METHODS_ORDER = (
     "sem_geodf_mask_gated",
+    "union_noweight",
     "sem_geodf_noweight",
+    "union_weight",
+    "full_adaptive",
     "sem_geodf",
     "sequential",
+    "semantic",
     "sad_sem",
+    "geodf",
     "adaptive",
     "baseline",
 )
 
-# Paper default display order (4). Optional ablations still parse if present.
+# Paper default display order for the fixed-backbone main matrix.
 METHODS_ORDER_DISPLAY = (
     "baseline",
-    "adaptive",
-    "sad_sem",
-    "sem_geodf",
-    "sem_geodf_noweight",
-    "sequential",
-    "sem_geodf_mask_gated",
+    "geodf",
+    "semantic",
+    "union_noweight",
+    "union_weight",
 )
+
+LEGACY_METHOD_ALIASES = {
+    "adaptive": "geodf",
+    "geodf_adaptive": "geodf",
+    "sad_sem": "semantic",
+    "sem_geodf_noweight": "union_noweight",
+    "sem_geodf": "union_weight",
+}
+
+
+def canonicalize_method(method: str) -> str:
+    return LEGACY_METHOD_ALIASES.get(method, method)
 
 
 @dataclass
@@ -73,40 +89,49 @@ def _name_method(name: str) -> str:
 
 def load_run_record(run_dir: Path, *, require_manifest: bool = False) -> RunRecord | None:
   metrics_path = run_dir / "eval" / "metrics.json"
-  if not metrics_path.is_file():
+  manifest_path = run_dir / "run_manifest.json"
+  has_metrics = metrics_path.is_file()
+  has_manifest = manifest_path.is_file()
+
+  if not has_metrics and not has_manifest:
     return None
 
-  manifest_path = run_dir / "run_manifest.json"
   manifest: dict = {}
-  if manifest_path.is_file():
+  if has_manifest:
     manifest = json.loads(manifest_path.read_text())
   elif require_manifest:
     rec = RunRecord(
       run_dir=run_dir,
       scene=run_dir.name,
       method="unknown",
+      status="failed",
       qc_ok=False,
       qc_issues=["missing_manifest"],
     )
     return rec
 
-  metrics = json.loads(metrics_path.read_text())
+  metrics: dict = {}
+  if has_metrics:
+    metrics = json.loads(metrics_path.read_text())
+
   scene, method = parse_run_name(run_dir.name)
   if manifest.get("scene"):
     scene = str(manifest["scene"])
   if manifest.get("method"):
     method = str(manifest["method"])
+  method = canonicalize_method(method)
 
+  status = str(manifest.get("status", "ok" if has_metrics else "failed"))
   rec = RunRecord(
     run_dir=run_dir,
     scene=scene,
     method=method,
     trial=manifest.get("trial"),
-    ate_rmse_m=metrics.get("ate_rmse_m"),
-    rpe_rmse_m=metrics.get("rpe_rmse_m"),
+    ate_rmse_m=metrics.get("ate_rmse_m") if has_metrics else None,
+    rpe_rmse_m=metrics.get("rpe_rmse_m") if has_metrics else None,
     bag_rate=manifest.get("bag_rate"),
     yolo=manifest.get("yolo"),
-    status=str(manifest.get("status", "ok")),
+    status=status,
     oracle_ablation=bool(manifest.get("oracle_ablation", False)),
     sem_policy_dynamic_level=manifest.get("sem_policy_dynamic_level"),
     protocol_fair=manifest.get("protocol_fair"),
@@ -116,20 +141,22 @@ def load_run_record(run_dir: Path, *, require_manifest: bool = False) -> RunReco
   )
 
   issues: list[str] = []
-  if not manifest_path.is_file():
+  if not has_manifest:
     issues.append("missing_manifest")
+  if not has_metrics:
+    issues.append("missing_metrics")
   if rec.ate_rmse_m is None:
     issues.append("missing_ate")
   if rec.status not in ("ok",):
     issues.append(f"status_{rec.status}")
-  name_method = _name_method(run_dir.name)
+  name_method = canonicalize_method(_name_method(run_dir.name))
   if method != "unknown" and name_method != "unknown" and method != name_method:
     issues.append(f"method_mismatch:{name_method}!={method}")
 
   vio_log = run_dir / "pht_vio_node.log"
   if not vio_log.is_file() or vio_log.stat().st_size == 0:
     issues.append("vio_log_missing_or_empty")
-  elif "ERROR" in vio_log.read_text(errors="replace"):
+  elif vio_log.is_file() and "ERROR" in vio_log.read_text(errors="replace"):
     issues.append("vio_log_contains_error")
 
   rec.qc_issues = issues
@@ -144,9 +171,36 @@ def iter_run_records(
     exclude_oracle: bool = True,
     main_online_only: bool = False,
 ) -> list[RunRecord]:
+  """Enumerate attempted trials from run_manifest.json first.
+
+  A trial that fails before writing metrics.json is still an attempted trial and
+  must appear in success-rate / penalized-metric accounting.
+  """
   records: list[RunRecord] = []
+  seen: set[Path] = set()
+
+  for manifest_path in sorted(root.rglob("run_manifest.json")):
+    run_dir = manifest_path.parent.resolve()
+    if run_dir in seen:
+      continue
+    seen.add(run_dir)
+    rec = load_run_record(run_dir)
+    if rec is None:
+      continue
+    if exclude_oracle and rec.oracle_ablation:
+      continue
+    if main_online_only and rec.sem_policy_dynamic_level not in (None, -1):
+      continue
+    if require_qc_ok and not rec.qc_ok:
+      continue
+    records.append(rec)
+
+  # Legacy trees that only have metrics.json (no manifest) remain readable.
   for metrics_path in sorted(root.rglob("eval/metrics.json")):
-    run_dir = metrics_path.parent.parent
+    run_dir = metrics_path.parent.parent.resolve()
+    if run_dir in seen:
+      continue
+    seen.add(run_dir)
     rec = load_run_record(run_dir)
     if rec is None:
       continue

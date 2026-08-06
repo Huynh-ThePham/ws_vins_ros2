@@ -70,23 +70,27 @@ FAILURE_PENALTY_ATE_M = DIVERGED_ATE_M
 def collect(root: Path):
     """Per-cell ATE values, plus a full account of every run that was NOT used.
 
-    Plan P0.3: runs above the divergence threshold used to be dropped with a bare
-    `continue`, so the published tables silently excluded exactly the cases the paper
-    claims to improve. Nothing is discarded now: each excluded run is counted and
-    reported, and the caller must publish the success rate alongside the ATE.
+    Plan P0.3 / failed-trial accounting: enumerate run_manifest.json first so a
+    trial that dies before metrics.json is still counted as attempted.
     """
     by = defaultdict(list)
     excluded = defaultdict(lambda: {"diverged": 0, "failed": 0, "qc_failed": 0,
                                     "oracle": 0, "no_ate": 0})
     diverged_values = defaultdict(list)
+    attempted = defaultdict(int)
 
-    for rec in iter_run_records(root):
+    for rec in iter_run_records(root, exclude_oracle=False):
         key = (rec.scene, rec.method)
+        attempted[key] += 1
         if rec.oracle_ablation:
             excluded[key]["oracle"] += 1
             continue
         if not rec.qc_ok:
-            excluded[key]["qc_failed"] += 1
+            # Distinguish hard failures (no metrics / bad status) from soft QC.
+            if "missing_metrics" in rec.qc_issues or rec.status not in ("ok",):
+                excluded[key]["failed"] += 1
+            else:
+                excluded[key]["qc_failed"] += 1
             continue
         if rec.ate_rmse_m is None:
             excluded[key]["no_ate"] += 1
@@ -97,7 +101,8 @@ def collect(root: Path):
             continue
         by[key].append(rec.ate_rmse_m)
 
-    return {"ate": by, "excluded": excluded, "diverged_values": diverged_values}
+    return {"ate": by, "excluded": excluded, "diverged_values": diverged_values,
+            "attempted": attempted}
 
 
 def cell_counts(data, scene, method):
@@ -668,8 +673,45 @@ def require_validated(root: Path, allow_unvalidated: bool,
         raise SystemExit(f"[fatal] cannot read {receipt}: {exc}")
     if receipt_payload.get("result") != "PASS":
         raise SystemExit(f"[fatal] validation receipt is not PASS: {receipt}")
+
+    # Recompute the bound digests; never trust result==PASS alone.
+    import hashlib
+
+    def tree_sha(paths):
+        digest = hashlib.sha256()
+        for path in sorted(paths):
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+        return digest.hexdigest()
+
+    manifests = sorted(root.rglob("run_manifest.json"))
+    live_manifests = tree_sha(manifests)
+    if receipt_payload.get("manifests_sha256") != live_manifests:
+        raise SystemExit(
+            f"[fatal] receipt manifests_sha256 mismatch:\n"
+            f"        receipt={receipt_payload.get('manifests_sha256')}\n"
+            f"        live   ={live_manifests}\n"
+            f"        Re-validate before building paper assets.")
+    if receipt_payload.get("manifest_count") != len(manifests):
+        raise SystemExit(
+            f"[fatal] receipt manifest_count mismatch "
+            f"({receipt_payload.get('manifest_count')} vs {len(manifests)})")
+    expected_path = Path(str(receipt_payload.get("expected_matrix", "")))
+    if expected_path.is_file():
+        live_expected = hashlib.sha256(expected_path.read_bytes()).hexdigest()
+        if receipt_payload.get("expected_matrix_sha256") != live_expected:
+            raise SystemExit("[fatal] receipt expected_matrix_sha256 mismatch")
+    live_audit = hashlib.sha256(report.read_bytes()).hexdigest()
+    if receipt_payload.get("audit_report_sha256") not in (None, live_audit):
+        # Older receipts may omit this field; when present it must match.
+        if "audit_report_sha256" in receipt_payload and \
+                receipt_payload.get("audit_report_sha256") != live_audit:
+            raise SystemExit("[fatal] receipt audit_report_sha256 mismatch")
+
     print(f"[ok] expected-matrix gate passed for {root}")
-    print(f"[ok] validation receipt: {receipt}")
+    print(f"[ok] validation receipt recomputed and matched: {receipt}")
 
 
 def main():

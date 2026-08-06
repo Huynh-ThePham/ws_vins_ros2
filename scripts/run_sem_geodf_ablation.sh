@@ -329,17 +329,17 @@ prepare_resolved_config() {
         --overlay "$overlay" \
         --out "$resolved" \
         --set "output_path=\"${out}/\"" \
-        --set "pose_graph_save_path=\"${out}/pose_graph/\""
+        --set "pose_graph_save_path=\"${out}/pose_graph/\"" \
+        >&2
 
     apply_sem_policy_params_if_needed "$method" "$resolved"
 
-    # Audit the resolved file that will be passed to the node — never a different copy.
     local protocol_extra=()
     if [ "${ORACLE_ABLATION:-0}" = "1" ]; then
         protocol_extra+=(--allow-oracle)
     fi
     python3 "${WS}/scripts/audit_sem_geodf_protocol.py" --quiet --configs "$resolved" \
-        "${protocol_extra[@]}"
+        "${protocol_extra[@]}" >&2
 
     # Reject legacy frame-hold as the sole publication policy timer.
     if grep -qE '^sem_policy_assist_hold_s:\s*0(\.0+)?\s*$' "$resolved" && \

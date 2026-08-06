@@ -161,6 +161,20 @@ def main() -> int:
     if dirty:
         return fail("current worktree is dirty; refuse reuse")
 
+    if args.min_commit:
+        # Refuse reuse unless the manifest commit is a descendant of the
+        # correctness baseline (or is the baseline itself).
+        try:
+            rc = subprocess.run(
+                ["git", "-C", str(args.ws), "merge-base", "--is-ancestor",
+                 args.min_commit, str(manifest["git_sha"])],
+                capture_output=True, text=True)
+        except OSError as exc:
+            return fail(f"cannot check --min-commit ancestry: {exc}")
+        if rc.returncode != 0:
+            return fail(f"manifest git_sha is not a descendant of --min-commit "
+                        f"{args.min_commit[:12]}")
+
     resolved = run_dir / "resolved_config.yaml"
     if not resolved.is_file():
         return fail("resolved_config.yaml missing")

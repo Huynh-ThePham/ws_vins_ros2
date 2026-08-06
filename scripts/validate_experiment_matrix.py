@@ -341,26 +341,46 @@ def validate(root: Path, expected: dict, report: Report,
 
 
 def write_receipt(root: Path, expected: Path, payload: dict, receipt_path: Path) -> None:
-    """Hash every validated run_manifest.json into an immutable receipt (P0.5)."""
+    """Bind aggregate hashes into an immutable receipt (P0.5)."""
     import hashlib
-    digest = hashlib.sha256()
+
+    def file_sha(path: Path) -> str | None:
+        if not path.is_file():
+            return None
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def tree_sha(paths: list[Path]) -> str:
+        digest = hashlib.sha256()
+        for path in sorted(paths):
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+        return digest.hexdigest()
+
     manifests = sorted(root.rglob("run_manifest.json"))
-    for path in manifests:
-        digest.update(path.relative_to(root).as_posix().encode("utf-8"))
-        digest.update(b"\0")
-        digest.update(path.read_bytes())
-        digest.update(b"\0")
-    expected_hash = hashlib.sha256(expected.read_bytes()).hexdigest() if expected.is_file() else None
-    validation_hash = hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+    resolved = sorted(root.rglob("resolved_config.yaml"))
+    metrics = sorted(root.rglob("eval/metrics.json"))
+    traj = sorted(list(root.rglob("**/vio_tum.txt")) + list(root.rglob("**/stamped_traj_estimate.txt")))
+    model_manifests = sorted(root.rglob("**/model_manifest.json"))
+    selected_params = sorted(root.rglob("**/selected_parameters.yaml"))
+    audit = root / "validation.json"
+
     receipt = {
         "result": payload.get("result"),
         "root": str(root),
         "expected_matrix": str(expected),
-        "expected_matrix_sha256": expected_hash,
-        "validation_payload_sha256": validation_hash,
-        "manifests_sha256": digest.hexdigest(),
+        "expected_matrix_sha256": file_sha(expected),
+        "validation_payload_sha256": hashlib.sha256(
+            json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest(),
+        "audit_report_sha256": file_sha(audit),
+        "manifests_sha256": tree_sha(manifests),
         "manifest_count": len(manifests),
+        "resolved_configs_sha256": tree_sha(resolved),
+        "metrics_sha256": tree_sha(metrics),
+        "trajectories_sha256": tree_sha(traj),
+        "model_manifests_sha256": tree_sha(model_manifests),
+        "selected_parameters_sha256": tree_sha(selected_params),
         "protocol_version": payload.get("protocol_version"),
     }
     receipt_path.parent.mkdir(parents=True, exist_ok=True)

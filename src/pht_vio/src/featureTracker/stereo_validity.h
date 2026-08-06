@@ -25,6 +25,7 @@
 #include <Eigen/Dense>
 
 #include <cmath>
+#include <limits>
 #include <map>
 
 namespace stereo_validity
@@ -69,6 +70,8 @@ struct Config
     double max_disparity_px = 200.0;
     double reprojection_max_px = 2.0;
     bool require_positive_depth = true;
+    // Minimum triangulation angle (radians). Near-zero parallax is unobservable.
+    double min_triangulation_angle_rad = 0.001;  // ~0.057 deg
 };
 
 // Stereo extrinsic, expressed as the transform taking a point from cam0 to cam1.
@@ -232,14 +235,23 @@ inline Result checkStereoMatch(const Eigen::Vector3d &x0, const Eigen::Vector3d 
         return out;
     }
 
-    // Epipolar residual: point-to-line distance in cam1, scaled to pixels.
-    const Eigen::Vector3d line = rig.E * x0;
-    const double line_norm = line.head<2>().norm();
-    if (line_norm > 1e-12)
-        out.epipolar_px = std::abs(x1.dot(line)) / line_norm * focal_px;
-    else
-        out.epipolar_px = 0.0;
-    if (out.epipolar_px > config.epipolar_max_px)
+    // Epipolar residual: SYMMETRIC Sampson distance in pixels.
+    //   d = (x'^T E x) / sqrt( (Ex)_1^2 + (Ex)_2^2 + (E^T x')_1^2 + (E^T x')_2^2 )
+    // scaled by focal_px. A near-zero epipolar-line norm is INVALID (geometry
+    // unobservable), never reported as error = 0.
+    const Eigen::Vector3d Ex = rig.E * x0;
+    const Eigen::Vector3d Etx = rig.E.transpose() * x1;
+    const double line_norm_sq =
+        Ex.head<2>().squaredNorm() + Etx.head<2>().squaredNorm();
+    if (!(line_norm_sq > 1e-24) || !std::isfinite(line_norm_sq))
+    {
+        out.epipolar_px = std::numeric_limits<double>::infinity();
+        out.rejection = Rejection::EPIPOLAR;
+        return out;
+    }
+    const double num = x1.dot(Ex);
+    out.epipolar_px = std::abs(num) / std::sqrt(line_norm_sq) * focal_px;
+    if (!std::isfinite(out.epipolar_px) || out.epipolar_px > config.epipolar_max_px)
     {
         out.rejection = Rejection::EPIPOLAR;
         return out;
@@ -297,10 +309,48 @@ inline Result checkStereoMatch(const Eigen::Vector3d &x0, const Eigen::Vector3d 
         return out;
     }
 
-    // Distance between the two rays at closest approach, expressed in cam1 pixels.
-    const double depth_scale = std::max(1e-6, std::abs(out.depth_cam1));
-    out.reprojection_px = residual.norm() / depth_scale * focal_px;
-    if (out.reprojection_px > config.reprojection_max_px)
+    // Triangulation angle ≈ atan(baseline / depth). Near-zero parallax is
+    // unobservable even when the closest-approach residual looks small.
+    {
+        const double depth = std::max(out.depth_cam0, out.depth_cam1);
+        const double angle = std::atan2(rig.baseline, std::max(1e-9, depth));
+        if (!(angle >= config.min_triangulation_angle_rad) || !std::isfinite(angle))
+        {
+            out.rejection = Rejection::DISPARITY_RANGE;
+            return out;
+        }
+    }
+
+    // True two-view reprojection in the normalized image plane, converted to
+    // pixels with the caller-supplied focal scale(s). Using the triangulated
+    // point X0 = depth0 * x0:
+    //   e = [u0 - û0; u1 - û1],  reprojection_px = ||e||_2 (RMS of both views).
+    // A near-singular projection (NaN/Inf) is fail-closed as REPROJECTION.
+    {
+        const Eigen::Vector3d X0 = out.depth_cam0 * x0;
+        const Eigen::Vector3d X1 = rig.R_c1_c0 * X0 + rig.t_c1_c0;
+        Eigen::Vector2d u0_hat, u1_hat;
+        if (!project(X0, u0_hat) || !project(X1, u1_hat))
+        {
+            out.rejection = Rejection::REPROJECTION;
+            out.reprojection_px = std::numeric_limits<double>::infinity();
+            return out;
+        }
+        const Eigen::Vector2d u0_obs = x0.head<2>();
+        const Eigen::Vector2d u1_obs = x1.head<2>();
+        const Eigen::Vector2d e0 = (u0_obs - u0_hat) * focal_px;
+        const Eigen::Vector2d e1 = (u1_obs - u1_hat) * focal_px;
+        out.reprojection_px = std::sqrt(0.5 * (e0.squaredNorm() + e1.squaredNorm()));
+        // Keep the closest-approach residual as a secondary NaN/Inf guard only.
+        if (!residual.allFinite())
+        {
+            out.rejection = Rejection::REPROJECTION;
+            out.reprojection_px = std::numeric_limits<double>::infinity();
+            return out;
+        }
+    }
+    if (!std::isfinite(out.reprojection_px) ||
+        out.reprojection_px > config.reprojection_max_px)
     {
         out.rejection = Rejection::REPROJECTION;
         return out;

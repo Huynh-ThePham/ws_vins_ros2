@@ -295,5 +295,60 @@ int main()
             CHECK(std::string(sv::toString(entry.first)) == entry.second);
     }
 
+    TEST_CASE("StereoValidity.NearZeroEpipolarLineNormInvalid");
+    {
+        // Pure rotation (zero baseline) already fails rig.valid. For a valid baseline
+        // but a degenerate line norm, force E nearly singular by using parallel rays
+        // with a near-zero Essential action on the point at infinity configuration.
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        CHECK(rig.valid);
+        // Identical normalized rays with a horizontal stereo baseline produce a
+        // finite Sampson residual; construct Ex≈0 by taking x0 along t.
+        const Eigen::Vector3d x0 = rig.t_c1_c0.normalized();
+        const Eigen::Vector3d x1 = x0;
+        const sv::Result r = check(rig, x0, x1, config);
+        CHECK(!r.valid());
+        // Must not report a healthy zero epipolar error when the line is unusable.
+        if (r.rejection == sv::Rejection::EPIPOLAR)
+            CHECK(!(std::isfinite(r.epipolar_px) && r.epipolar_px == 0.0));
+    }
+
+    TEST_CASE("StereoValidity.VeryLowParallaxRejected");
+    {
+        sv::Config cfg = permissiveConfig();
+        cfg.min_triangulation_angle_rad = 0.01;  // ~0.57 deg
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.0, 0.0, 1.0);
+        // Extremely far point → tiny parallax.
+        const sv::Result r = check(rig, x0, projectIntoCam1(rig, x0, 200.0), cfg);
+        CHECK(!r.valid());
+        CHECK(r.rejection == sv::Rejection::DISPARITY_RANGE);
+    }
+
+    TEST_CASE("StereoValidity.TrueReprojectionUsesBothViews");
+    {
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.05, -0.02, 1.0);
+        const Eigen::Vector3d x1 = projectIntoCam1(rig, x0, 4.0);
+        const sv::Result good = check(rig, x0, x1, config);
+        CHECK(good.valid());
+        CHECK(good.reprojection_px < 1e-6);
+
+        // Off-epipolar perturbation so Sampson and true reprojection both see
+        // a real geometric inconsistency (along-epipolar noise can still
+        // triangulate cleanly).
+        Eigen::Vector3d bad = x1;
+        bad.y() += 4.0 / kFocal;
+        sv::Config loose_epi = permissiveConfig();
+        loose_epi.epipolar_max_px = 50.0;
+        loose_epi.reprojection_max_px = 0.75;
+        const sv::Result r = check(rig, x0, bad, loose_epi);
+        CHECK(!r.valid());
+        CHECK(r.rejection == sv::Rejection::REPROJECTION ||
+              r.rejection == sv::Rejection::EPIPOLAR);
+        if (r.rejection == sv::Rejection::REPROJECTION)
+            CHECK(r.reprojection_px > loose_epi.reprojection_max_px);
+    }
+
     TEST_MAIN_RETURN();
 }

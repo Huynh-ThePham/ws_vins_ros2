@@ -10,6 +10,7 @@
  *******************************************************/
 
 #include "projectionOneFrameTwoCamFactor.h"
+#include "projection_factor_check_util.h"
 #include <algorithm>
 #include <cmath>
 
@@ -144,114 +145,11 @@ bool ProjectionOneFrameTwoCamFactor::Evaluate(double const *const *parameters, d
 
 void ProjectionOneFrameTwoCamFactor::check(double **parameters)
 {
-    double *res = new double[15];
-    double **jaco = new double *[4];
-    jaco[0] = new double[2 * 7];
-    jaco[1] = new double[2 * 7];
-    jaco[2] = new double[2 * 1];
-    jaco[3] = new double[2 * 1];
-    Evaluate(parameters, res, jaco);
-    puts("check begins");
-
-    puts("my");
-
-    std::cout << Eigen::Map<Eigen::Matrix<double, 2, 1>>(res).transpose() << std::endl
-              << std::endl;
-    std::cout << Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>>(jaco[0]) << std::endl
-              << std::endl;
-    std::cout << Eigen::Map<Eigen::Matrix<double, 2, 7, Eigen::RowMajor>>(jaco[1]) << std::endl
-              << std::endl;
-    std::cout << Eigen::Map<Eigen::Vector2d>(jaco[2]) << std::endl
-              << std::endl;
-    std::cout << Eigen::Map<Eigen::Vector2d>(jaco[3]) << std::endl
-              << std::endl;
-
-    Eigen::Vector3d tic(parameters[0][0], parameters[0][1], parameters[0][2]);
-    Eigen::Quaterniond qic(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
-
-    Eigen::Vector3d tic2(parameters[1][0], parameters[1][1], parameters[1][2]);
-    Eigen::Quaterniond qic2(parameters[1][6], parameters[1][3], parameters[1][4], parameters[1][5]);
-
-    double inv_dep_i = parameters[2][0];
-
-    double td = parameters[3][0];
-
-    Eigen::Vector3d pts_i_td, pts_j_td;
-    pts_i_td = pts_i - (td - td_i) * velocity_i;
-    pts_j_td = pts_j - (td - td_j) * velocity_j;
-
-    Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
-    Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;
-    Eigen::Vector3d pts_imu_j = pts_imu_i;
-    Eigen::Vector3d pts_camera_j = qic2.inverse() * (pts_imu_j - tic2);
-
-
-    Eigen::Vector2d residual;
-#ifdef UNIT_SPHERE_ERROR
-    residual =  tangent_base * (pts_camera_j.normalized() - pts_j_td.normalized());
-#else
-    double dep_j = pts_camera_j.z();
-    residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
-#endif
-    residual = sqrt_weight * (sqrt_info * residual);
-
-    puts("num");
-    std::cout << residual.transpose() << std::endl;
-
-    const double eps = 1e-6;
-    Eigen::Matrix<double, 2, 14> num_jacobian;
-    for (int k = 0; k < 14; k++)
-    {
-        Eigen::Vector3d tic(parameters[0][0], parameters[0][1], parameters[0][2]);
-        Eigen::Quaterniond qic(parameters[0][6], parameters[0][3], parameters[0][4], parameters[0][5]);
-
-        Eigen::Vector3d tic2(parameters[1][0], parameters[1][1], parameters[1][2]);
-        Eigen::Quaterniond qic2(parameters[1][6], parameters[1][3], parameters[1][4], parameters[1][5]);
-
-        double inv_dep_i = parameters[2][0];
-
-        double td = parameters[3][0];
-
-        int a = k / 3, b = k % 3;
-        Eigen::Vector3d delta = Eigen::Vector3d(b == 0, b == 1, b == 2) * eps;
-
-        if (a == 0)
-            tic += delta;
-        else if (a == 1)
-            qic = qic * Utility::deltaQ(delta);
-        else if (a == 2)
-            tic2 += delta;
-        else if (a == 3)
-            qic2 = qic2 * Utility::deltaQ(delta);
-        else if (a == 4)
-        {
-            if (b == 0)
-                inv_dep_i += delta.x();
-            else
-                td += delta.y();
-        }
-
-        Eigen::Vector3d pts_i_td, pts_j_td;
-        pts_i_td = pts_i - (td - td_i) * velocity_i;
-        pts_j_td = pts_j - (td - td_j) * velocity_j;
-
-        Eigen::Vector3d pts_camera_i = pts_i_td / inv_dep_i;
-        Eigen::Vector3d pts_imu_i = qic * pts_camera_i + tic;
-        Eigen::Vector3d pts_imu_j = pts_imu_i;
-        Eigen::Vector3d pts_camera_j = qic2.inverse() * (pts_imu_j - tic2);
-
-        Eigen::Vector2d tmp_residual;
-#ifdef UNIT_SPHERE_ERROR
-        tmp_residual =  tangent_base * (pts_camera_j.normalized() - pts_j_td.normalized());
-#else
-        double dep_j = pts_camera_j.z();
-        tmp_residual = (pts_camera_j / dep_j).head<2>() - pts_j_td.head<2>();
-#endif
-        tmp_residual = sqrt_info * tmp_residual;
-        num_jacobian.col(k) = (tmp_residual - residual) / eps;
-    }
-    std::cout << num_jacobian.block<2, 6>(0, 0) << std::endl;
-    std::cout << num_jacobian.block<2, 6>(0, 6) << std::endl;
-    std::cout << num_jacobian.block<2, 1>(0, 12) << std::endl;
-    std::cout << num_jacobian.block<2, 1>(0, 13) << std::endl;
+    // Numeric residuals come from Evaluate() after perturbation so sqrt_weight is
+    // applied identically on both sides (do not re-implement residual math here).
+    const std::vector<projection_factor_check::Block> blocks{
+        projection_factor_check::pose(), projection_factor_check::pose(),
+        projection_factor_check::scalar(), projection_factor_check::scalar()};
+    projection_factor_check::checkViaEvaluate(*this, blocks, parameters);
 }
+

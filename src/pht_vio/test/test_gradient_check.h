@@ -3,12 +3,10 @@
 // Central finite-difference gradient checker for the weighted projection factors
 // (plan section 8, "Factor gradient tests").
 //
-// The point of these tests is the weighted case. The factor's own check() helper
-// is not sufficient because it does not apply sqrt_weight uniformly to the
-// numerical residual, so a Jacobian block that forgot the sqrt(w) factor could
-// still look correct there. Here the numerical residual comes from the factor's
-// own Evaluate(), so sqrt(w) is applied identically on both sides and any block
-// missing the weight shows up as a mismatch.
+// Numerical residuals always come from Factor::Evaluate() after local perturbation
+// so sqrt_weight is applied identically on analytic and numeric sides. Production
+// factor::check() helpers use the same Evaluate-based approach via
+// projection_factor_check_util.h.
 
 #include "test_support.h"
 
@@ -71,7 +69,7 @@ inline void applyDelta(const Block &block, const double *in, const double *delta
 // Compare the analytic Jacobians (first `local` columns of each block) against a
 // central finite difference of the factor's own residual.
 //
-// Returns false and reports through the test harness on mismatch.
+// Reports mismatches through the test harness.
 template <typename Factor>
 void check(const Factor &factor,
            const std::vector<Block> &blocks,
@@ -117,7 +115,7 @@ void check(const Factor &factor,
 
     // Scale for the relative comparison: the factor is whitened by sqrt_info, so
     // absolute Jacobian magnitudes are large and a pure absolute tolerance is
-    // meaningless.
+    // meaningless. When w=0 every Jacobian is zero; keep scale=1 so tol still applies.
     double scale = 1.0;
     for (size_t b = 0; b < blocks.size(); b++)
         scale = std::max(scale, analytic[b].cwiseAbs().maxCoeff());
@@ -175,10 +173,11 @@ void check(const Factor &factor,
     }
 }
 
-// Weights every projection-factor gradient test must cover (plan P0 Jacobian).
+// Weights every projection-factor gradient test must cover (plan P0.5).
+// w=0 is allowed by the factor clamp (sqrt_weight = 0).
 inline const std::vector<double> &weights()
 {
-    static const std::vector<double> w{1.0, 0.5, 0.25, 0.01, 1e-4};
+    static const std::vector<double> w{1.0, 0.75, 0.25, 1e-4, 0.0};
     return w;
 }
 

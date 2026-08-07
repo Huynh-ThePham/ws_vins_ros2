@@ -84,6 +84,7 @@ if(BUILD_TESTING)
   # Still ROS-node-free and dataset-free.
   set(PHT_VIO_LINKED_TESTS
     marginalization_weight_freeze
+    marginalization_integration
     projection_two_frame_one_cam_gradient
     projection_two_frame_two_cam_gradient
     projection_one_frame_two_cam_gradient

@@ -1,4 +1,5 @@
-// Gradient test for ProjectionOneFrameTwoCamFactor at w in {1.0, 0.75, 0.25}.
+// Gradient test for ProjectionOneFrameTwoCamFactor at w in
+// {1.0, 0.75, 0.25, 1e-4, 0}. Numeric side uses Evaluate() via test_gradient_check.h.
 
 #include "factor/projectionOneFrameTwoCamFactor.h"
 #include "test_gradient_check.h"

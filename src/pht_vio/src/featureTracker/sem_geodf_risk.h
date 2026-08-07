@@ -2,11 +2,17 @@
 
 #include <algorithm>
 
-// Semantic-GeoDF evidence fusion.
+// Phase 3.1 channel separation (see the paper's backend-weighting section):
 //
-// Three distinct quantities are kept separate on purpose (see the paper's
-// backend-weighting section); collapsing them into one variable is what
-// previously let a risk expression be published as a weight expression:
+//   r_dynamic     — fused_risk below: motion/outlier suspicion from trusted experts
+//   h_geometry    — scene-level trust in the F matrix. When geometry is not Healthy,
+//                   GeoDF evidence must not enter r_dynamic (gateGeoDynamicEvidence).
+//   q_measurement — tracker/stereo quality; multiplied outside this header when
+//                   visual_adaptive_quality is enabled. Not a risk term.
+//
+// Three distinct quantities are kept separate on purpose; collapsing them into one
+// variable is what previously let a risk expression be published as a weight
+// expression:
 //
 //   fused_risk      r_i = 1 - prod_b (1 - rho_i^b)          in [0, 1]
 //   target_weight   w_i = clip(1 - r_i, w_min, 1), then confirmation caps
@@ -63,6 +69,21 @@ struct WeightResult
 inline double clamp(double value, double lo, double hi)
 {
     return std::min(hi, std::max(lo, value));
+}
+
+// Zero every GeoDF contribution to r_dynamic when the scene geometry is not
+// Healthy. Semantic evidence is left untouched. Call this before
+// computeMeasurementWeight whenever h_geometry != Healthy.
+inline RiskEvidence gateGeoDynamicEvidence(RiskEvidence evidence, bool geometry_healthy)
+{
+    if (geometry_healthy)
+        return evidence;
+    evidence.geo_hit = false;
+    evidence.geo_confirmed = false;
+    evidence.geo_scene_confidence = 0.0;
+    evidence.geo_error_confidence = 0.0;
+    evidence.overlap_confidence = 0.0;
+    return evidence;
 }
 
 // rho_i^b for each expert b, then r_i = 1 - prod_b (1 - rho_i^b).

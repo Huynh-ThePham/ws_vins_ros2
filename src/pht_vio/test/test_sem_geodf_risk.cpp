@@ -71,5 +71,58 @@ int main()
         CHECK_NEAR(sem_geodf::recoverWeight(0.25, 1.0, 2.0, 0.25), 1.0, 1e-12);
     }
 
+    TEST_CASE("SemGeoDFRisk.UnhealthyGeometryDoesNotEnterDynamicRisk");
+    {
+        // Phase 3.1: GeoDF evidence against a non-Healthy F must not lower w_i.
+        // Semantic evidence alone still may.
+        sem_geodf::RiskEvidence geo_only;
+        geo_only.geo_hit = true;
+        geo_only.geo_confirmed = true;
+        geo_only.geo_scene_confidence = 1.0;
+        geo_only.geo_error_confidence = 1.0;
+        geo_only.overlap_confidence = 1.0;
+
+        const auto gated =
+            sem_geodf::gateGeoDynamicEvidence(geo_only, /*geometry_healthy=*/false);
+        CHECK(!gated.geo_hit);
+        CHECK(!gated.geo_confirmed);
+        CHECK_NEAR(gated.geo_scene_confidence, 0.0, 1e-12);
+        CHECK_NEAR(gated.geo_error_confidence, 0.0, 1e-12);
+        CHECK_NEAR(gated.overlap_confidence, 0.0, 1e-12);
+
+        const auto w_gated = sem_geodf::computeMeasurementWeight(gated, config);
+        CHECK_NEAR(w_gated.risk.fused_risk, 0.0, 1e-12);
+        CHECK_NEAR(w_gated.target_weight, 1.0, 1e-12);
+
+        const auto w_healthy = sem_geodf::computeMeasurementWeight(
+            sem_geodf::gateGeoDynamicEvidence(geo_only, /*geometry_healthy=*/true),
+            config);
+        CHECK(w_healthy.target_weight < 1.0 - 1e-9);
+        CHECK_NEAR(w_healthy.target_weight, config.geo_weight, 1e-12);
+    }
+
+    TEST_CASE("SemGeoDFRisk.UnhealthyGeometryPreservesSemanticRisk");
+    {
+        sem_geodf::RiskEvidence both;
+        both.semantic_hit = true;
+        both.semantic_confirmed = true;
+        both.semantic_confidence = 1.0;
+        both.geo_hit = true;
+        both.geo_confirmed = true;
+        both.geo_scene_confidence = 1.0;
+        both.geo_error_confidence = 1.0;
+        both.overlap_confidence = 1.0;
+
+        const auto gated =
+            sem_geodf::gateGeoDynamicEvidence(both, /*geometry_healthy=*/false);
+        CHECK(gated.semantic_hit);
+        CHECK(gated.semantic_confirmed);
+        CHECK(!gated.geo_hit);
+
+        const auto w = sem_geodf::computeMeasurementWeight(gated, config);
+        // Same as semantic-only confirmation, not the stricter agree_weight.
+        CHECK_NEAR(w.target_weight, config.semantic_weight, 1e-12);
+    }
+
     TEST_MAIN_RETURN();
 }

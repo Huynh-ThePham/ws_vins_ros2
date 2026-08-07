@@ -1754,21 +1754,12 @@ void Estimator::outliersRejection(set<int> &removeIndex)
         vinsConfig().visual_huber_k,
         vinsConfig().visual_huber_ema,
         vinsConfig().visual_huber_min_samples};
-    // Continuous-time EMA: frame interval from image timestamps (20 Hz τ reference).
-    double huber_dt_s = -1.0;
-    if (frame_count > 0)
-    {
-        const double dt = Headers[frame_count] - Headers[frame_count - 1];
-        if (dt > 1e-4 && dt < 1.0 && std::isfinite(dt))
-            huber_dt_s = dt;
-    }
     adaptive_visual_huber_delta =
         adaptive_factor::adaptiveHuberDelta(
             whitened_visual_norms,
             adaptive_visual_huber_delta,
             vinsConfig().visual_huber_delta,
-            huber_config,
-            huber_dt_s);
+            huber_config);
     ROS_DEBUG("Adaptive visual Huber: delta=%.3f samples=%zu",
               adaptive_visual_huber_delta, whitened_visual_norms.size());
 

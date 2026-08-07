@@ -7,8 +7,6 @@
 
 #include <Eigen/Core>
 
-#include "../featureTracker/temporal_smoothing.h"
-
 namespace adaptive_factor
 {
 
@@ -82,14 +80,14 @@ struct AdaptiveHuberConfig
 // For a 1-D Gaussian, MAD ≈ 0.6745 σ so σ̂ = 1.4826 * median(|r - median(r)|).
 // Do NOT also use median(|r|)/0.6745 on folded |r| samples — that double-counts.
 //
-// Optional dt_s: when > 0, EMA uses continuous-time α = 1 - exp(-dt/τ) with τ
-// from config.ema interpreted at a 20 Hz reference (see temporal_smoothing.h).
-// When dt_s <= 0, fall back to the legacy per-frame alpha = config.ema.
+// The delta EMA deliberately stays per-optimization rather than continuous-time.
+// A time-based version was benchmarked (docs/ATE_STUDY_P0.md): it left ten of
+// twelve cells bit-identical and cost 10.8% median ATE on one training cell, so
+// its only measurable effect was to make one scene worse.
 inline double adaptiveHuberDelta(const std::vector<double> &whitened_components,
                                  double previous_delta,
                                  double fallback_delta,
-                                 const AdaptiveHuberConfig &config,
-                                 double dt_s = -1.0)
+                                 const AdaptiveHuberConfig &config)
 {
     const double fallback =
         clamp(fallback_delta, config.min_delta, config.max_delta);
@@ -123,17 +121,7 @@ inline double adaptiveHuberDelta(const std::vector<double> &whitened_components,
                                 ? previous_delta
                                 : fallback;
 
-    double alpha;
-    if (dt_s > 0.0 && std::isfinite(dt_s))
-    {
-        const double tau =
-            temporal_smooth::tauFromFrameAlpha(config.ema, /*reference_hz=*/20.0);
-        alpha = temporal_smooth::alphaFromDt(dt_s, tau);
-    }
-    else
-    {
-        alpha = clamp(config.ema, 0.0, 1.0);
-    }
+    const double alpha = clamp(config.ema, 0.0, 1.0);
     return clamp((1.0 - alpha) * previous + alpha * target,
                  config.min_delta, config.max_delta);
 }

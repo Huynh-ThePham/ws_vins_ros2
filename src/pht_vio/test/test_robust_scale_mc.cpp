@@ -1,5 +1,4 @@
 #include "factor/adaptive_factor_quality.h"
-#include "featureTracker/temporal_smoothing.h"
 #include "test_support.h"
 
 #include <cmath>
@@ -104,17 +103,19 @@ int main()
         CHECK_NEAR(s1, s2, 1e-12);
     }
 
-    TEST_CASE("RobustScale.FrameRateIndependentEma");
+    TEST_CASE("RobustScale.EmaConvergesToTargetPerOptimization");
     {
-        // Same physical time series at 10/20/30 Hz must converge to the same
-        // continuous-time EMA when τ is derived from config.ema @ 20 Hz.
+        // The delta EMA advances once per optimization, not per unit of time.
+        // A continuous-time variant was benchmarked and rejected: it changed
+        // nothing on ten of twelve cells and cost 10.8% median ATE on one
+        // training cell (docs/ATE_STUDY_P0.md). Pin the per-step behaviour so a
+        // future edit cannot reintroduce a time dependence unnoticed.
         adaptive_factor::AdaptiveHuberConfig cfg = makeCfg();
         cfg.ema = 0.10;
         cfg.k = 1.0;
         cfg.min_delta = 0.1;
         cfg.max_delta = 10.0;
 
-        // Constant target σ≈2 from identical signed samples each update.
         std::mt19937 rng(42);
         std::normal_distribution<double> N(0.0, 2.0);
         std::vector<double> components;
@@ -125,25 +126,27 @@ int main()
             components.push_back(N(rng));
         }
 
-        auto run_hz = [&](double hz) {
-            double delta = 1.0;
-            const double dt = 1.0 / hz;
-            // Simulate 2.0 seconds of updates with the same residual snapshot.
-            const int steps = static_cast<int>(std::lround(2.0 * hz));
-            for (int i = 0; i < steps; ++i)
-                delta = adaptive_factor::adaptiveHuberDelta(components, delta, 1.0, cfg, dt);
-            return delta;
-        };
+        // The fixed point is k times the robust scale of THIS sample, which differs
+        // from the population σ by the sampling error of the MAD, so measure it
+        // rather than assuming it equals 2.
+        double limit = 1.0;
+        for (int step = 0; step < 5000; ++step)
+            limit = adaptive_factor::adaptiveHuberDelta(components, limit, 1.0, cfg);
+        CHECK_NEAR(
+            adaptive_factor::adaptiveHuberDelta(components, limit, 1.0, cfg),
+            limit, 1e-9);
+        CHECK_NEAR(limit, 2.0, 0.25);  // k=1 and σ=2, up to MAD sampling error
 
-        const double d10 = run_hz(10.0);
-        const double d20 = run_hz(20.0);
-        const double d30 = run_hz(30.0);
-        CHECK_NEAR(d10, d20, 0.05);
-        CHECK_NEAR(d20, d30, 0.05);
-        // Sanity: τ from frame alpha matches temporal_smoothing helper.
-        const double tau = temporal_smooth::tauFromFrameAlpha(0.10, 20.0);
-        CHECK(tau > 0.4);
-        CHECK(tau < 0.6);
+        double delta = 1.0;
+        double previous_gap = std::abs(limit - delta);
+        for (int step = 0; step < 200; ++step)
+        {
+            delta = adaptive_factor::adaptiveHuberDelta(components, delta, 1.0, cfg);
+            const double gap = std::abs(delta - limit);
+            CHECK(gap <= previous_gap + 1e-12);  // monotone approach, no overshoot
+            previous_gap = gap;
+        }
+        CHECK_NEAR(delta, limit, 1e-6);
     }
 
     TEST_CASE("RobustScale.HuberThresholdMatchesChiSquare2DCoverage");

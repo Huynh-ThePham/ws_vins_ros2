@@ -1522,9 +1522,9 @@ void FeatureTracker::rejectSemGeoFused()
     if (geo_ok && geo.frame_active)
     {
         geo_candidates = static_cast<int>(geo.confirmed.size());
-        // P1.7 / Phase 3.1: a GeoDF candidate from a non-Healthy geometry may not be
-        // deleted. Phase 3.1 also keeps it out of r_dynamic below: an ill-conditioned
-        // F is a geometry-health problem (h_geometry), not evidence the feature moved.
+        // P1.7: a GeoDF candidate from a degenerate geometry may not be deleted. It
+        // still carries risk into the backend weight, but it does not enter the
+        // hard-rejection set.
         if (geo_may_hard_reject)
         {
             for (int idx : geo.confirmed)
@@ -1585,15 +1585,6 @@ void FeatureTracker::rejectSemGeoFused()
             cfg.sem_geodf_backend_geo_weight,
             cfg.sem_geodf_backend_agree_weight};
 
-        // Phase 3.1: keep measurement quality, dynamic risk and geometry health
-        // as separate channels. See gateGeoDynamicEvidence in sem_geodf_risk.h.
-        //
-        // This is deliberately NOT the rejected risksep experiment, which carved
-        // individual unmeasurable Sampson residuals out of mover evidence and
-        // cost 24.8% ATE on city_day_3_high. Here the whole geo expert is gated
-        // by the already-computed scene health flag (Healthy only).
-        const bool geo_trusts_dynamic = geo_may_agree_strongly;
-
         std::map<int, double> next_weights;
         for (int i = 0; i < total; i++)
         {
@@ -1617,19 +1608,15 @@ void FeatureTracker::rejectSemGeoFused()
             if (geo_confirmed_hit)
                 geo_error_conf = std::max(geo_error_conf, 1.0);
 
-            // Build the raw evidence, then strip GeoDF terms when h_geometry is
-            // not Healthy so they cannot enter r_dynamic.
-            const sem_geodf::RiskEvidence evidence = sem_geodf::gateGeoDynamicEvidence(
-                sem_geodf::RiskEvidence{
-                    sem_hit,
-                    sem_confirmed_hit,
-                    geo_raw_hit || geo_confirmed_hit,
-                    geo_confirmed_hit,
-                    sem_conf,
-                    geo_scene_conf,
-                    geo_error_conf,
-                    overlap_conf},
-                geo_trusts_dynamic);
+            const sem_geodf::RiskEvidence evidence{
+                sem_hit,
+                sem_confirmed_hit,
+                geo_raw_hit || geo_confirmed_hit,
+                geo_confirmed_hit,
+                sem_conf,
+                geo_scene_conf,
+                geo_error_conf,
+                overlap_conf};
             const sem_geodf::WeightResult weighting =
                 sem_geodf::computeMeasurementWeight(evidence, risk_config);
             const double target_weight = weighting.target_weight;
@@ -1664,11 +1651,9 @@ void FeatureTracker::rejectSemGeoFused()
             sem_policy::TrackEvidence track_evidence;
             track_evidence.fused_risk = weighting.risk.fused_risk;
             track_evidence.semantic_hit = sem_hit;
-            // Use the gated geo hit: unhealthy geometry must not accumulate as
-            // lifecycle evidence of motion either.
-            track_evidence.geo_hit = evidence.geo_hit;
+            track_evidence.geo_hit = geo_raw_hit || geo_confirmed_hit;
             track_evidence.two_expert_agreement =
-                sem_hit && evidence.geo_hit && geo_may_agree_strongly;
+                sem_hit && (geo_raw_hit || geo_confirmed_hit) && geo_may_agree_strongly;
             const sem_policy::LifecycleDecision decision = sem_track_lifecycle.update(
                 ids[i], cur_time, track_evidence, sem_policy_health, total, health_config);
             lifecycle_counts[static_cast<int>(decision.state)]++;

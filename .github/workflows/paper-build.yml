@@ -33,9 +33,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
+          # texlive-science carries algorithm.sty and algpseudocode.sty; the
+          # Vietnamese manuscript uses fontspec, so it needs XeTeX and the DejaVu
+          # families it selects by name.
           sudo apt-get install -y --no-install-recommends \
             texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
-            texlive-lang-other latexmk
+            texlive-lang-other texlive-science texlive-xetex fonts-dejavu latexmk
 
       # The figure check compares bytes, so the renderer version must be pinned.
       # Distro matplotlib drifts per runner image and changes glyph placement,
@@ -67,11 +70,12 @@ jobs:
           cd paper/sem_geodf/en
           latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 
+      # fontspec / \setmainfont only work under XeTeX or LuaTeX, not pdfTeX.
       - name: Compile the Vietnamese manuscript
         run: |
           set -euo pipefail
           cd paper/sem_geodf/vi
-          latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
+          latexmk -xelatex -interaction=nonstopmode -halt-on-error main.tex
 
       - name: No undefined references or citations
         run: |

@@ -46,9 +46,12 @@ double clampDouble(double value, double lo, double hi)
 
 double normalizedExcess(double value, double threshold)
 {
-    // Non-finite residuals (invalid Sampson) are max-confidence outliers.
+    // A non-finite residual means the epipolar geometry could not be measured for
+    // this track. That is a measurement-quality failure, not evidence of motion,
+    // so it contributes no dynamic risk. Its effect on trust is expressed
+    // separately by refusing to count the track as an inlier.
     if (!std::isfinite(value))
-        return 1.0;
+        return 0.0;
     if (threshold <= 1e-12 || value <= threshold)
         return 0.0;
     return clampDouble((value - threshold) / (value + threshold), 0.0, 1.0);
@@ -929,6 +932,7 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     int scored = 0;
     int ransac_outliers = 0;
     int sampson_above_th = 0;
+    int sampson_unmeasurable = 0;
 
     for (int i = 0; i < total; i++)
     {
@@ -942,8 +946,11 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         out.errors[i] = sr.squared_distance;
         if (sr.valid)
             scored_errors.push_back(sr.squared_distance);
-        // Invalid or above-threshold: count as mover / non-inlier.
-        if (!sr.valid || out.errors[i] > cfg.geodf_sampson_th)
+        else
+            sampson_unmeasurable++;
+        // Mover evidence requires a measured residual. An unmeasurable one says
+        // nothing about motion and is excluded from the mover statistic entirely.
+        if (sr.valid && out.errors[i] > cfg.geodf_sampson_th)
             sampson_above_th++;
         const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
         // Invalid Sampson is never an inlier, even if RANSAC marked it in.
@@ -954,6 +961,7 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     out.scored = scored;
     out.ransac_outliers = ransac_outliers;
     out.sampson_above_th = sampson_above_th;
+    out.sampson_unmeasurable = sampson_unmeasurable;
 
     // Plan P1.7: F.empty() was the only check. A fundamental matrix estimated during
     // pure rotation, at low parallax, from features clustered in one image region, or
@@ -1026,8 +1034,11 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
 
         degeneracy_obs.ransac_inliers = f_inliers;
         degeneracy_obs.ransac_total = scored;
+        // Mover share is a fraction of the tracks the residual could be measured
+        // on. Unmeasurable tracks leave both the numerator and the denominator.
+        const int measurable = scored - sampson_unmeasurable;
         degeneracy_obs.mover_share =
-            scored > 0 ? static_cast<double>(sampson_above_th) / scored : 0.0;
+            measurable > 0 ? static_cast<double>(sampson_above_th) / measurable : 0.0;
 
         // Diagnostic: all-correspondence design metrics (not used for the gate).
         const geodf_degeneracy::DesignMatrixMetrics design_all =
@@ -1150,13 +1161,17 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
+        // Hard-reject candidacy needs a measured residual that exceeds the
+        // threshold. A track whose residual could not be computed is untrusted,
+        // which the RANSAC outlier flag and the weighting already express, but it
+        // is not by itself a reason to reject the observation as dynamic.
         const bool left_cand = left_outlier[i] &&
-                               (!std::isfinite(out.errors[i]) ||
-                                out.errors[i] > cfg.geodf_sampson_th);
+                               std::isfinite(out.errors[i]) &&
+                               out.errors[i] > cfg.geodf_sampson_th;
         const bool right_cand = stereo_trust && out.right_valid[i] &&
                                 right_outlier[i] &&
-                                (!std::isfinite(out.right_err[i]) ||
-                                 out.right_err[i] > cfg.geodf_stereo_sampson_th);
+                                std::isfinite(out.right_err[i]) &&
+                                out.right_err[i] > cfg.geodf_stereo_sampson_th;
         if (left_cand || right_cand)
         {
             candidates.push_back(i);

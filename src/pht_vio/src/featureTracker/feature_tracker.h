@@ -183,6 +183,9 @@ public:
         int scored = 0;
         int ransac_outliers = 0;
         int sampson_above_th = 0;
+        // Tracks whose Sampson residual had no computable denominator. Counted
+        // apart from sampson_above_th: unmeasurable is not evidence of motion.
+        int sampson_unmeasurable = 0;
         int frame_active = 1;
         int guard_triggered = 0;
         int guard_capped = 0;

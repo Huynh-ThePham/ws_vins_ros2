@@ -34,7 +34,7 @@ C 86.914455 79.965768 81.488571 93.243953 81.488571 107.087262
 C 81.488571 120.93057 86.914455 134.208755 96.571233 143.997452 
 C 106.228012 153.786149 119.327253 159.286154 132.984 159.286154 
 z
-" clip-path="url(#p31a68b4325)" style="fill: #e4f1ef; opacity: 0.95; stroke: #1f6f6a; stroke-width: 1.8; stroke-linejoin: miter"/>
+" clip-path="url(#clip0)" style="fill: #e4f1ef; opacity: 0.95; stroke: #1f6f6a; stroke-width: 1.8; stroke-linejoin: miter"/>
    </g>
    <g id="patch_3">
     <path d="M 196.596 159.286154 
@@ -47,7 +47,7 @@ C 150.526455 79.965768 145.100571 93.243953 145.100571 107.087262
 C 145.100571 120.93057 150.526455 134.208755 160.183233 143.997452 
 C 169.840012 153.786149 182.939253 159.286154 196.596 159.286154 
 z
-" clip-path="url(#p31a68b4325)" style="fill: #e9eef4; opacity: 0.55; stroke: #3d5a80; stroke-width: 1.8; stroke-linejoin: miter"/>
+" clip-path="url(#clip0)" style="fill: #e9eef4; opacity: 0.55; stroke: #3d5a80; stroke-width: 1.8; stroke-linejoin: miter"/>
    </g>
    <g id="patch_4">
     <path d="M 280.442674 159.507232 
@@ -60,17 +60,17 @@ Q 278.01936 48.526245 278.01936 50.000096
 L 278.01936 158.03338 
 Q 278.01936 159.507232 280.442674 159.507232 
 z
-" clip-path="url(#p31a68b4325)" style="fill: #f4efe6; stroke: #9a7040; stroke-width: 1.35; stroke-linejoin: miter"/>
+" clip-path="url(#clip0)" style="fill: #f4efe6; stroke: #9a7040; stroke-width: 1.35; stroke-linejoin: miter"/>
    </g>
    <g id="patch_5">
     <path d="M 247.059405 107.087262 
 Q 261.721243 107.087262 274.70603 107.087262 
-" clip-path="url(#p31a68b4325)" style="fill: none; stroke: #9a7040; stroke-width: 1.5; stroke-linecap: round"/>
+" clip-path="url(#clip0)" style="fill: none; stroke: #9a7040; stroke-width: 1.5; stroke-linecap: round"/>
     <path d="M 270.30603 104.887262 
 L 274.70603 107.087262 
 L 270.30603 109.287262 
 z
-" clip-path="url(#p31a68b4325)" style="fill: #9a7040; stroke: #9a7040; stroke-width: 1.5; stroke-linecap: round"/>
+" clip-path="url(#clip0)" style="fill: #9a7040; stroke: #9a7040; stroke-width: 1.5; stroke-linecap: round"/>
    </g>
    <g id="text_1">
     <!-- Overlap with minimum support (Dice) -->
@@ -2247,7 +2247,7 @@ z
   </g>
  </g>
  <defs>
-  <clipPath id="p31a68b4325">
+  <clipPath id="clip0">
    <rect x="5.76" y="5.76" width="424.08" height="199.584"/>
   </clipPath>
  </defs>

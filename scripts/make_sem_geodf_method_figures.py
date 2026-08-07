@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 from pathlib import Path
 
 # Byte-reproducible output. Without this, matplotlib stamps a creation date into every
@@ -51,6 +52,26 @@ C = {
 }
 
 
+# matplotlib names each SVG clip path "p" + sha256(hashsalt + str(clip geometry)).
+# The geometry is stringified through NumPy scalars, whose repr changed between
+# NumPy 1.x and 2.x, so the same drawing hashes differently on two machines even
+# with identical matplotlib and fonts. The ids carry no meaning beyond linking a
+# <clipPath> to its users, so renumber them in first-appearance order.
+_SVG_CLIP_ID = re.compile(r"\bp[0-9a-f]{10}\b")
+
+
+def _stabilize_svg_ids(path: Path):
+    text = path.read_text(encoding="utf8")
+    mapping = {}
+    for match in _SVG_CLIP_ID.findall(text):
+        mapping.setdefault(match, f"clip{len(mapping)}")
+    if not mapping:
+        return
+    path.write_text(
+        _SVG_CLIP_ID.sub(lambda m: mapping[m.group(0)], text), encoding="utf8"
+    )
+
+
 def _save(fig, figdir: Path, stem: str):
     figdir.mkdir(parents=True, exist_ok=True)
     for ext in ("pdf", "png", "svg"):
@@ -64,7 +85,10 @@ def _save(fig, figdir: Path, stem: str):
             kw["metadata"] = {"CreationDate": None, "Producer": "", "Creator": ""}
         elif ext == "svg":
             kw["metadata"] = {"Date": None, "Creator": None}
-        fig.savefig(figdir / f"{stem}.{ext}", **kw)
+        out = figdir / f"{stem}.{ext}"
+        fig.savefig(out, **kw)
+        if ext == "svg":
+            _stabilize_svg_ids(out)
     plt.close(fig)
     print(f"wrote {figdir / stem}.*")
 

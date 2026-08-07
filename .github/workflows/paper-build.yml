@@ -33,12 +33,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          # texlive-science carries algorithm.sty and algpseudocode.sty; the
-          # Vietnamese manuscript uses fontspec, so it needs XeTeX and the DejaVu
-          # families it selects by name.
+          # texlive-science carries algorithm.sty and algpseudocode.sty,
+          # texlive-publishers carries IEEEtran.bst, and the Vietnamese manuscript
+          # uses fontspec so it needs XeTeX and the DejaVu families it names.
           sudo apt-get install -y --no-install-recommends \
             texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
-            texlive-lang-other texlive-science texlive-xetex fonts-dejavu latexmk
+            texlive-lang-other texlive-science texlive-publishers texlive-xetex \
+            fonts-dejavu latexmk
 
       # The figure check compares bytes, so the renderer version must be pinned.
       # Distro matplotlib drifts per runner image and changes glyph placement,
@@ -68,6 +69,8 @@ jobs:
         run: |
           set -euo pipefail
           cd paper/sem_geodf/en
+          # BibTeX failures are only explained in the .blg, which latexmk hides.
+          trap 'echo "--- main.blg ---"; cat main.blg || true' ERR
           latexmk -pdf -interaction=nonstopmode -halt-on-error main.tex
 
       # fontspec / \setmainfont only work under XeTeX or LuaTeX, not pdfTeX.
@@ -75,6 +78,7 @@ jobs:
         run: |
           set -euo pipefail
           cd paper/sem_geodf/vi
+          trap 'echo "--- main.blg ---"; cat main.blg || true' ERR
           latexmk -xelatex -interaction=nonstopmode -halt-on-error main.tex
 
       - name: No undefined references or citations

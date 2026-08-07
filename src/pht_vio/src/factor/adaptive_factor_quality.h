@@ -7,6 +7,8 @@
 
 #include <Eigen/Core>
 
+#include "../featureTracker/temporal_smoothing.h"
+
 namespace adaptive_factor
 {
 
@@ -72,23 +74,35 @@ struct AdaptiveHuberConfig
     int min_samples = 30;
 };
 
-inline double adaptiveHuberDelta(const std::vector<double> &whitened_norms,
+// Robust scale from SIGNED whitened residual components.
+//
+// Callers must pass rx * sqrt_info, ry * sqrt_info (signed), never |r|, never
+// Rayleigh norms, and never residuals already multiplied by semantic/GeoDF √w.
+//
+// For a 1-D Gaussian, MAD ≈ 0.6745 σ so σ̂ = 1.4826 * median(|r - median(r)|).
+// Do NOT also use median(|r|)/0.6745 on folded |r| samples — that double-counts.
+//
+// Optional dt_s: when > 0, EMA uses continuous-time α = 1 - exp(-dt/τ) with τ
+// from config.ema interpreted at a 20 Hz reference (see temporal_smoothing.h).
+// When dt_s <= 0, fall back to the legacy per-frame alpha = config.ema.
+inline double adaptiveHuberDelta(const std::vector<double> &whitened_components,
                                  double previous_delta,
                                  double fallback_delta,
-                                 const AdaptiveHuberConfig &config)
+                                 const AdaptiveHuberConfig &config,
+                                 double dt_s = -1.0)
 {
     const double fallback =
         clamp(fallback_delta, config.min_delta, config.max_delta);
     if (!config.enabled ||
-        static_cast<int>(whitened_norms.size()) < std::max(1, config.min_samples))
+        static_cast<int>(whitened_components.size()) < std::max(1, config.min_samples))
         return config.enabled ? clamp(previous_delta, config.min_delta, config.max_delta)
                               : fallback;
 
     std::vector<double> finite;
-    finite.reserve(whitened_norms.size());
-    for (double value : whitened_norms)
+    finite.reserve(whitened_components.size());
+    for (double value : whitened_components)
     {
-        if (std::isfinite(value) && value >= 0.0)
+        if (std::isfinite(value))
             finite.push_back(value);
     }
     if (static_cast<int>(finite.size()) < std::max(1, config.min_samples))
@@ -100,24 +114,26 @@ inline double adaptiveHuberDelta(const std::vector<double> &whitened_norms,
     for (double value : finite)
         deviations.push_back(std::abs(value - med));
 
-    // A whitened 1-D Gaussian residual component has MAD ≈ 0.6745 σ, so
-    // σ ≈ 1.4826 * MAD. Callers must pass COMPONENT residuals (after whitening),
-    // never Rayleigh radial norms and never residuals already multiplied by
-    // semantic/GeoDF measurement weights.
     constexpr double gaussian_mad_to_sigma = 1.4826;
-    const double sigma_from_mad = gaussian_mad_to_sigma * median(deviations);
-    // Median of |component| for a standard normal is ≈ 0.6745; keep as a second
-    // robust scale estimate and take the more conservative of the two.
-    constexpr double gaussian_median_abs = 0.6744897501960817;
-    const double sigma_from_median = med / gaussian_median_abs;
     const double robust_sigma =
-        std::max(0.1, std::max(sigma_from_median, sigma_from_mad));
+        std::max(0.1, gaussian_mad_to_sigma * median(deviations));
     const double target =
         clamp(config.k * robust_sigma, config.min_delta, config.max_delta);
-    const double alpha = clamp(config.ema, 0.0, 1.0);
     const double previous = std::isfinite(previous_delta) && previous_delta > 0.0
                                 ? previous_delta
                                 : fallback;
+
+    double alpha;
+    if (dt_s > 0.0 && std::isfinite(dt_s))
+    {
+        const double tau =
+            temporal_smooth::tauFromFrameAlpha(config.ema, /*reference_hz=*/20.0);
+        alpha = temporal_smooth::alphaFromDt(dt_s, tau);
+    }
+    else
+    {
+        alpha = clamp(config.ema, 0.0, 1.0);
+    }
     return clamp((1.0 - alpha) * previous + alpha * target,
                  config.min_delta, config.max_delta);
 }

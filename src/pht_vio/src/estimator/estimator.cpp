@@ -1666,14 +1666,14 @@ void Estimator::outliersRejection(set<int> &removeIndex)
     const double visual_sqrt_info =
         FOCAL_LENGTH / vinsConfig().visual_sigma_px;
     auto recordVisualNorm = [&](double rx, double ry) {
-        // Scale estimation uses UNWEIGHTED whitened residual COMPONENTS so that
-        // semantic/GeoDF measurement weights cannot bias the robust scale, and so
-        // the Gaussian MAD constant 1.4826 applies to (approximately) 1-D Gaussians
-        // rather than to a Rayleigh radial norm.
+        // Scale estimation uses SIGNED UNWEIGHTED whitened residual COMPONENTS so
+        // that semantic/GeoDF measurement weights cannot bias the robust scale, and
+        // so the Gaussian MAD constant 1.4826 applies to 1-D Gaussians (not folded
+        // |r| samples and not Rayleigh radial norms).
         if (std::isfinite(rx))
-            whitened_visual_norms.push_back(std::abs(rx) * visual_sqrt_info);
+            whitened_visual_norms.push_back(rx * visual_sqrt_info);
         if (std::isfinite(ry))
-            whitened_visual_norms.push_back(std::abs(ry) * visual_sqrt_info);
+            whitened_visual_norms.push_back(ry * visual_sqrt_info);
     };
     int feature_index = -1;
     for (auto &it_per_id : f_manager.feature)
@@ -1754,12 +1754,21 @@ void Estimator::outliersRejection(set<int> &removeIndex)
         vinsConfig().visual_huber_k,
         vinsConfig().visual_huber_ema,
         vinsConfig().visual_huber_min_samples};
+    // Continuous-time EMA: frame interval from image timestamps (20 Hz τ reference).
+    double huber_dt_s = -1.0;
+    if (frame_count > 0)
+    {
+        const double dt = Headers[frame_count] - Headers[frame_count - 1];
+        if (dt > 1e-4 && dt < 1.0 && std::isfinite(dt))
+            huber_dt_s = dt;
+    }
     adaptive_visual_huber_delta =
         adaptive_factor::adaptiveHuberDelta(
             whitened_visual_norms,
             adaptive_visual_huber_delta,
             vinsConfig().visual_huber_delta,
-            huber_config);
+            huber_config,
+            huber_dt_s);
     ROS_DEBUG("Adaptive visual Huber: delta=%.3f samples=%zu",
               adaptive_visual_huber_delta, whitened_visual_norms.size());
 

@@ -142,6 +142,9 @@ class Estimator
 
     Matrix3d back_R0, last_R, last_R0;
     Vector3d back_P0, last_P, last_P0;
+    // False until the first successful NON_LINEAR frame updates last_R/last_P.
+    // Jump checks must not run against an unset reference pose.
+    bool have_last_pose_reference = false;
     double Headers[(WINDOW_SIZE + 1)];
 
     IntegrationBase *pre_integrations[(WINDOW_SIZE + 1)];

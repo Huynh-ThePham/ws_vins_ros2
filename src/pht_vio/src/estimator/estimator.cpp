@@ -115,6 +115,13 @@ void Estimator::clearState()
     // holds the first (root-cause) failure.
     failure_detector.reset();
     last_solver_failed = false;
+    // Inter-frame jump checks need a defined reference. Leaving last_R uninitialized
+    // (or zero) yields a spurious ~180° ROTATION_JUMP on the first NON_LINEAR frame.
+    last_R.setIdentity();
+    last_R0.setIdentity();
+    last_P.setZero();
+    last_P0.setZero();
+    have_last_pose_reference = false;
 
     mProcess.unlock();
 }
@@ -496,6 +503,11 @@ void Estimator::processImage(const map<int, vector<pair<int, FeatureObservation>
                     optimization();
                     updateLatestStates();
                     solver_flag = NON_LINEAR;
+                    last_R = Rs[WINDOW_SIZE];
+                    last_P = Ps[WINDOW_SIZE];
+                    last_R0 = Rs[0];
+                    last_P0 = Ps[0];
+                    have_last_pose_reference = true;
                     slideWindow();
                     ROS_INFO( "Initialization finish!");
                 }
@@ -527,6 +539,11 @@ void Estimator::processImage(const map<int, vector<pair<int, FeatureObservation>
                 optimization();
                 updateLatestStates();
                 solver_flag = NON_LINEAR;
+                last_R = Rs[WINDOW_SIZE];
+                last_P = Ps[WINDOW_SIZE];
+                last_R0 = Rs[0];
+                last_P0 = Ps[0];
+                have_last_pose_reference = true;
                 slideWindow();
                 ROS_INFO( "Initialization finish!");
             }
@@ -544,6 +561,11 @@ void Estimator::processImage(const map<int, vector<pair<int, FeatureObservation>
                 optimization();
                 updateLatestStates();
                 solver_flag = NON_LINEAR;
+                last_R = Rs[WINDOW_SIZE];
+                last_P = Ps[WINDOW_SIZE];
+                last_R0 = Rs[0];
+                last_P0 = Ps[0];
+                have_last_pose_reference = true;
                 slideWindow();
                 ROS_INFO( "Initialization finish!");
             }
@@ -600,6 +622,7 @@ void Estimator::processImage(const map<int, vector<pair<int, FeatureObservation>
         last_P = Ps[WINDOW_SIZE];
         last_R0 = Rs[0];
         last_P0 = Ps[0];
+        have_last_pose_reference = true;
         updateLatestStates();
     }  
 }
@@ -1021,16 +1044,24 @@ failure_detection::FailureReason Estimator::detectFailure()
     obs.gyro_bias_norm = Bgs[WINDOW_SIZE].norm();
 
     const Vector3d tmp_P = Ps[WINDOW_SIZE];
-    obs.translation_step_m = (tmp_P - last_P).norm();
-
     const Matrix3d tmp_R = Rs[WINDOW_SIZE];
-    const Matrix3d delta_R = tmp_R.transpose() * last_R;
-    const Quaterniond delta_Q(delta_R);
-    // Clamp before acos. Use |w|: unit quaternions q and -q are the same rotation,
-    // and Eigen may return w < 0 for a near-identity ΔR, which would otherwise
-    // report ~180° and trip ROTATION_JUMP as a false positive.
-    const double w = std::min(1.0, std::max(-1.0, delta_Q.w()));
-    obs.rotation_step_deg = std::acos(std::abs(w)) * 2.0 * 180.0 / M_PI;
+    if (have_last_pose_reference)
+    {
+        obs.translation_step_m = (tmp_P - last_P).norm();
+
+        const Matrix3d delta_R = tmp_R.transpose() * last_R;
+        const Quaterniond delta_Q(delta_R);
+        // Clamp before acos. Use |w|: unit quaternions q and -q are the same rotation,
+        // and Eigen may return w < 0 for a near-identity ΔR, which would otherwise
+        // report ~180° and trip ROTATION_JUMP as a false positive.
+        const double w = std::min(1.0, std::max(-1.0, delta_Q.w()));
+        obs.rotation_step_deg = std::acos(std::abs(w)) * 2.0 * 180.0 / M_PI;
+    }
+    else
+    {
+        obs.translation_step_m = 0.0;
+        obs.rotation_step_deg = 0.0;
+    }
 
     obs.solver_failed = last_solver_failed;
 

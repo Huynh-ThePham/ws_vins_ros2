@@ -263,6 +263,15 @@ carries real motion evidence there. The aggressive treatment stands, and the
 regressions on `MH_05_difficult`, `city_day_2_mid` and the hold-out remain
 unexplained.
 
+**Gating all GeoDF contributions to r_dynamic on Healthy geometry** (`8efed9e`,
+reverted in `c51f44b`, tag `p31-hgeo-8efed9e`). Phase 3.1 argued that an
+ill-conditioned F is an `h_geometry` problem, so GeoDF Sampson should not enter
+`r_dynamic` unless the scene is Healthy — matching the existing hard-reject gate.
+Against `final-p0-b46dc1f` the change left baseline cells bit-identical and cost
+`union_weight` **+20.1%** median ATE on the training cell `city_day_3_high` and
+**+4.9%** on the hold-out. GeoDF soft risk on that scene is load-bearing even when
+geometry is Weak; stripping it removes the proposed method's gain. Reverted.
+
 **Turning the nullspace gap into a gate.** `geodf_min_nullspace_gap` ships at 0,
 so g_F = σ₈/σ₉ is telemetry. Making it a rejection criterion has not been
 benchmarked and would be a second mechanism changing at the same time.

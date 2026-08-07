@@ -1026,10 +1026,11 @@ failure_detection::FailureReason Estimator::detectFailure()
     const Matrix3d tmp_R = Rs[WINDOW_SIZE];
     const Matrix3d delta_R = tmp_R.transpose() * last_R;
     const Quaterniond delta_Q(delta_R);
-    // Clamp before acos: a slightly non-unit quaternion otherwise yields NaN and
-    // would be misreported as NAN_STATE rather than as a rotation jump.
+    // Clamp before acos. Use |w|: unit quaternions q and -q are the same rotation,
+    // and Eigen may return w < 0 for a near-identity ΔR, which would otherwise
+    // report ~180° and trip ROTATION_JUMP as a false positive.
     const double w = std::min(1.0, std::max(-1.0, delta_Q.w()));
-    obs.rotation_step_deg = std::acos(w) * 2.0 * 180.0 / M_PI;
+    obs.rotation_step_deg = std::acos(std::abs(w)) * 2.0 * 180.0 / M_PI;
 
     obs.solver_failed = last_solver_failed;
 

@@ -33,6 +33,28 @@ OVERLAY_DIR="${PAPER_CFG}/overlays"
 PROTOCOL_VERSION="${PROTOCOL_VERSION:-sem-geodf-fair-v2}"
 CLAIM_MATRIX="${CLAIM_MATRIX:-fixed_backbone_main}"
 
+# Phase 3.2: factor adaptation is either off for every method, or on for every
+# method. Never on for "ours" alone (see audit_method_config_diff.py).
+#   ADAPTATION_MODE=off      — paper default (visual_adaptive_quality=0)
+#   ADAPTATION_MODE=visual   — visual_adaptive_quality=1 for every method
+#   ADAPTATION_MODE=full     — visual + imu adaptation for every method
+ADAPTATION_MODE="${ADAPTATION_MODE:-off}"
+ADAPTATION_SETS=()
+case "$ADAPTATION_MODE" in
+    off) ;;
+    visual)
+        ADAPTATION_SETS+=(--set "visual_adaptive_quality=1")
+        ;;
+    full)
+        ADAPTATION_SETS+=(--set "visual_adaptive_quality=1")
+        ADAPTATION_SETS+=(--set "imu_adaptive_covariance=1")
+        ;;
+    *)
+        echo "[fatal] ADAPTATION_MODE must be off|visual|full, got '$ADAPTATION_MODE'" >&2
+        exit 2
+        ;;
+esac
+
 if [ "$SCOPE" = "full" ]; then
     N="${N:-3}"
     METHODS="${METHODS:-baseline geodf semantic union_noweight union_weight}"
@@ -330,6 +352,7 @@ prepare_resolved_config() {
         --out "$resolved" \
         --set "output_path=\"${out}/\"" \
         --set "pose_graph_save_path=\"${out}/pose_graph/\"" \
+        "${ADAPTATION_SETS[@]}" \
         >&2
 
     # Camera calib paths in the YAML are relative to the config file directory
@@ -398,6 +421,7 @@ may_reuse_run() {
         --out "$tmp_resolved" \
         --set "output_path=\"${out}/\"" \
         --set "pose_graph_save_path=\"${out}/pose_graph/\"" \
+        "${ADAPTATION_SETS[@]}" \
         >/dev/null
     cfg_sha="$(python3 -c "import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$tmp_resolved")"
     rm -f "$tmp_resolved" "${tmp_resolved}.provenance.json"
@@ -536,6 +560,7 @@ run_one() {
 echo "[ablation] scope=$SCOPE N=$N methods=$METHODS publication_mode=$PUBLICATION_MODE"
 echo "[ablation] EUROC_SEQS=$EUROC_SEQS VIODE_LEVELS=$VIODE_LEVELS VIODE_ENV=$VIODE_ENV"
 echo "[ablation] protocol_tag=$PROTOCOL_TAG protocol_version=$PROTOCOL_VERSION claim=$CLAIM_MATRIX"
+echo "[ablation] adaptation_mode=$ADAPTATION_MODE"
 echo "[ablation] bag_rate=$BAG_RATE_NON_YOLO fair=$PROTOCOL_FAIR"
 
 # Preflight: fair overlays must audit clean before any cell runs.

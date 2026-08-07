@@ -14,6 +14,7 @@ set -u
 PROTOCOL_TAG="${PROTOCOL_TAG:?PROTOCOL_TAG is required}"
 METHODS="${METHODS:-baseline union_weight}"
 N="${N:-3}"
+ADAPTATION_MODE="${ADAPTATION_MODE:-off}"
 TRAIN_EUROC="${TRAIN_EUROC:-MH_03_medium MH_04_difficult MH_05_difficult}"
 TRAIN_VIODE_ENV="${TRAIN_VIODE_ENV:-city_day}"
 TRAIN_VIODE_LEVELS="${TRAIN_VIODE_LEVELS:-2_mid 3_high}"
@@ -41,16 +42,18 @@ cat >"${ROOT}/RUN_META.json" <<EOF
   "train_euroc": "${TRAIN_EUROC}",
   "train_viode": "${TRAIN_VIODE_ENV} ${TRAIN_VIODE_LEVELS}",
   "holdout_viode": "${HOLDOUT_VIODE_ENV} ${HOLDOUT_VIODE_LEVELS}",
-  "bag_rate": "1.0"
+  "bag_rate": "1.0",
+  "adaptation_mode": "${ADAPTATION_MODE}"
 }
 EOF
 
 run_stage() {
     local stage="$1" euroc="$2" env="$3" levels="$4" skip_euroc="$5"
-    echo "[matrix] stage=${stage} euroc='${euroc}' viode=${env}/${levels}" | tee -a "$LOG"
+    echo "[matrix] stage=${stage} euroc='${euroc}' viode=${env}/${levels} adaptation=${ADAPTATION_MODE}" | tee -a "$LOG"
     env PROTOCOL_TAG="$PROTOCOL_TAG" \
         PROTOCOL_VERSION=sem-geodf-fair-v2 \
         CLAIM_MATRIX=adaptive_extension \
+        ADAPTATION_MODE="$ADAPTATION_MODE" \
         N="$N" \
         METHODS="$METHODS" \
         EUROC_SEQS="$euroc" \

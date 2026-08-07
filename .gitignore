@@ -38,3 +38,7 @@ debug/
 *.swp
 *~
 .DS_Store
+
+# Scratch colcon trees used to validate changes without touching install/
+build_p0/
+install_p0/

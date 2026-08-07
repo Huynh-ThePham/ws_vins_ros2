@@ -54,7 +54,10 @@ jobs:
             echo "::error::committed figures differ from what the generator produces."
             echo "Regenerate with scripts/make_sem_geodf_method_figures.py and commit."
             echo "matplotlib: $(python3 -c 'import matplotlib; print(matplotlib.__version__)')"
+            python3 -c "import matplotlib.font_manager as fm, matplotlib; \
+              print('font:', fm.findfont('DejaVu Sans'), fm.findfont('DejaVu Sans:bold'))"
             git diff --stat -- paper/sem_geodf/figures
+            git diff --unified=0 -- paper/sem_geodf/figures | head -60
             exit 1
           fi
 

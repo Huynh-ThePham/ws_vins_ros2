@@ -317,7 +317,7 @@ read_sem_policy_level() {
 # Generate + audit the exact config the node will receive (P0.1).
 prepare_resolved_config() {
     local dataset="$1" method="$2" out="$3"
-    local base overlay resolved
+    local base overlay resolved cam_src
     method="$(normalize_method "$method")"
     base="$(paper_base_for_dataset "$dataset")"
     overlay="$(overlay_for_method "$method")"
@@ -331,6 +331,28 @@ prepare_resolved_config() {
         --set "output_path=\"${out}/\"" \
         --set "pose_graph_save_path=\"${out}/pose_graph/\"" \
         >&2
+
+    # Camera calib paths in the YAML are relative to the config file directory
+    # (see parameters.cpp: configPath + "/" + cam0_calib). Copy the dataset
+    # intrinsics next to resolved_config.yaml so the node can load them.
+    case "$dataset" in
+        euroc) cam_src="${WS}/src/config/euroc" ;;
+        viode) cam_src="${WS}/src/config/viode" ;;
+        *) echo "[fatal] unknown dataset for camera calib copy: $dataset" >&2; exit 3 ;;
+    esac
+    local cam0 cam1
+    cam0="$(grep -E '^cam0_calib:' "$resolved" | head -1 | sed -E 's/^cam0_calib:[[:space:]]*"?([^"]+)"?.*/\1/')"
+    cam1="$(grep -E '^cam1_calib:' "$resolved" | head -1 | sed -E 's/^cam1_calib:[[:space:]]*"?([^"]+)"?.*/\1/')"
+    if [ -z "$cam0" ] || [ -z "$cam1" ]; then
+        echo "[fatal] resolved config missing cam0_calib/cam1_calib" >&2
+        exit 3
+    fi
+    if [ ! -f "${cam_src}/${cam0}" ] || [ ! -f "${cam_src}/${cam1}" ]; then
+        echo "[fatal] camera calib missing under ${cam_src}: ${cam0} ${cam1}" >&2
+        exit 3
+    fi
+    cp -a "${cam_src}/${cam0}" "${out}/${cam0}"
+    cp -a "${cam_src}/${cam1}" "${out}/${cam1}"
 
     apply_sem_policy_params_if_needed "$method" "$resolved"
 

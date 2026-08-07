@@ -118,10 +118,17 @@ resolve_euroc_ros2_bag() {
 
 source_ros2_ws() {
     local ws="${1:?}"
+    # ROS setup scripts reference unbound vars (e.g. AMENT_TRACE_SETUP_FILES).
+    # Temporarily drop nounset around sourcing, then restore caller's -u state.
+    local had_u=0
+    case "$-" in *u*) had_u=1; set +u ;; esac
     # shellcheck disable=SC1091
     source /opt/ros/humble/setup.bash
     # shellcheck disable=SC1091
     source "${ws}/install/setup.bash"
+    if [ "$had_u" = "1" ]; then
+        set -u
+    fi
 }
 
 run_pht_vio_benchmark() {

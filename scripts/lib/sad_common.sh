@@ -103,10 +103,15 @@ PY
 
 source_ros2_ws() {
     local ws="${1:?}"
+    local had_u=0
+    case "$-" in *u*) had_u=1; set +u ;; esac
     # shellcheck disable=SC1091
     source /opt/ros/humble/setup.bash
     # shellcheck disable=SC1091
     source "${ws}/install/setup.bash"
+    if [ "$had_u" = "1" ]; then
+        set -u
+    fi
 }
 
 run_sad_vio_benchmark() {

@@ -73,6 +73,7 @@ struct VinsConfig
     int geodf_enable = 0;
     int geodf_hard_reject = 1;
     double geodf_ransac_th_px = 1.0;
+    // Threshold on Sampson SQUARED distance (num^2/denom), not unsquared Sampson.
     double geodf_sampson_th = 3.0;
     int geodf_min_track_cnt = 2;
     int geodf_min_feature_num = 40;
@@ -100,6 +101,7 @@ struct VinsConfig
     int geodf_warmup_frames = 0;
     // (F) stereo temporal cross-check (right-view epipolar agreement)
     int geodf_stereo_check = 0;
+    // Stereo Sampson SQUARED distance threshold (same units as geodf_sampson_th).
     double geodf_stereo_sampson_th = 3.0;
     // Only trust the stereo cross-check when the scene epipolar-outlier floor is
     // low (reliable geometry). 0 = always trust. In low-parallax scenes the floor
@@ -239,6 +241,8 @@ struct VinsConfig
     double geodf_min_grid_occupancy = 0.35;
     double geodf_min_median_parallax_px = 1.0;
     double geodf_max_design_condition_number = 1.0e6;
+    // Nullspace gap g_F = σ8/σ9. Default 0 = telemetry only (not a hard gate).
+    double geodf_min_nullspace_gap = 0.0;
     int geodf_min_ransac_inliers = 20;
     double geodf_min_ransac_inlier_ratio = 0.35;
     double geodf_max_mover_share = 0.60;

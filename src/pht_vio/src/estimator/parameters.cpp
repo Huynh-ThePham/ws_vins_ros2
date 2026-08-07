@@ -241,6 +241,9 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     if (!fsSettings["geodf_max_design_condition_number"].empty())
         geodf_max_design_condition_number =
             static_cast<double>(fsSettings["geodf_max_design_condition_number"]);
+    if (!fsSettings["geodf_min_nullspace_gap"].empty())
+        geodf_min_nullspace_gap =
+            static_cast<double>(fsSettings["geodf_min_nullspace_gap"]);
     if (!fsSettings["geodf_min_ransac_inliers"].empty())
         geodf_min_ransac_inliers = static_cast<int>(fsSettings["geodf_min_ransac_inliers"]);
     if (!fsSettings["geodf_min_ransac_inlier_ratio"].empty())
@@ -347,6 +350,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
     geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
     geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);
+    geodf_min_nullspace_gap = std::max(0.0, geodf_min_nullspace_gap);
     geodf_min_ransac_inliers = std::max(0, geodf_min_ransac_inliers);
     geodf_min_ransac_inlier_ratio =
         std::min(1.0, std::max(0.0, geodf_min_ransac_inlier_ratio));

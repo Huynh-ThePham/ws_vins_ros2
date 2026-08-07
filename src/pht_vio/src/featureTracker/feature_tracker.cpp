@@ -10,6 +10,7 @@
  *******************************************************/
 
 #include "feature_tracker.h"
+#include "geodf_sampson.h"
 #include "sem_geodf_risk.h"
 #include "temporal_smoothing.h"
 #include "camera_focal_scale.h"
@@ -17,32 +18,25 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <fstream>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <algorithm>
 
 namespace {
 
 // OpenCV/HZ epipolar: x'^T F x = 0 with x=points1 (cur), x'=points2 (prev).
-// p1=x, p2=x' => Sampson^2 = (x'^T F x)^2 / (||F x||_{1:2}^2 + ||F^T x'||_{1:2}^2).
-double sampsonDistance(const cv::Mat &F, const cv::Point2f &p1, const cv::Point2f &p2)
+// Returns Sampson SQUARED distance (num^2/denom). geodf_sampson_th is in the
+// same squared units. Invalid denom => valid=false, squared_distance=inf
+// (fail-closed: never treat as a perfect inlier).
+geodf_sampson::SampsonResult sampsonDistance(const cv::Mat &F,
+                                             const cv::Point2f &p1,
+                                             const cv::Point2f &p2)
 {
-    const double f11 = F.at<double>(0, 0), f12 = F.at<double>(0, 1), f13 = F.at<double>(0, 2);
-    const double f21 = F.at<double>(1, 0), f22 = F.at<double>(1, 1), f23 = F.at<double>(1, 2);
-    const double f31 = F.at<double>(2, 0), f32 = F.at<double>(2, 1), f33 = F.at<double>(2, 2);
-
-    const double x1 = p1.x, y1 = p1.y;
-    const double x2 = p2.x, y2 = p2.y;
-
-    const double Fx1x = f11 * x1 + f12 * y1 + f13;
-    const double Fx1y = f21 * x1 + f22 * y1 + f23;
-    const double Ftx2x = f11 * x2 + f21 * y2 + f31;
-    const double Ftx2y = f12 * x2 + f22 * y2 + f32;
-
-    const double num = x2 * Fx1x + y2 * Fx1y + f31 * x1 + f32 * y1 + f33;
-    const double denom = Fx1x * Fx1x + Fx1y * Fx1y + Ftx2x * Ftx2x + Ftx2y * Ftx2y;
-    if (denom < 1e-12)
-        return 0.0;
-    return (num * num) / denom;
+    return geodf_sampson::sampsonSquaredDistance(
+        F.at<double>(0, 0), F.at<double>(0, 1), F.at<double>(0, 2),
+        F.at<double>(1, 0), F.at<double>(1, 1), F.at<double>(1, 2),
+        F.at<double>(2, 0), F.at<double>(2, 1), F.at<double>(2, 2),
+        p1.x, p1.y, p2.x, p2.y);
 }
 
 double clampDouble(double value, double lo, double hi)
@@ -52,6 +46,9 @@ double clampDouble(double value, double lo, double hi)
 
 double normalizedExcess(double value, double threshold)
 {
+    // Non-finite residuals (invalid Sampson) are max-confidence outliers.
+    if (!std::isfinite(value))
+        return 1.0;
     if (threshold <= 1e-12 || value <= threshold)
         return 0.0;
     return clampDouble((value - threshold) / (value + threshold), 0.0, 1.0);
@@ -938,12 +935,19 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
         scored++;
-        out.errors[i] = sampsonDistance(out.F, un_cur_pts[i], un_prev_pts[i]);
-        scored_errors.push_back(out.errors[i]);
-        if (out.errors[i] > cfg.geodf_sampson_th)
+        // Sampson SQUARED distance; geodf_sampson_th is in the same units.
+        // Invalid denom => infinity (fail-closed: not an inlier).
+        const geodf_sampson::SampsonResult sr =
+            sampsonDistance(out.F, un_cur_pts[i], un_prev_pts[i]);
+        out.errors[i] = sr.squared_distance;
+        if (sr.valid)
+            scored_errors.push_back(sr.squared_distance);
+        // Invalid or above-threshold: count as mover / non-inlier.
+        if (!sr.valid || out.errors[i] > cfg.geodf_sampson_th)
             sampson_above_th++;
         const bool ransac_outlier = f_status.empty() || f_status[i] == 0;
-        left_outlier[i] = ransac_outlier ? 1 : 0;
+        // Invalid Sampson is never an inlier, even if RANSAC marked it in.
+        left_outlier[i] = (ransac_outlier || !sr.valid) ? 1 : 0;
         if (ransac_outlier)
             ransac_outliers++;
     }
@@ -980,6 +984,7 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         degeneracy_config.min_ransac_inliers = cfg.geodf_min_ransac_inliers;
         degeneracy_config.min_ransac_inlier_ratio = cfg.geodf_min_ransac_inlier_ratio;
         degeneracy_config.max_mover_share = cfg.geodf_max_mover_share;
+        degeneracy_config.min_nullspace_gap = cfg.geodf_min_nullspace_gap;
         degeneracy_config.require_known_conditioning = true;
 
         geodf_degeneracy::Observation degeneracy_obs;
@@ -988,16 +993,32 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         degeneracy_obs.grid_occupancy = geodf_degeneracy::gridOccupancy(
             scored_points, static_cast<double>(col), static_cast<double>(row));
 
-        // Real normalized eight-point design-matrix metrics from the same
-        // correspondences used to estimate F. Sampson median/MAD are residual
-        // diagnostics only — never a stand-in for κ.
+        // Hard-reject gate: design metrics on RANSAC inliers only (f_status!=0).
+        // All-correspondence metrics remain a diagnostic (logged below).
+        vector<cv::Point2f> inlier_cur, inlier_prev;
+        vector<double> inlier_sampson;
+        inlier_cur.reserve(static_cast<size_t>(f_inliers));
+        inlier_prev.reserve(static_cast<size_t>(f_inliers));
+        inlier_sampson.reserve(static_cast<size_t>(f_inliers));
+        for (int i = 0; i < total; i++)
+        {
+            if (track_cnt[i] < cfg.geodf_min_track_cnt)
+                continue;
+            if (f_status.empty() || f_status[i] == 0)
+                continue;
+            inlier_cur.push_back(un_cur_pts[i]);
+            inlier_prev.push_back(un_prev_pts[i]);
+            if (std::isfinite(out.errors[i]))
+                inlier_sampson.push_back(out.errors[i]);
+        }
         const geodf_degeneracy::DesignMatrixMetrics design =
             geodf_degeneracy::computeDesignMatrixMetricsFromPoints(
-                un_cur_pts, un_prev_pts, scored_errors);
+                inlier_cur, inlier_prev, inlier_sampson);
         degeneracy_obs.sampson_median = design.sampson_median;
         degeneracy_obs.sampson_mad = design.sampson_mad;
         degeneracy_obs.effective_design_condition = design.effective_design_condition;
         degeneracy_obs.nullspace_gap = design.nullspace_gap;
+        degeneracy_obs.nullspace_gap_available = design.nullspace_gap_available;
         degeneracy_obs.design_metrics_valid = design.valid;
         // Legacy field: only populated when metrics are valid, never median/MAD.
         degeneracy_obs.design_condition_number =
@@ -1007,6 +1028,23 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         degeneracy_obs.ransac_total = scored;
         degeneracy_obs.mover_share =
             scored > 0 ? static_cast<double>(sampson_above_th) / scored : 0.0;
+
+        // Diagnostic: all-correspondence design metrics (not used for the gate).
+        const geodf_degeneracy::DesignMatrixMetrics design_all =
+            geodf_degeneracy::computeDesignMatrixMetricsFromPoints(
+                un_cur_pts, un_prev_pts, scored_errors);
+        ROS_DEBUG("GeoDF design metrics: inlier(N=%d κ_eff=%.3g gap=%.3g avail=%d valid=%d) "
+                  "all(N=%d κ_eff=%.3g gap=%.3g avail=%d valid=%d)",
+                  design.correspondence_count,
+                  design.effective_design_condition,
+                  design.nullspace_gap,
+                  design.nullspace_gap_available ? 1 : 0,
+                  design.valid ? 1 : 0,
+                  design_all.correspondence_count,
+                  design_all.effective_design_condition,
+                  design_all.nullspace_gap,
+                  design_all.nullspace_gap_available ? 1 : 0,
+                  design_all.valid ? 1 : 0);
 
         geo_degeneracy = geodf_degeneracy::evaluate(degeneracy_obs, degeneracy_config);
         out.degeneracy_health = static_cast<int>(geo_degeneracy.health);
@@ -1018,12 +1056,14 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
 
         if (!geo_degeneracy.mayHardReject())
             ROS_DEBUG("GeoDF geometry %s (%s): hard rejection suppressed this frame "
-                      "(κ_eff=%.3g valid=%d nullspace_gap=%.3g sampson_med/mad=%.3g/%.3g)",
+                      "(κ_eff=%.3g valid=%d nullspace_gap=%.3g avail=%d "
+                      "sampson_med/mad=%.3g/%.3g)",
                       geodf_degeneracy::toString(geo_degeneracy.health),
                       geodf_degeneracy::toString(geo_degeneracy.cause),
                       degeneracy_obs.effective_design_condition,
                       degeneracy_obs.design_metrics_valid ? 1 : 0,
                       degeneracy_obs.nullspace_gap,
+                      degeneracy_obs.nullspace_gap_available ? 1 : 0,
                       degeneracy_obs.sampson_median,
                       degeneracy_obs.sampson_mad);
     }
@@ -1086,8 +1126,13 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
                 for (size_t k = 0; k < ref_idx.size(); k++)
                 {
                     const int i = ref_idx[k];
-                    out.right_err[i] = sampsonDistance(Fr, un_cr[k], un_pr[k]);
-                    right_outlier[i] = (r_status.empty() || r_status[k] == 0) ? 1 : 0;
+                    // Sampson SQUARED distance; geodf_stereo_sampson_th same units.
+                    const geodf_sampson::SampsonResult sr =
+                        sampsonDistance(Fr, un_cr[k], un_pr[k]);
+                    out.right_err[i] = sr.squared_distance;
+                    // Invalid Sampson is not an inlier: force outlier status.
+                    right_outlier[i] =
+                        (!sr.valid || r_status.empty() || r_status[k] == 0) ? 1 : 0;
                     out.right_valid[i] = 1;
                 }
             }
@@ -1105,9 +1150,13 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
     {
         if (track_cnt[i] < cfg.geodf_min_track_cnt)
             continue;
-        const bool left_cand = left_outlier[i] && (out.errors[i] > cfg.geodf_sampson_th);
+        const bool left_cand = left_outlier[i] &&
+                               (!std::isfinite(out.errors[i]) ||
+                                out.errors[i] > cfg.geodf_sampson_th);
         const bool right_cand = stereo_trust && out.right_valid[i] &&
-                                right_outlier[i] && (out.right_err[i] > cfg.geodf_stereo_sampson_th);
+                                right_outlier[i] &&
+                                (!std::isfinite(out.right_err[i]) ||
+                                 out.right_err[i] > cfg.geodf_stereo_sampson_th);
         if (left_cand || right_cand)
         {
             candidates.push_back(i);
@@ -1875,9 +1924,21 @@ void FeatureTracker::applyStereoValidityContract(std::vector<uchar> &status,
                 m_camera[1],
                 Eigen::Vector2d(cur_right_pts[i].x, cur_right_pts[i].y), FOCAL_LENGTH);
             const double focal_px = 0.5 * (f0 + f1);
-            result = stereo_validity::checkStereoMatch(
-                x0, x1, stereo_rig, config,
-                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, focal_px);
+            // True camera-model reprojection: triangulate with lifted rays, then
+            // spaceToPlane each camera and compare to the original pixel measurements.
+            const Eigen::Vector2d u0_px(cur_pts[i].x, cur_pts[i].y);
+            const Eigen::Vector2d u1_px(cur_right_pts[i].x, cur_right_pts[i].y);
+            result = stereo_validity::checkStereoMatchPixels(
+                x0, x1, u0_px, u1_px, stereo_rig, config,
+                i < fb_error.size() ? fb_error[i] : 0.0, lk_ok, in_border, focal_px,
+                [&](const Eigen::Vector3d &X, Eigen::Vector2d &uv) {
+                    m_camera[0]->spaceToPlane(X, uv);
+                    return uv.allFinite();
+                },
+                [&](const Eigen::Vector3d &X, Eigen::Vector2d &uv) {
+                    m_camera[1]->spaceToPlane(X, uv);
+                    return uv.allFinite();
+                });
         }
 
         if (lk_ok)

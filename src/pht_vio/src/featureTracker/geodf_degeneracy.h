@@ -13,13 +13,18 @@
 //   - only a diagnostic residual or a mild down-weight is justified.
 //
 // Design-matrix conditioning (NOT residual median/MAD):
-//   1. Hartley-normalize both correspondence sets.
-//   2. Build the normalized eight-point design matrix A (N x 9), one row per match:
+//   1. Keep correspondences as PAIRS: index i is used only if both views are finite.
+//   2. Hartley-normalize the paired finite sets.
+//   3. Build the normalized eight-point design matrix A (N x 9), one row per match:
 //        [x'x, x'y, x', y'x, y'y, y', x, y, 1]
-//   3. SVD: A = U Σ Vᵀ with σ₁ ≥ … ≥ σ₉ ≥ 0.
-//   4. Report:
+//   4. SVD: A = U Σ Vᵀ with σ₁ ≥ … ≥ σ_r ≥ 0 (r = min(N,9)).
+//   5. Report:
 //        κ_eff = σ₁ / max(σ₈, ε)     // effective condition of the rank-8 subspace
-//        g_F   = σ₈ / max(σ₉, ε)     // nullspace gap of the F solution
+//                                    // (requires N >= 8 so σ₈ exists)
+//        g_F   = σ₈ / max(σ₉, ε)     // nullspace gap (only when N >= 9 / σ₉ exists)
+//   For exactly N==8 (thin SVD yields 8 singular values), κ_eff is still valid
+//   but nullspace_gap_available=false (no σ₉). Nullspace gap is telemetry unless
+//   Config.min_nullspace_gap > 0 is set as an explicit hard gate.
 //   Sampson median/MAD remain separate residual diagnostics. They must never be
 //   named or gated as a design-matrix condition number.
 
@@ -96,6 +101,9 @@ struct Config
     double max_mover_share = 0.60;
     // Publication: insufficient design metrics => Degenerate, never "Healthy".
     bool require_known_conditioning = true;
+    // Nullspace gap g_F = σ₈/σ₉. Default 0 = telemetry only (not a hard gate).
+    // Set > 0 to require nullspace_gap_available and g_F >= threshold for Healthy.
+    double min_nullspace_gap = 0.0;
 };
 
 struct Observation
@@ -111,6 +119,7 @@ struct Observation
     // Normalized eight-point design-matrix metrics. Valid only if design_metrics_valid.
     double effective_design_condition = 0.0;  // κ_eff = σ₁ / max(σ₈, ε)
     double nullspace_gap = 0.0;               // g_F   = σ₈ / max(σ₉, ε)
+    bool nullspace_gap_available = false;     // false when N==8 (no σ₉)
     bool design_metrics_valid = false;
 
     // Deprecated alias kept so existing call sites that still set
@@ -143,8 +152,9 @@ struct DesignMatrixMetrics
     double sigma8 = 0.0;
     double sigma9 = 0.0;
     double effective_design_condition = 0.0;  // κ_eff
-    double nullspace_gap = 0.0;               // g_F
-    int correspondence_count = 0;
+    double nullspace_gap = 0.0;               // g_F (meaningful iff nullspace_gap_available)
+    bool nullspace_gap_available = false;     // true only when σ₉ exists (N >= 9)
+    int correspondence_count = 0;             // finite paired correspondences used
 };
 
 inline double median(std::vector<double> values)
@@ -194,8 +204,34 @@ inline double gridOccupancy(const std::vector<std::pair<double, double>> &points
     return static_cast<double>(count) / static_cast<double>(cols * rows);
 }
 
+// Keep index i only when BOTH views are finite. Prevents the old bug where
+// Hartley-normalizing each view independently dropped different indices and
+// misaligned the correspondence pairs.
+inline void filterFinitePairs(const std::vector<Eigen::Vector2d> &pts_cur,
+                              const std::vector<Eigen::Vector2d> &pts_prev,
+                              std::vector<Eigen::Vector2d> &cur_out,
+                              std::vector<Eigen::Vector2d> &prev_out)
+{
+    cur_out.clear();
+    prev_out.clear();
+    const size_t n = std::min(pts_cur.size(), pts_prev.size());
+    cur_out.reserve(n);
+    prev_out.reserve(n);
+    for (size_t i = 0; i < n; i++)
+    {
+        if (!pts_cur[i].allFinite() || !pts_prev[i].allFinite())
+            continue;
+        cur_out.push_back(pts_cur[i]);
+        prev_out.push_back(pts_prev[i]);
+    }
+}
+
 // Hartley isotropic normalization: translate centroid to origin, scale mean
 // distance to sqrt(2). Returns false if the set is empty or has zero spread.
+//
+// Callers that pass two correspondence views MUST pre-filter with
+// filterFinitePairs(); this helper assumes a single already-aligned set and
+// skips non-finite points within that set only (safe after pair filtering).
 inline bool hartleyNormalize(const std::vector<Eigen::Vector2d> &pts,
                              std::vector<Eigen::Vector2d> &out,
                              Eigen::Matrix3d &T)
@@ -234,7 +270,7 @@ inline bool hartleyNormalize(const std::vector<Eigen::Vector2d> &pts,
          0.0, scale, -scale * centroid.y(),
          0.0, 0.0, 1.0;
 
-    out.reserve(pts.size());
+    out.reserve(static_cast<size_t>(finite));
     for (const auto &p : pts)
     {
         if (!p.allFinite())
@@ -245,7 +281,8 @@ inline bool hartleyNormalize(const std::vector<Eigen::Vector2d> &pts,
 }
 
 // Compute Sampson residual diagnostics AND normalized eight-point design metrics
-// from the same correspondence set used to estimate F.
+// from the same correspondence set used to estimate F (prefer RANSAC inliers at
+// the production call site).
 //
 // pts_cur / pts_prev are UNNORMALIZED image (or lifted-focal) coordinates as used
 // by findFundamentalMat. Requires at least 8 finite pairs.
@@ -257,16 +294,21 @@ inline DesignMatrixMetrics computeDesignMatrixMetrics(
     DesignMatrixMetrics m;
     m.sampson_median = median(sampson_residuals);
     m.sampson_mad = medianAbsoluteDeviation(sampson_residuals);
-    m.correspondence_count = static_cast<int>(
-        std::min(pts_cur.size(), pts_prev.size()));
 
-    if (pts_cur.size() != pts_prev.size() || pts_cur.size() < 8)
+    if (pts_cur.size() != pts_prev.size())
+        return m;
+
+    std::vector<Eigen::Vector2d> cur_f, prev_f;
+    filterFinitePairs(pts_cur, pts_prev, cur_f, prev_f);
+    m.correspondence_count = static_cast<int>(cur_f.size());
+    if (cur_f.size() < 8)
         return m;
 
     std::vector<Eigen::Vector2d> cur_n, prev_n;
     Eigen::Matrix3d T1, T2;
-    if (!hartleyNormalize(pts_cur, cur_n, T1) || !hartleyNormalize(pts_prev, prev_n, T2))
+    if (!hartleyNormalize(cur_f, cur_n, T1) || !hartleyNormalize(prev_f, prev_n, T2))
         return m;
+    // After pair filtering, both normalized sets must stay aligned and same size.
     if (cur_n.size() != prev_n.size() || cur_n.size() < 8)
         return m;
 
@@ -295,22 +337,38 @@ inline DesignMatrixMetrics computeDesignMatrixMetrics(
 
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
     const Eigen::VectorXd &S = svd.singularValues();
-    if (S.size() < 9 || !S.allFinite())
+    // Thin SVD of N×9 yields min(N,9) singular values. Need σ₈ => S.size() >= 8.
+    if (S.size() < 8 || !S.allFinite())
         return m;
 
     constexpr double kEps = 1e-12;
     m.sigma1 = S(0);
     m.sigma8 = S(7);
-    m.sigma9 = S(8);
     if (!(m.sigma1 > 0.0) || !std::isfinite(m.sigma1))
         return m;
 
     m.effective_design_condition = m.sigma1 / std::max(m.sigma8, kEps);
-    m.nullspace_gap = m.sigma8 / std::max(m.sigma9, kEps);
-    if (!std::isfinite(m.effective_design_condition) || !std::isfinite(m.nullspace_gap))
+    if (!std::isfinite(m.effective_design_condition))
         return m;
     if (m.effective_design_condition < 1.0)
         m.effective_design_condition = 1.0;
+
+    // Nullspace gap needs σ₉ (N >= 9). For exactly N==8 this is telemetry-unavailable.
+    if (S.size() >= 9)
+    {
+        m.sigma9 = S(8);
+        m.nullspace_gap = m.sigma8 / std::max(m.sigma9, kEps);
+        if (std::isfinite(m.nullspace_gap))
+            m.nullspace_gap_available = true;
+        else
+            m.nullspace_gap = 0.0;
+    }
+    else
+    {
+        m.sigma9 = 0.0;
+        m.nullspace_gap = 0.0;
+        m.nullspace_gap_available = false;
+    }
 
     m.valid = true;
     return m;
@@ -404,6 +462,17 @@ inline Result evaluate(const Observation &obs, const Config &config)
         out.health = Health::Degenerate;
         out.cause = Cause::ILL_CONDITIONED;
         return out;
+    }
+    // Optional hard gate on nullspace gap (default min_nullspace_gap=0 => telemetry).
+    if (config.min_nullspace_gap > 0.0)
+    {
+        if (!obs.nullspace_gap_available ||
+            !(obs.nullspace_gap >= config.min_nullspace_gap))
+        {
+            out.health = Health::Degenerate;
+            out.cause = Cause::ILL_CONDITIONED;
+            return out;
+        }
     }
     if (obs.grid_occupancy < config.min_grid_occupancy)
     {

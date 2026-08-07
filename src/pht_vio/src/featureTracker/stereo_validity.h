@@ -118,6 +118,7 @@ struct Result
     double disparity_px = 0.0;
     double depth_cam0 = 0.0;
     double depth_cam1 = 0.0;
+    double triangulation_angle_rad = 0.0;
     double reprojection_px = 0.0;
 };
 
@@ -193,17 +194,27 @@ inline bool triangulate(const Rig &rig, const Eigen::Vector3d &x0, const Eigen::
     return residual.allFinite();
 }
 
-// The full contract for one match.
-//
-//   x0, x1        normalized (lifted) rays in cam0 / cam1, z-normalized by caller
-//   lr_cycle_px   left -> right -> left round-trip error in pixels (0 if unavailable)
-//   lk_ok         optical flow status
-//   in_border     right observation inside the usable region
-//   focal_px      pixel scale used to express normalized residuals in pixels
-inline Result checkStereoMatch(const Eigen::Vector3d &x0, const Eigen::Vector3d &x1,
-                               const Rig &rig, const Config &config,
-                               double lr_cycle_px, bool lk_ok, bool in_border,
-                               double focal_px)
+// True triangulation angle between bearings: θ = arccos( ((R x0)·x1) / (|R x0||x1|) ).
+inline double triangulationAngleRad(const Rig &rig,
+                                    const Eigen::Vector3d &x0,
+                                    const Eigen::Vector3d &x1)
+{
+    const Eigen::Vector3d a = rig.R_c1_c0 * x0;
+    const double na = a.norm();
+    const double nb = x1.norm();
+    if (!(na > 1e-12) || !(nb > 1e-12) || !a.allFinite() || !x1.allFinite())
+        return 0.0;
+    const double c = std::max(-1.0, std::min(1.0, a.dot(x1) / (na * nb)));
+    return std::acos(c);
+}
+
+// Shared physical gates up to (and including) triangulation / cheirality / parallax.
+// Reprojection is left to the caller so production can use true camera spaceToPlane
+// while header-only tests keep a normalized-plane fallback.
+inline Result checkStereoMatchGeometry(const Eigen::Vector3d &x0, const Eigen::Vector3d &x1,
+                                       const Rig &rig, const Config &config,
+                                       double lr_cycle_px, bool lk_ok, bool in_border,
+                                       double focal_px, Eigen::Vector3d *ray_residual = nullptr)
 {
     Result out;
     out.lr_cycle_px = lr_cycle_px;
@@ -303,59 +314,117 @@ inline Result checkStereoMatch(const Eigen::Vector3d &x0, const Eigen::Vector3d 
         out.rejection = Rejection::NEGATIVE_DEPTH;
         return out;
     }
+    if (ray_residual)
+        *ray_residual = residual;
     if (config.require_positive_depth && (out.depth_cam0 <= 0.0 || out.depth_cam1 <= 0.0))
     {
         out.rejection = Rejection::NEGATIVE_DEPTH;
         return out;
     }
 
-    // Triangulation angle ≈ atan(baseline / depth). Near-zero parallax is
-    // unobservable even when the closest-approach residual looks small.
+    // Primary parallax gate: true angle between bearings (not atan2(baseline, depth)).
+    out.triangulation_angle_rad = triangulationAngleRad(rig, x0, x1);
+    if (!(out.triangulation_angle_rad >= config.min_triangulation_angle_rad) ||
+        !std::isfinite(out.triangulation_angle_rad))
+    {
+        out.rejection = Rejection::DISPARITY_RANGE;
+        return out;
+    }
+    // Secondary depth-based proxy: refuse absurdly far triangulations even when
+    // bearings are slightly noisy enough to inflate the acos angle.
     {
         const double depth = std::max(out.depth_cam0, out.depth_cam1);
-        const double angle = std::atan2(rig.baseline, std::max(1e-9, depth));
-        if (!(angle >= config.min_triangulation_angle_rad) || !std::isfinite(angle))
+        const double depth_angle = std::atan2(rig.baseline, std::max(1e-9, depth));
+        if (std::isfinite(depth_angle) &&
+            depth_angle < 0.5 * config.min_triangulation_angle_rad)
         {
             out.rejection = Rejection::DISPARITY_RANGE;
             return out;
         }
     }
 
-    // True two-view reprojection in the normalized image plane, converted to
-    // pixels with the caller-supplied focal scale(s). Using the triangulated
-    // point X0 = depth0 * x0:
-    //   e = [u0 - û0; u1 - û1],  reprojection_px = ||e||_2 (RMS of both views).
-    // A near-singular projection (NaN/Inf) is fail-closed as REPROJECTION.
-    {
-        const Eigen::Vector3d X0 = out.depth_cam0 * x0;
-        const Eigen::Vector3d X1 = rig.R_c1_c0 * X0 + rig.t_c1_c0;
-        Eigen::Vector2d u0_hat, u1_hat;
-        if (!project(X0, u0_hat) || !project(X1, u1_hat))
-        {
-            out.rejection = Rejection::REPROJECTION;
-            out.reprojection_px = std::numeric_limits<double>::infinity();
-            return out;
-        }
-        const Eigen::Vector2d u0_obs = x0.head<2>();
-        const Eigen::Vector2d u1_obs = x1.head<2>();
-        const Eigen::Vector2d e0 = (u0_obs - u0_hat) * focal_px;
-        const Eigen::Vector2d e1 = (u1_obs - u1_hat) * focal_px;
-        out.reprojection_px = std::sqrt(0.5 * (e0.squaredNorm() + e1.squaredNorm()));
-        // Keep the closest-approach residual as a secondary NaN/Inf guard only.
-        if (!residual.allFinite())
-        {
-            out.rejection = Rejection::REPROJECTION;
-            out.reprojection_px = std::numeric_limits<double>::infinity();
-            return out;
-        }
-    }
+    return out;
+}
+
+inline bool gateReprojection(Result &out, const Config &config)
+{
     if (!std::isfinite(out.reprojection_px) ||
         out.reprojection_px > config.reprojection_max_px)
     {
         out.rejection = Rejection::REPROJECTION;
+        return false;
+    }
+    return true;
+}
+
+// Header-only / unit-test path: triangulate in the normalized plane and convert
+// reprojection error to pixels with a focal scalar. Production should prefer
+// checkStereoMatchPixels with true camera spaceToPlane.
+inline Result checkStereoMatch(const Eigen::Vector3d &x0, const Eigen::Vector3d &x1,
+                               const Rig &rig, const Config &config,
+                               double lr_cycle_px, bool lk_ok, bool in_border,
+                               double focal_px)
+{
+    Eigen::Vector3d residual = Eigen::Vector3d::Zero();
+    Result out = checkStereoMatchGeometry(x0, x1, rig, config, lr_cycle_px, lk_ok,
+                                          in_border, focal_px, &residual);
+    if (!out.valid() || !config.enable)
+        return out;
+
+    const Eigen::Vector3d X0 = out.depth_cam0 * x0;
+    const Eigen::Vector3d X1 = rig.R_c1_c0 * X0 + rig.t_c1_c0;
+    Eigen::Vector2d u0_hat, u1_hat;
+    if (!project(X0, u0_hat) || !project(X1, u1_hat) || !residual.allFinite())
+    {
+        out.rejection = Rejection::REPROJECTION;
+        out.reprojection_px = std::numeric_limits<double>::infinity();
         return out;
     }
+    const Eigen::Vector2d e0 = (x0.head<2>() - u0_hat) * focal_px;
+    const Eigen::Vector2d e1 = (x1.head<2>() - u1_hat) * focal_px;
+    // Per-view RMS of the stacked residual e = [u0-û0; u1-û1], so that
+    // reprojection_max_px keeps its "pixels of error per view" calibration.
+    out.reprojection_px = std::sqrt(0.5 * (e0.squaredNorm() + e1.squaredNorm()));
+    gateReprojection(out, config);
+    return out;
+}
 
+// Production path: after triangulation, reproject the 3D point with the real
+// camera models (spaceToPlane) and compare to the original pixel measurements.
+// Project0/Project1: bool(const Eigen::Vector3d &X_cam, Eigen::Vector2d &uv_px).
+template <typename Project0, typename Project1>
+inline Result checkStereoMatchPixels(const Eigen::Vector3d &x0, const Eigen::Vector3d &x1,
+                                     const Eigen::Vector2d &u0_px,
+                                     const Eigen::Vector2d &u1_px,
+                                     const Rig &rig, const Config &config,
+                                     double lr_cycle_px, bool lk_ok, bool in_border,
+                                     double focal_px,
+                                     Project0 &&spaceToPlane0,
+                                     Project1 &&spaceToPlane1)
+{
+    Eigen::Vector3d residual = Eigen::Vector3d::Zero();
+    Result out = checkStereoMatchGeometry(x0, x1, rig, config, lr_cycle_px, lk_ok,
+                                          in_border, focal_px, &residual);
+    if (!out.valid() || !config.enable)
+        return out;
+
+    const Eigen::Vector3d X0 = out.depth_cam0 * x0;
+    const Eigen::Vector3d X1 = rig.R_c1_c0 * X0 + rig.t_c1_c0;
+    Eigen::Vector2d u0_hat, u1_hat;
+    if (!spaceToPlane0(X0, u0_hat) || !spaceToPlane1(X1, u1_hat) ||
+        !u0_hat.allFinite() || !u1_hat.allFinite() || !residual.allFinite() ||
+        !u0_px.allFinite() || !u1_px.allFinite())
+    {
+        out.rejection = Rejection::REPROJECTION;
+        out.reprojection_px = std::numeric_limits<double>::infinity();
+        return out;
+    }
+    const Eigen::Vector2d e0 = u0_px - u0_hat;
+    const Eigen::Vector2d e1 = u1_px - u1_hat;
+    // Same per-view RMS convention as checkStereoMatch so the pixel path and the
+    // normalized-plane path share one calibration of reprojection_max_px.
+    out.reprojection_px = std::sqrt(0.5 * (e0.squaredNorm() + e1.squaredNorm()));
+    gateReprojection(out, config);
     return out;
 }
 

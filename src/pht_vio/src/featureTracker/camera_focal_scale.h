@@ -1,8 +1,10 @@
 #pragma once
 
 // Local pixel scale of a camodocal camera around an image point.
-// Used to convert normalized-plane residuals (Sampson, reprojection) into
-// pixels without hard-coding a global FOCAL_LENGTH for every camera.
+// Used to convert normalized-plane residuals (Sampson, disparity) into pixels.
+// True stereo reprojection in production uses Camera::spaceToPlane on the
+// triangulated 3D point (see stereo_validity::checkStereoMatchPixels); this
+// helper must not be treated as a substitute for the full projection model.
 
 #include <camodocal/camera_models/Camera.h>
 

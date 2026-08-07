@@ -350,5 +350,117 @@ int main()
             CHECK(r.reprojection_px > loose_epi.reprojection_max_px);
     }
 
+    TEST_CASE("StereoValidity.TriangulationAngleIsBearingAngle");
+    {
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.0, 0.0, 1.0);
+        const Eigen::Vector3d x1 = projectIntoCam1(rig, x0, 2.0);
+        const double expected = sv::triangulationAngleRad(rig, x0, x1);
+        const sv::Result r = check(rig, x0, x1, config);
+        CHECK(r.valid());
+        CHECK_NEAR(r.triangulation_angle_rad, expected, 1e-12);
+        // Must match acos(((R x0)·x1)/(|R x0||x1|)), not merely atan2(b,Z).
+        const Eigen::Vector3d Rx0 = rig.R_c1_c0 * x0;
+        const double c =
+            std::max(-1.0, std::min(1.0, Rx0.dot(x1) / (Rx0.norm() * x1.norm())));
+        CHECK_NEAR(expected, std::acos(c), 1e-12);
+        CHECK(std::abs(expected - std::atan2(rig.baseline, 2.0)) < 0.02);
+    }
+
+    TEST_CASE("StereoValidity.PixelReprojectionPath");
+    {
+        // Pinhole-like spaceToPlane: u = f * (X/Z) + c. Production uses camodocal;
+        // this functor path is what feature_tracker wires to m_camera[*]->spaceToPlane.
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.08, -0.04, 1.0);
+        const double depth = 3.5;
+        const Eigen::Vector3d x1 = projectIntoCam1(rig, x0, depth);
+        const Eigen::Vector2d c0(320.0, 240.0);
+        const Eigen::Vector2d c1(318.0, 241.0);
+        auto space0 = [&](const Eigen::Vector3d &X, Eigen::Vector2d &uv) {
+            if (!(std::abs(X.z()) > 1e-9))
+                return false;
+            uv = c0 + kFocal * X.head<2>() / X.z();
+            return uv.allFinite();
+        };
+        auto space1 = [&](const Eigen::Vector3d &X, Eigen::Vector2d &uv) {
+            if (!(std::abs(X.z()) > 1e-9))
+                return false;
+            uv = c1 + kFocal * X.head<2>() / X.z();
+            return uv.allFinite();
+        };
+        Eigen::Vector2d u0, u1;
+        CHECK(space0(depth * x0, u0));
+        CHECK(space1(rig.R_c1_c0 * (depth * x0) + rig.t_c1_c0, u1));
+
+        const sv::Result good = sv::checkStereoMatchPixels(
+            x0, x1, u0, u1, rig, config, 0.0, true, true, kFocal, space0, space1);
+        CHECK(good.valid());
+        CHECK(good.reprojection_px < 1e-6);
+
+        // Pixel measurement noise must trigger REPROJECTION when geometry is otherwise
+        // accepted (loosen epipolar so it does not short-circuit first).
+        sv::Config loose = permissiveConfig();
+        loose.epipolar_max_px = 50.0;
+        loose.reprojection_max_px = 1.0;
+        Eigen::Vector2d u1_noisy = u1;
+        u1_noisy.y() += 3.0;
+        const sv::Result bad = sv::checkStereoMatchPixels(
+            x0, x1, u0, u1_noisy, rig, loose, 0.0, true, true, kFocal, space0, space1);
+        CHECK(!bad.valid());
+        CHECK(bad.rejection == sv::Rejection::REPROJECTION);
+        CHECK(bad.reprojection_px > loose.reprojection_max_px);
+    }
+
+    TEST_CASE("StereoValidity.PixelPathOnVerticalAndToeInRigs");
+    {
+        Eigen::Matrix3d yaw;
+        const double a = 0.05;
+        yaw << std::cos(a), 0.0, std::sin(a), 0.0, 1.0, 0.0, -std::sin(a), 0.0, std::cos(a);
+        const std::vector<NamedRig> cases = {
+            {"vertical", rigFromOffset({0.0, 0.09, 0.0})},
+            {"reversed", rigFromOffset({-0.11, 0.0, 0.0})},
+            {"toe-in", rigFromOffset({0.11, 0.0, 0.0}, yaw)},
+        };
+        auto space = [](const Eigen::Vector3d &X, Eigen::Vector2d &uv) {
+            if (!(std::abs(X.z()) > 1e-9))
+                return false;
+            uv = Eigen::Vector2d(320.0, 240.0) + kFocal * X.head<2>() / X.z();
+            return uv.allFinite();
+        };
+        for (const auto &entry : cases)
+        {
+            const Eigen::Vector3d x0(0.05, 0.02, 1.0);
+            const Eigen::Vector3d x1 = projectIntoCam1(entry.rig, x0, 4.0);
+            Eigen::Vector2d u0, u1;
+            CHECK(space(4.0 * x0, u0));
+            CHECK(space(entry.rig.R_c1_c0 * (4.0 * x0) + entry.rig.t_c1_c0, u1));
+            const sv::Result r = sv::checkStereoMatchPixels(
+                x0, x1, u0, u1, entry.rig, config, 0.0, true, true, kFocal, space, space);
+            if (!r.valid())
+                std::printf("            %s rejected: %s\n", entry.name, sv::toString(r.rejection));
+            CHECK(r.valid());
+            CHECK(r.triangulation_angle_rad > config.min_triangulation_angle_rad);
+        }
+    }
+
+    TEST_CASE("StereoValidity.NoisyCorrespondenceRejected");
+    {
+        const sv::Rig rig = rigFromOffset({0.11, 0.0, 0.0});
+        const Eigen::Vector3d x0(0.0, 0.0, 1.0);
+        Eigen::Vector3d x1 = projectIntoCam1(rig, x0, 3.0);
+        x1.x() += 6.0 / kFocal;
+        x1.y() += 6.0 / kFocal;
+        sv::Config loose_epi = permissiveConfig();
+        loose_epi.epipolar_max_px = 50.0;
+        loose_epi.reprojection_max_px = 1.5;
+        const sv::Result r = check(rig, x0, x1, loose_epi);
+        CHECK(!r.valid());
+        CHECK(r.rejection == sv::Rejection::REPROJECTION ||
+              r.rejection == sv::Rejection::EPIPOLAR ||
+              r.rejection == sv::Rejection::DISPARITY_SIGN ||
+              r.rejection == sv::Rejection::NEGATIVE_DEPTH);
+    }
+
     TEST_MAIN_RETURN();
 }

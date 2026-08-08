@@ -41,7 +41,13 @@ def run_text(cmd: list[str]) -> str | None:
 
 def git_provenance(ws: Path) -> dict:
     sha = run_text(["git", "-C", str(ws), "rev-parse", "HEAD"])
-    status = run_text(["git", "-C", str(ws), "status", "--porcelain"])
+    # Publication reproducibility is about tracked source/index content matching
+    # git_sha.  Untracked user notes or ignored result trees neither affect the
+    # built code nor belong in a paper commit, so they must not poison every run
+    # manifest in a shared worktree.
+    status = run_text([
+        "git", "-C", str(ws), "status", "--porcelain", "--untracked-files=no"
+    ])
     branch = run_text(["git", "-C", str(ws), "rev-parse", "--abbrev-ref", "HEAD"])
     return {
         # Full SHA: a short SHA cannot identify a commit unambiguously.

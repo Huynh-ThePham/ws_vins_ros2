@@ -41,6 +41,69 @@ resolve_viode_root() {
     return 1
 }
 
+resolve_urbannav_root() {
+    if [ -n "${URBANNAV_ROOT:-}" ] && [ -d "${URBANNAV_ROOT}/UrbanNav-HK-Medium-Urban-1" ]; then
+        echo "$URBANNAV_ROOT"
+        return 0
+    fi
+    local candidate ws="${WS:-}"
+    for candidate in \
+        "${ws}/data/UrbanNav" \
+        "/media/theph/Data1/Research/dataset/UrbanNav" \
+        "/media/theph/Data1/Research/Datasets/UrbanNav"; do
+        if [ -n "$candidate" ] && [ -d "${candidate}/UrbanNav-HK-Medium-Urban-1" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+urbannav_seq_dir() {
+    case "$1" in
+        medium|Medium|TST|UrbanNav-HK-Medium-Urban-1) echo UrbanNav-HK-Medium-Urban-1 ;;
+        deep|Deep|Whampoa|UrbanNav-HK-Deep-Urban-1) echo UrbanNav-HK-Deep-Urban-1 ;;
+        harsh|Harsh|Mongkok|UrbanNav-HK-Harsh-Urban-1) echo UrbanNav-HK-Harsh-Urban-1 ;;
+        *) return 1 ;;
+    esac
+}
+
+urbannav_alias_canonical() {
+    case "$1" in
+        medium|Medium|TST|UrbanNav-HK-Medium-Urban-1) echo medium ;;
+        deep|Deep|Whampoa|UrbanNav-HK-Deep-Urban-1) echo deep ;;
+        harsh|Harsh|Mongkok|UrbanNav-HK-Harsh-Urban-1) echo harsh ;;
+        *) return 1 ;;
+    esac
+}
+
+urbannav_ros1_bag() {
+    local alias="$1" root="$2"
+    local seq bag
+    seq="$(urbannav_seq_dir "$alias")" || return 1
+    case "$(urbannav_alias_canonical "$alias")" in
+        medium) bag="UrbanNav-HK_TST-20210517_sensors.bag" ;;
+        deep) bag="UrbanNav-HK_Whampoa-20210521_sensors.bag" ;;
+        harsh) bag="UrbanNav-HK_Mongkok-20210518_sensors.bag" ;;
+        *) return 1 ;;
+    esac
+    echo "${root}/${seq}/ros/${bag}"
+}
+
+resolve_urbannav_ros2_bag() {
+    local alias="$1" ws="${2:?}"
+    local canon
+    canon="$(urbannav_alias_canonical "$alias")" || return 1
+    echo "${ws}/data/urbannav_ros2/${canon}/ros2_bag"
+}
+
+resolve_urbannav_gt() {
+    local alias="$1" ws="${2:?}"
+    local canon
+    canon="$(urbannav_alias_canonical "$alias")" || return 1
+    echo "${ws}/data/urbannav_gt/${canon}/gt_euroc.csv"
+}
+
 euroc_group_for_seq() {
     case "$1" in
         MH_*) echo machine_hall ;;

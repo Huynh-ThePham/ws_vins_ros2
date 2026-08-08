@@ -1,0 +1,240 @@
+%YAML:1.0
+
+# ============================================================================
+# UrbanNav-HK common stereo-inertial backbone (paper method "B0").
+#
+# ZED2 672x376 + Xsens MTi. Topics match the UrbanNav sensors bag.
+# body_T_cam* uses inv(CAMERA_T_IMU)*Rx(180°) optical convention (see
+# src/config/urbannav/README.md). Method overlays are shared with EuRoC/VIODE:
+#
+#   python3 scripts/generate_paper_config.py \
+#     --base src/config/paper/urbannav_common.yaml \
+#     --overlay src/config/paper/overlays/<method>.yaml \
+#     --out <run_dir>/resolved_config.yaml
+# ============================================================================
+
+imu: 1
+num_of_cam: 2
+
+imu_topic: "/imu/data"
+image0_topic: "/zed2/camera/left/image_raw"
+image1_topic: "/zed2/camera/right/image_raw"
+output_path: "~/output/"
+
+cam0_calib: "cam0_pinhole.yaml"
+cam1_calib: "cam1_pinhole.yaml"
+image_width: 672
+image_height: 376
+
+estimate_extrinsic: 0
+
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [9.9885234402635936e-01, 4.7864188349269136e-02, -1.7361758877140333e-03, 1.2179475153393876e-01,
+          1.3591158885981891e-03, 7.9091258538424997e-03, 9.9996779874765451e-01, -3.0049807456452684e+00,
+          4.7876378696062122e-02, -9.9882253939420795e-01, 7.8349959194298404e-03, -6.8043171631062904e-01,
+          0., 0., 0., 1.]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [9.9872871452749823e-01, 5.0367177375936024e-02, -2.0253941424080314e-03, -3.4727681057919367e-02,
+          1.5287637777597807e-03, 9.8967686259808577e-03, 9.9994985716888607e-01, -3.0011645136820677e+00,
+          5.0384696680271013e-02, -9.9868173179143738e-01, 9.8071874914417330e-03, -7.1570727114446198e-01,
+          0., 0., 0., 1.]
+
+multiple_thread: 1
+
+# ---------------------------------------------------------------- front-end ---
+# Shared by every method. Changing any of these in an overlay is a confound.
+max_cnt: 150
+min_dist: 25
+freq: 10
+F_threshold: 1.0
+show_track: 1
+flow_back: 1
+
+# --------------------------------------------------------- semantic expert ---
+# Off for B0. Owned by the `semantic` / `union*` / `full_adaptive` overlays.
+sem_enable: 0
+sem_mask_topic: "/dynamic_mask"
+sem_static_value: 255
+sem_mask_max_age_ms: 150.0
+sem_use_latest_mask: 1
+sem_block_on_mask: 0
+sem_mask_gated: 0
+sem_vote_frames: 2
+sem_activate_ratio: 0.015
+sem_activate_ema: 0.15
+sem_deactivate_frac: 0.6
+
+# ------------------------------------------------------------ gated union ---
+# Off for B0. `sem_geodf_fusion` is the union itself; `sem_adaptive_policy` is the
+# online three-state gate. Both are owned by the `union*` overlays.
+sem_geodf_fusion: 0
+sem_adaptive_policy: 0
+# Oracle control. MUST stay -1 in every paper config: a non-negative value feeds
+# the ground-truth dynamic level into the online estimator. The audit rejects any
+# method that sets it otherwise.
+sem_policy_dynamic_level: -1
+
+# Policy thresholds selected on VIODE city_day TRAIN ONLY (held fixed on UrbanNav)
+# (results/sem_policy_tuning_postfix/selected_params.yaml). They are identical
+# for every method that runs the policy, so they can never explain a difference
+# between two methods.
+sem_policy_burst_ratio: 0.18
+sem_policy_strong_ratio: 0.18
+sem_policy_overlap_ratio: 0.35
+sem_policy_overlap_ema: 0.20
+sem_policy_min_geo_candidates: 4
+sem_policy_min_sem_candidates: 4
+sem_policy_min_intersection: 2
+sem_policy_overlap_support_saturation: 8
+sem_policy_overlap_metric: dice
+# Timestamp-based hold (plan P1.2). sem_policy_hold_frames is retained only as a
+# fallback for configs that predate the switch; hold_s wins when > 0.
+sem_policy_hold_frames: 180
+sem_policy_assist_hold_s: 1.5
+sem_policy_strong_hold_s: 1.0
+sem_policy_min_state_dwell_s: 0.3
+# Per-track lifecycle (P1.4). Hard rejection is irreversible, so it needs
+# sustained evidence AND risk AND agreement AND health AND observability AND
+# redundancy. Ablatable as policy row P5.
+sem_lifecycle_enable: 1
+sem_lifecycle_suspect_frames: 1
+sem_lifecycle_downweight_frames: 2
+sem_lifecycle_hard_reject_risk: 0.60
+sem_lifecycle_require_agreement: 1
+sem_lifecycle_recover_dwell_s: 0.5
+# Health thresholds (P1.3). An unhealthy expert may not hard-reject; low
+# observability downgrades deletion to down-weighting.
+sem_health_mask_saturation_ratio: 0.60
+sem_health_min_semantic: 0.35
+sem_health_min_geometric: 0.35
+sem_health_min_observability: 0.35
+sem_health_redundancy_target: 60
+sem_health_parallax_target_px: 3.0
+sem_health_min_tracks_for_hard_reject: 40
+
+# ------------------------------------------- backend residual weighting w_i ---
+# Off for B0 and for U (union without weighting). Owned by `union_weight` and
+# `full_adaptive`. U vs U+W differ in sem_geodf_backend_weight ALONE.
+sem_geodf_backend_weight: 0
+sem_geodf_backend_min_weight: 0.25
+sem_geodf_backend_semantic_weight: 0.55
+sem_geodf_backend_geo_weight: 0.75
+sem_geodf_backend_agree_weight: 0.25
+sem_geodf_backend_recovery: 0.20
+sem_geodf_rank_by_risk: 1
+
+# ------------------------------------------------------- geometric expert ---
+# Off for B0. Owned by the `geodf` / `union*` / `full_adaptive` overlays.
+geodf_enable: 0
+geodf_hard_reject: 0
+geodf_ransac_th_px: 1.0
+geodf_sampson_th: 3.0
+geodf_min_track_cnt: 2
+geodf_min_feature_num: 40
+geodf_reject_ratio_max: 0.40
+geodf_ratio_guard: 1
+geodf_debug: 1
+geodf_dump_features: 0
+geodf_adaptive: 1
+geodf_activate_ratio: 0.12
+geodf_activate_ema: 0.15
+geodf_deactivate_frac: 0.6
+geodf_auto_rho: 1
+geodf_auto_mult: 1.8
+geodf_auto_margin: 0.05
+geodf_activate_ratio_min: 0.10
+geodf_activate_ratio_max: 0.40
+geodf_auto_floor_down: 0.02
+geodf_auto_floor_up: 0.004
+geodf_vote_frames: 2
+geodf_warmup_frames: 30
+# Kept off until the shared stereo validity contract (plan P1.6) gates it.
+geodf_stereo_check: 0
+geodf_stereo_sampson_th: 6.0
+geodf_stereo_floor_max: 0.045
+# Degeneracy guards (plan P1.7): GeoDF must not hard-reject on a degenerate F.
+geodf_min_grid_occupancy: 0.35
+geodf_min_median_parallax_px: 1.0
+geodf_max_design_condition_number: 1.0e6
+geodf_min_ransac_inliers: 20
+geodf_min_ransac_inlier_ratio: 0.35
+geodf_max_mover_share: 0.60
+
+# ------------------------------------------- stereo physical validity (P1.5) ---
+# Shared contract: the same validated stereo matches feed the backend factors and
+# the GeoDF right-camera branch. Identical for every method.
+stereo_validity_enable: 1
+stereo_lr_cycle_max_px: 1.0
+stereo_epipolar_max_px: 2.0
+stereo_min_disparity_px: 0.5
+stereo_max_disparity_px: 200.0
+stereo_reprojection_max_px: 2.0
+stereo_require_positive_depth: 1
+# Publication stereo contract (P1.1): invalid rig must hard-fail, never LK-only.
+stereo_contract_enable: 1
+stereo_contract_require_calibration: 1
+stereo_contract_allow_lk_fallback: 0
+
+# ------------------------------------------------------------------ backend ---
+max_solver_time: 0.04
+max_num_iterations: 8
+visual_sigma_px: 1.5
+visual_huber_delta: 1.0
+keyframe_parallax: 10.0
+
+# Common visual/IMU factor adaptation. OFF for B0/G/S/U/U+W: it is a separate
+# contribution and must not be bundled into "ours". Only `full_adaptive` turns it
+# on, and the plan's second matrix turns it on for ALL methods at once.
+visual_adaptive_quality: 0
+visual_quality_min_weight: 0.35
+visual_lk_error_scale: 20.0
+visual_fb_error_scale: 0.5
+visual_quality_full_age: 4
+visual_adaptive_huber: 0
+visual_huber_delta_min: 0.75
+visual_huber_delta_max: 3.0
+visual_huber_k: 1.345
+visual_huber_ema: 0.10
+visual_huber_min_samples: 30
+
+acc_n: 0.011197412605492375
+gyr_n: 0.010270904839480961
+acc_w: 0.00011751767903346351
+gyr_w: 0.00009135538399488189
+imu_adaptive_covariance: 0
+imu_gap_threshold_s: 0.015
+imu_acc_saturation: 80.0
+imu_gyr_saturation: 8.0
+imu_gap_inflation_gain: 3.0
+imu_saturation_inflation_gain: 10.0
+imu_max_cov_inflation: 20.0
+g_norm: 9.7877
+
+# ------------------------------------------------------------- failure/calib ---
+# Failure detection is ON for every method (plan P0.4): a diverged run must be
+# reported as failed, not silently produce a plausible-looking trajectory.
+failure_detection_enable: 1
+failure_max_acc_bias: 2.5
+failure_max_gyro_bias: 1.0
+failure_max_translation_step_m: 5.0
+failure_max_rotation_step_deg: 50.0
+failure_min_tracked_features: 10
+failure_max_consecutive_low_feature_frames: 5
+
+calibration_observability_gate: 1
+calibration_min_speed: 0.20
+calibration_min_parallax_px: 5.0
+calibration_min_tracked_features: 40
+estimate_td: 0
+td: 0.0
+
+load_previous_pose_graph: 0
+pose_graph_save_path: "~/output/pose_graph/"
+save_image: 1

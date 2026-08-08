@@ -1,0 +1,73 @@
+%YAML:1.0
+
+# UrbanNav-HK stereo + Xsens IMU (ZED2 672x376).
+# body_T_cam* = inv(CAMERA_T_IMU) * Rx(180°) → optical frame (x right, y down, z forward).
+
+imu: 1
+num_of_cam: 2
+
+imu_topic: "/imu/data"
+image0_topic: "/zed2/camera/left/image_raw"
+image1_topic: "/zed2/camera/right/image_raw"
+output_path: "~/output/"
+
+cam0_calib: "cam0_pinhole.yaml"
+cam1_calib: "cam1_pinhole.yaml"
+image_width: 672
+image_height: 376
+
+estimate_extrinsic: 0
+
+body_T_cam0: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [9.9885234402635936e-01, 4.7864188349269136e-02, -1.7361758877140333e-03, 1.2179475153393876e-01,
+          1.3591158885981891e-03, 7.9091258538424997e-03, 9.9996779874765451e-01, -3.0049807456452684e+00,
+          4.7876378696062122e-02, -9.9882253939420795e-01, 7.8349959194298404e-03, -6.8043171631062904e-01,
+          0., 0., 0., 1.]
+
+body_T_cam1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: d
+   data: [9.9872871452749823e-01, 5.0367177375936024e-02, -2.0253941424080314e-03, -3.4727681057919367e-02,
+          1.5287637777597807e-03, 9.8967686259808577e-03, 9.9994985716888607e-01, -3.0011645136820677e+00,
+          5.0384696680271013e-02, -9.9868173179143738e-01, 9.8071874914417330e-03, -7.1570727114446198e-01,
+          0., 0., 0., 1.]
+
+multiple_thread: 1
+
+max_cnt: 150
+min_dist: 25
+freq: 10
+F_threshold: 1.0
+show_track: 1
+flow_back: 1
+
+max_solver_time: 0.04
+max_num_iterations: 8
+keyframe_parallax: 10.0
+
+# Xsens MTi noise (avg-axis from sequence xsens_imu_param.yaml)
+acc_n: 0.011197412605492375
+gyr_n: 0.010270904839480961
+acc_w: 0.00011751767903346351
+gyr_w: 0.00009135538399488189
+g_norm: 9.7877
+
+estimate_td: 0
+td: 0.0
+
+load_previous_pose_graph: 0
+pose_graph_save_path: "~/output/pose_graph/"
+save_image: 1
+
+# Sem-GeoDF / GeoDF knobs (off for plain baseline; overlays enable them)
+sem_enable: 0
+geodf_enable: 0
+failure_detection_enable: 1
+stereo_validity_enable: 1
+stereo_contract_enable: 1
+stereo_contract_require_calibration: 1
+stereo_contract_allow_lk_fallback: 0

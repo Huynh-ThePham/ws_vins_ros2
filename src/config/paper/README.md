@@ -13,6 +13,7 @@ attributed to Sem-GeoDF itself.
 ```
 viode_common.yaml          common stereo-inertial backbone, every knob explicit
 euroc_common.yaml          same, differing only in calibration / max_cnt / IMU noise
+urbannav_common.yaml       UrbanNav-HK ZED2+Xsens (real urban; same overlays)
 allowed_differences.yaml   which keys each method is allowed to own
 overlays/
   baseline.yaml            B0    nothing on

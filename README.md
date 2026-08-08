@@ -112,6 +112,29 @@ source install/setup.bash
 
 The loop-closure vocabulary (`brief_k10L6.bin`, ~58 MB) is downloaded automatically on first build if not present in `src/support_files/`.
 
+## Quick Start — UrbanNav Dataset
+
+Real urban stereo-IMU (ZED2 + Xsens) from
+[`/media/theph/Data1/Research/dataset/UrbanNav`](file:///media/theph/Data1/Research/dataset/UrbanNav)
+(symlink: `data/UrbanNav`). Sequences: `medium` (TST), `deep` (Whampoa), `harsh` (Mongkok).
+
+```bash
+# Prepare cam+imu ROS 2 bag (+ GT). Prefer --max-sec for smoke (full bags are 33–143 GB).
+bash scripts/urbannav_prepare.sh medium --max-sec 60
+
+# Baseline stereo-IMU smoke (+ ATE if GT available)
+bash scripts/run_urbannav_smoke.sh medium
+
+# Method overlay (geodf | semantic | union_noweight | union_weight)
+METHOD=union_weight MAX_SEC=60 bash scripts/run_urbannav_smoke.sh medium
+
+# Manual launch + play
+ros2 launch pht_vio_ros urbannav_stereo_imu.launch.py
+ros2 bag play data/urbannav_ros2/medium/ros2_bag_s60 --clock
+```
+
+Config: `src/config/urbannav/` · paper base: `src/config/paper/urbannav_common.yaml`.
+
 ## Quick Start — EuRoC Dataset
 
 Download the [EuRoC MAV Dataset](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) (e.g. `MH_01_easy`).

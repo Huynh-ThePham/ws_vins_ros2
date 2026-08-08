@@ -252,6 +252,37 @@ struct VinsConfig
     double sem_arb_geo_degenerate_floor = 0.20;
     double sem_arb_geo_weak_scale = 0.55;
 
+    // Phase 3.5 arbitration is a separate method.  Keeping this flag separate is
+    // what makes the rejected Phase-3.4 implementation reproducible unchanged.
+    int sem_adaptive_arbitration_v2 = 0;
+    int sem_arb2_fusion_mode = 1;       // 0=F0 noisy-OR, 1=F1 authority, 2=F2 log-odds
+    int sem_arb2_geo_combination = 1;   // 0=G1, 1=G2, 2=G3 soft-min
+    double sem_arb2_min_weight = 0.05;
+    double sem_arb2_sat_start = 0.65;
+    double sem_arb2_sat_end = 0.92;
+    double sem_arb2_sat_floor = 0.15;
+    double sem_arb2_sem_authority_min = 0.70;
+    double sem_arb2_geo_authority_min = 0.70;
+    double sem_arb2_agreement_min = 0.65;
+    double sem_arb2_dynamic_threshold = 0.55;
+    double sem_arb2_static_threshold = 0.25;
+    double sem_arb2_downweight_threshold = 0.30;
+    double sem_arb2_hard_risk = 0.88;
+    double sem_arb2_hard_reliability = 0.80;
+    double sem_arb2_hard_persistence = 0.80;
+    double sem_arb2_hard_track_age = 0.50;
+    double sem_arb2_min_obs_for_hard = 0.60;
+    double sem_arb2_min_redundancy_for_hard = 0.60;
+    double sem_arb2_dynamic_smooth_lo = 0.25;
+    double sem_arb2_dynamic_smooth_hi = 0.85;
+    double sem_arb2_alpha_base = 0.25;
+    double sem_arb2_alpha_authority_gain = 0.55;
+    int sem_arb2_hard_dwell_frames = 3;
+    double sem_arb2_logodds_bias = 0.0;
+    double sem_arb2_logodds_beta_semantic = 0.65;
+    double sem_arb2_logodds_beta_geo = 0.65;
+    double sem_arb2_logodds_beta_agreement = 0.25;
+
     // GeoDF fundamental-matrix degeneracy guard (plan P1.7). Checking only F.empty()
     // let a confidently wrong F from pure rotation or low parallax hard-reject static
     // structure.

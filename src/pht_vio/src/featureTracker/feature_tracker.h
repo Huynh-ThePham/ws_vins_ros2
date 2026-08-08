@@ -26,6 +26,7 @@
 #include "stereo_validity.h"
 #include "sem_policy.h"
 #include "geodf_degeneracy.h"
+#include "adaptive_lifecycle_v2.h"
 #include <pht_slam_common/tic_toc.hpp>
 
 using namespace std;
@@ -164,6 +165,10 @@ public:
     // observability rather than evidence alone.
     sem_policy::Health sem_policy_health;
     sem_policy::LifecycleManager sem_track_lifecycle;
+    adaptive_lifecycle_v2::Manager sem_track_lifecycle_v2;
+    // Previous per-track semantic status is the temporal-semantic cue for q_s.
+    // It is deliberately independent of every GeoDF value.
+    std::map<int, bool> previous_semantic_status;
     // P1.7: GeoDF may not hard-reject or count as strong agreement on a degenerate
     // fundamental matrix.
     geodf_degeneracy::Result geo_degeneracy;
@@ -204,6 +209,8 @@ public:
         int degeneracy_cause = 0;
         double geometry_conditioning = 0.0;
         double geometry_inlier_ratio = 0.0;
+        double effective_design_condition = 0.0;
+        bool design_metrics_valid = false;
         double median_parallax_px = 0.0;
         double grid_occupancy = 0.0;
         std::vector<int> confirmed;

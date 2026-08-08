@@ -152,6 +152,37 @@ sem_arb_min_obs_for_hard: 0.35
 sem_arb_geo_degenerate_floor: 0.20
 sem_arb_geo_weak_scale: 0.55
 
+# Phase 3.5 architecture.  These TRAIN-frozen constants are ignored unless a
+# v2 overlay enables sem_adaptive_arbitration_v2.
+sem_adaptive_arbitration_v2: 0
+sem_arb2_fusion_mode: 1
+sem_arb2_geo_combination: 1
+sem_arb2_min_weight: 0.05
+sem_arb2_sat_start: 0.65
+sem_arb2_sat_end: 0.92
+sem_arb2_sat_floor: 0.15
+sem_arb2_sem_authority_min: 0.70
+sem_arb2_geo_authority_min: 0.70
+sem_arb2_agreement_min: 0.65
+sem_arb2_dynamic_threshold: 0.55
+sem_arb2_static_threshold: 0.25
+sem_arb2_downweight_threshold: 0.30
+sem_arb2_hard_risk: 0.88
+sem_arb2_hard_reliability: 0.80
+sem_arb2_hard_persistence: 0.80
+sem_arb2_hard_track_age: 0.50
+sem_arb2_min_obs_for_hard: 0.60
+sem_arb2_min_redundancy_for_hard: 0.60
+sem_arb2_dynamic_smooth_lo: 0.25
+sem_arb2_dynamic_smooth_hi: 0.85
+sem_arb2_alpha_base: 0.25
+sem_arb2_alpha_authority_gain: 0.55
+sem_arb2_hard_dwell_frames: 3
+sem_arb2_logodds_bias: 0.0
+sem_arb2_logodds_beta_semantic: 0.65
+sem_arb2_logodds_beta_geo: 0.65
+sem_arb2_logodds_beta_agreement: 0.25
+
 # ------------------------------------------------------- geometric expert ---
 # Off for B0. Owned by the `geodf` / `union*` / `full_adaptive` overlays.
 geodf_enable: 0

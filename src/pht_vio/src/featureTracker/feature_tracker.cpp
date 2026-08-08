@@ -14,6 +14,8 @@
 #include "sem_geodf_risk.h"
 #include "expert_reliability.h"
 #include "adaptive_arbitration.h"
+#include "expert_reliability_v2.h"
+#include "adaptive_arbitration_v2.h"
 #include "temporal_smoothing.h"
 #include "camera_focal_scale.h"
 #include "../factor/adaptive_factor_quality.h"
@@ -557,8 +559,8 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
     // Arbitration-internal q_m: always evaluate LK/FB/age when the flag is on,
     // without flipping visual_adaptive_quality for the factor path.
     const adaptive_factor::VisualQualityConfig arbitration_qm_config{
-        cfg.sem_adaptive_arbitration != 0,
-        cfg.visual_quality_min_weight,
+        cfg.sem_adaptive_arbitration != 0 || cfg.sem_adaptive_arbitration_v2 != 0,
+        cfg.sem_adaptive_arbitration_v2 ? 0.01 : cfg.visual_quality_min_weight,
         cfg.visual_lk_error_scale,
         cfg.visual_fb_error_scale,
         cfg.visual_quality_full_age};
@@ -650,7 +652,7 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             left_measurement_weights[ids[i]] =
                 adaptive_factor::visualObservationWeight(
                     lk_error, fb_error[i], track_cnt[i], visual_quality_config);
-            if (cfg.sem_adaptive_arbitration)
+            if (cfg.sem_adaptive_arbitration || cfg.sem_adaptive_arbitration_v2)
             {
                 arbitration_measurement_quality[ids[i]] =
                     adaptive_factor::visualObservationWeight(
@@ -712,7 +714,7 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             // A newly detected corner has no temporal LK residual yet; retain
             // neutral measurement confidence until the first verified track.
             left_measurement_weights[ids.back()] = 1.0;
-            if (cfg.sem_adaptive_arbitration)
+            if (cfg.sem_adaptive_arbitration || cfg.sem_adaptive_arbitration_v2)
                 arbitration_measurement_quality[ids.back()] = 1.0;
         }
         //printf("feature cnt after add %d\n", (int)ids.size());
@@ -1070,6 +1072,8 @@ bool FeatureTracker::analyzeGeoDynamic(GeoDynamicAnalysis &out)
         out.degeneracy_cause = static_cast<int>(geo_degeneracy.cause);
         out.geometry_conditioning = geo_degeneracy.conditioning;
         out.geometry_inlier_ratio = geo_degeneracy.inlier_ratio;
+        out.effective_design_condition = design.effective_design_condition;
+        out.design_metrics_valid = design.valid;
         out.median_parallax_px = degeneracy_obs.median_parallax_px;
         out.grid_occupancy = degeneracy_obs.grid_occupancy;
 
@@ -1507,7 +1511,9 @@ void FeatureTracker::rejectSemGeoFused()
     {
         collectSemanticRawCandidates(sem_raw);
         sem_candidates = static_cast<int>(sem_raw.size());
-        sem_confirmed = confirmSemanticCandidates(sem_raw, sem_confirmed_idx, sem_hard_reject);
+        sem_confirmed = confirmSemanticCandidates(
+            sem_raw, sem_confirmed_idx,
+            sem_hard_reject || cfg.sem_adaptive_arbitration_v2);
         if (sem_hard_reject)
         {
             std::set<int> geo_confirmed_set;
@@ -1525,7 +1531,7 @@ void FeatureTracker::rejectSemGeoFused()
                     fused_set.insert(idx);
             }
         }
-        else
+        else if (!cfg.sem_adaptive_arbitration_v2)
         {
             sem_dyn_streak.clear();
             sem_confirmed = 0;
@@ -1567,10 +1573,19 @@ void FeatureTracker::rejectSemGeoFused()
     std::vector<double> ranking_risk_scores(total, 0.0);
     // P1.4 lifecycle telemetry, indexed by sem_policy::TrackState.
     int lifecycle_counts[5] = {0, 0, 0, 0, 0};
+    int lifecycle_v2_counts[7] = {0, 0, 0, 0, 0, 0, 0};
     std::set<int> lifecycle_hard_reject_allowed;
     int lifecycle_blocked_by_health = 0;
     int lifecycle_blocked_by_observability = 0;
     int lifecycle_blocked_by_redundancy = 0;
+    int arb2_authority_counts[4] = {0, 0, 0, 0};
+    int arb2_action_counts[4] = {0, 0, 0, 0};
+    int arb2_disagreement = 0;
+    int arb2_blocked_dwell = 0;
+    int arb2_blocked_budget = 0;
+    double arb2_qs = 0.0, arb2_qg = 0.0;
+    double arb2_qm_sum = 0.0, arb2_wd_sum = 0.0, arb2_final_sum = 0.0;
+    double arb2_agreement_sum = 0.0;
     if (cfg.sem_geodf_backend_weight)
     {
         std::set<int> sem_raw_set(sem_raw.begin(), sem_raw.end());
@@ -1660,6 +1675,115 @@ void FeatureTracker::rejectSemGeoFused()
             arb_cfg.min_obs_for_hard = cfg.sem_arb_min_obs_for_hard;
         }
 
+        // Phase 3.5 reliability is computed on independent raw components.  The
+        // only temporal cue in q_s is semantic-status consistency across time.
+        expert_reliability_v2::SemanticReliability sem_rel_v2;
+        expert_reliability_v2::GeoReliability geo_rel_v2;
+        adaptive_arbitration_v2::Config arb2_cfg;
+        if (cfg.sem_adaptive_arbitration_v2)
+        {
+            int comparable = 0;
+            int unchanged = 0;
+            for (int i = 0; i < total; ++i)
+            {
+                const auto previous = previous_semantic_status.find(ids[i]);
+                if (previous == previous_semantic_status.end())
+                    continue;
+                ++comparable;
+                const bool current = sem_raw_set.count(i) != 0;
+                if (previous->second == current)
+                    ++unchanged;
+            }
+            const double temporal_semantic = comparable > 0
+                ? static_cast<double>(unchanged) / comparable : 1.0;
+
+            expert_reliability_v2::SemanticInputs sem_in;
+            sem_in.mask_available = mask_available != 0;
+            sem_in.mask_fresh = sem_mask_trusted;
+            sem_in.mask_age_ms = sem_mask_lag_ms > 0.0 ? sem_mask_lag_ms : 0.0;
+            sem_in.max_age_ms = cfg.sem_mask_max_age_ms;
+            sem_in.dynamic_pixel_ratio = dynamic_pixel_ratio;
+            sem_in.saturation_start = cfg.sem_arb2_sat_start;
+            sem_in.saturation_end = cfg.sem_arb2_sat_end;
+            sem_in.saturation_floor = cfg.sem_arb2_sat_floor;
+            sem_in.temporal_consistency = temporal_semantic;
+            sem_in.support = clampDouble(static_cast<double>(total) / 40.0, 0.0, 1.0);
+            sem_in.semantic_confidence = 1.0;  // binary mask transport has no score channel
+            sem_in.mask_health = 1.0;
+            sem_rel_v2 = expert_reliability_v2::computeSemantic(sem_in);
+
+            double measurable = 0.0;
+            if (geo_ok && !geo.errors.empty())
+            {
+                int finite_n = 0;
+                for (double error : geo.errors)
+                    finite_n += std::isfinite(error) ? 1 : 0;
+                measurable = static_cast<double>(finite_n) / geo.errors.size();
+            }
+            expert_reliability_v2::GeoInputs geo_in;
+            if (geo_ok && geo.design_metrics_valid &&
+                geo.effective_design_condition > 0.0)
+            {
+                geo_in.q_kappa = clampDouble(
+                    cfg.geodf_max_design_condition_number /
+                        geo.effective_design_condition,
+                    0.0, 1.0);
+            }
+            geo_in.q_inlier = geo_ok
+                ? clampDouble(geo.geometry_inlier_ratio /
+                                  std::max(1e-6, cfg.geodf_min_ransac_inlier_ratio),
+                              0.0, 1.0) : 0.0;
+            geo_in.q_parallax = geo_ok
+                ? clampDouble(geo.median_parallax_px /
+                                  std::max(1e-6, cfg.geodf_min_median_parallax_px),
+                              0.0, 1.0) : 0.0;
+            geo_in.q_coverage = geo_ok
+                ? clampDouble(geo.grid_occupancy /
+                                  std::max(1e-6, cfg.geodf_min_grid_occupancy),
+                              0.0, 1.0) : 0.0;
+            geo_in.q_measurable = measurable;
+            geo_in.health = geo_ok ? geo_degeneracy.health
+                                   : geodf_degeneracy::Health::Degenerate;
+            geo_in.combination = static_cast<expert_reliability_v2::GeoCombination>(
+                cfg.sem_arb2_geo_combination);
+            geo_rel_v2 = expert_reliability_v2::computeGeo(geo_in);
+
+            arb2_cfg.fusion_mode = static_cast<adaptive_arbitration_v2::FusionMode>(
+                cfg.sem_arb2_fusion_mode);
+            arb2_cfg.min_weight = cfg.sem_arb2_min_weight;
+            arb2_cfg.semantic_authority_min = cfg.sem_arb2_sem_authority_min;
+            arb2_cfg.geo_authority_min = cfg.sem_arb2_geo_authority_min;
+            arb2_cfg.agreement_min = cfg.sem_arb2_agreement_min;
+            arb2_cfg.dynamic_threshold = cfg.sem_arb2_dynamic_threshold;
+            arb2_cfg.static_threshold = cfg.sem_arb2_static_threshold;
+            arb2_cfg.downweight_threshold = cfg.sem_arb2_downweight_threshold;
+            arb2_cfg.hard_risk = cfg.sem_arb2_hard_risk;
+            arb2_cfg.hard_reliability = cfg.sem_arb2_hard_reliability;
+            arb2_cfg.hard_persistence = cfg.sem_arb2_hard_persistence;
+            arb2_cfg.hard_track_age = cfg.sem_arb2_hard_track_age;
+            arb2_cfg.min_observability_for_hard = cfg.sem_arb2_min_obs_for_hard;
+            arb2_cfg.min_redundancy_for_hard = cfg.sem_arb2_min_redundancy_for_hard;
+            arb2_cfg.dynamic_smooth_lo = cfg.sem_arb2_dynamic_smooth_lo;
+            arb2_cfg.dynamic_smooth_hi = cfg.sem_arb2_dynamic_smooth_hi;
+            arb2_cfg.alpha_base = cfg.sem_arb2_alpha_base;
+            arb2_cfg.alpha_authority_gain = cfg.sem_arb2_alpha_authority_gain;
+            arb2_cfg.logodds_bias = cfg.sem_arb2_logodds_bias;
+            arb2_cfg.logodds_beta_semantic = cfg.sem_arb2_logodds_beta_semantic;
+            arb2_cfg.logodds_beta_geo = cfg.sem_arb2_logodds_beta_geo;
+            arb2_cfg.logodds_beta_agreement = cfg.sem_arb2_logodds_beta_agreement;
+            arb2_qs = sem_rel_v2.q_s;
+            arb2_qg = geo_rel_v2.q_g;
+
+            adaptive_lifecycle_v2::Config lifecycle_v2_config;
+            lifecycle_v2_config.suspect_frames = cfg.sem_lifecycle_suspect_frames;
+            lifecycle_v2_config.downweight_frames = cfg.sem_lifecycle_downweight_frames;
+            lifecycle_v2_config.hard_reject_dwell_frames = cfg.sem_arb2_hard_dwell_frames;
+            lifecycle_v2_config.recover_dwell_s = cfg.sem_lifecycle_recover_dwell_s;
+            lifecycle_v2_config.minimum_surviving_tracks =
+                cfg.sem_health_min_tracks_for_hard_reject;
+            sem_track_lifecycle_v2.configure(lifecycle_v2_config);
+        }
+
         int arb_keep = 0, arb_down = 0, arb_hard = 0;
         double arb_qs_sum = 0.0, arb_qg_sum = 0.0, arb_rd_sum = 0.0;
 
@@ -1690,7 +1814,67 @@ void FeatureTracker::rejectSemGeoFused()
             double fused_risk_for_lifecycle = 0.0;
             adaptive_arbitration::Action arb_action = adaptive_arbitration::Action::KeepFull;
 
-            if (cfg.sem_adaptive_arbitration)
+            if (cfg.sem_adaptive_arbitration_v2)
+            {
+                double r_s = sem_hit ? (sem_confirmed_hit ? 1.0 : 0.55) : 0.0;
+                double r_g = (geo_raw_hit || geo_confirmed_hit)
+                    ? std::max(geo_error_conf, geo_confirmed_hit ? 1.0 : 0.55) : 0.0;
+                double q_m = 1.0;
+                const auto qm_it = arbitration_measurement_quality.find(ids[i]);
+                if (qm_it != arbitration_measurement_quality.end())
+                    q_m = qm_it->second;
+
+                const auto sem_streak = sem_dyn_streak.find(ids[i]);
+                const auto geo_streak = geo_dyn_streak.find(ids[i]);
+                const double sem_persistence = sem_streak == sem_dyn_streak.end() ? 0.0
+                    : clampDouble(static_cast<double>(sem_streak->second) /
+                                      std::max(1, cfg.sem_vote_frames), 0.0, 1.0);
+                const double geo_persistence = geo_streak == geo_dyn_streak.end() ? 0.0
+                    : clampDouble(static_cast<double>(geo_streak->second) /
+                                      std::max(1, cfg.geodf_vote_frames), 0.0, 1.0);
+
+                adaptive_arbitration_v2::ExpertEvidence ev;
+                ev.semantic_risk = r_s;
+                ev.semantic_reliability = sem_rel_v2.q_s;
+                ev.geo_risk = r_g;
+                ev.geo_reliability = geo_rel_v2.q_g;
+                ev.measurement_quality = q_m;
+                ev.expert_agreement = 1.0 - std::abs(r_s - r_g);
+                ev.observability = sem_policy_health.observability;
+                ev.semantic_persistence = sem_persistence;
+                ev.geo_persistence = geo_persistence;
+                ev.track_age = clampDouble(static_cast<double>(track_cnt[i]) /
+                                               std::max(1, cfg.sem_arb2_hard_dwell_frames),
+                                           0.0, 1.0);
+                ev.redundancy = clampDouble(static_cast<double>(total) /
+                                                std::max(1, cfg.sem_health_redundancy_target),
+                                            0.0, 1.0);
+                const adaptive_arbitration_v2::ArbitrationResult arb =
+                    adaptive_arbitration_v2::arbitrate(ev, arb2_cfg);
+                target_weight = arb.backend_weight;
+                fused_risk_for_lifecycle = arb.fused_dynamic_risk;
+                arb2_authority_counts[static_cast<int>(arb.authority)]++;
+                arb2_disagreement += arb.action ==
+                    adaptive_arbitration_v2::Action::Quarantine ? 1 : 0;
+                arb2_qm_sum += arb.measurement_weight;
+                arb2_wd_sum += arb.dynamic_weight;
+                arb2_agreement_sum += arb.expert_agreement.agreement;
+
+                // v2's lifecycle is the sole creator of irreversible candidates.
+                fused_set.erase(i);
+                const adaptive_lifecycle_v2::Decision decision =
+                    sem_track_lifecycle_v2.update(ids[i], cur_time, arb, total);
+                arb2_action_counts[static_cast<int>(decision.action)]++;
+                lifecycle_v2_counts[static_cast<int>(decision.state)]++;
+                arb2_blocked_dwell += decision.hard_reject_blocked_by_dwell ? 1 : 0;
+                arb2_blocked_budget += decision.hard_reject_blocked_by_budget ? 1 : 0;
+                if (decision.action == adaptive_arbitration_v2::Action::HardReject)
+                {
+                    fused_set.insert(i);
+                    lifecycle_hard_reject_allowed.insert(i);
+                }
+            }
+            else if (cfg.sem_adaptive_arbitration)
             {
                 // Expert dynamic risks in [0,1] before reliability gating.
                 double r_s = 0.0;
@@ -1764,39 +1948,47 @@ void FeatureTracker::rejectSemGeoFused()
                                     : (1.0 / 20.0);
             const double tau_recover =
                 temporal_smooth::tauFromFrameAlpha(cfg.sem_geodf_backend_recovery, 20.0);
+            const double recovery_floor = cfg.sem_adaptive_arbitration_v2
+                                              ? cfg.sem_arb2_min_weight
+                                              : cfg.sem_geodf_backend_min_weight;
             double applied_weight =
                 sem_geodf::recoverWeight(previous_weight, target_weight,
                                          temporal_smooth::alphaFromDt(dt_w, tau_recover),
-                                         cfg.sem_geodf_backend_min_weight);
+                                         recovery_floor);
 
             // Plan P1.4: each track carries its own lifecycle. Hard rejection needs
             // sustained evidence AND high risk AND two-expert agreement AND healthy
             // experts AND observability AND redundancy; anything short of that is a
             // down-weight, which is recoverable.
-            sem_policy::TrackEvidence track_evidence;
-            track_evidence.fused_risk = fused_risk_for_lifecycle;
-            track_evidence.semantic_hit = sem_hit;
-            track_evidence.geo_hit = geo_raw_hit || geo_confirmed_hit;
-            track_evidence.two_expert_agreement =
-                sem_hit && (geo_raw_hit || geo_confirmed_hit) && geo_may_agree_strongly;
-            const sem_policy::LifecycleDecision decision = sem_track_lifecycle.update(
-                ids[i], cur_time, track_evidence, sem_policy_health, total, health_config);
-            lifecycle_counts[static_cast<int>(decision.state)]++;
-            if (decision.action == sem_policy::Action::HardReject)
-                lifecycle_hard_reject_allowed.insert(i);
-            if (decision.hard_reject_blocked_by_health)
-                lifecycle_blocked_by_health++;
-            if (decision.hard_reject_blocked_by_observability)
-                lifecycle_blocked_by_observability++;
-            if (decision.hard_reject_blocked_by_redundancy)
-                lifecycle_blocked_by_redundancy++;
+            sem_policy::LifecycleDecision decision;
+            if (!cfg.sem_adaptive_arbitration_v2)
+            {
+                sem_policy::TrackEvidence track_evidence;
+                track_evidence.fused_risk = fused_risk_for_lifecycle;
+                track_evidence.semantic_hit = sem_hit;
+                track_evidence.geo_hit = geo_raw_hit || geo_confirmed_hit;
+                track_evidence.two_expert_agreement =
+                    sem_hit && (geo_raw_hit || geo_confirmed_hit) && geo_may_agree_strongly;
+                decision = sem_track_lifecycle.update(
+                    ids[i], cur_time, track_evidence, sem_policy_health, total, health_config);
+                lifecycle_counts[static_cast<int>(decision.state)]++;
+                if (decision.action == sem_policy::Action::HardReject)
+                    lifecycle_hard_reject_allowed.insert(i);
+                if (decision.hard_reject_blocked_by_health)
+                    lifecycle_blocked_by_health++;
+                if (decision.hard_reject_blocked_by_observability)
+                    lifecycle_blocked_by_observability++;
+                if (decision.hard_reject_blocked_by_redundancy)
+                    lifecycle_blocked_by_redundancy++;
+            }
 
             // Phase 3.3: DownWeight was telemetry-only; apply it to the residual
             // scale so survivors of the hard-reject guards are still de-emphasized.
             // Under adaptive arbitration the continuous w_i already encodes the
             // down-weight decision; skip the extra fixed 0.55 scale to avoid
             // double-penalizing (monotonicity + city_day_3 conservation).
-            if (cfg.sem_lifecycle_enable && !cfg.sem_adaptive_arbitration)
+            if (cfg.sem_lifecycle_enable && !cfg.sem_adaptive_arbitration &&
+                !cfg.sem_adaptive_arbitration_v2)
             {
                 applied_weight = sem_policy::applyDownWeightScale(
                     applied_weight, decision.action,
@@ -1805,6 +1997,8 @@ void FeatureTracker::rejectSemGeoFused()
             }
             ranking_risk_scores[i] = 1.0 - applied_weight;
             next_weights[ids[i]] = applied_weight;
+            if (cfg.sem_adaptive_arbitration_v2)
+                arb2_final_sum += applied_weight;
             if (applied_weight < 0.999)
                 weighted_candidates_pre_guard++;
             applied_weight_sum += applied_weight;
@@ -1840,7 +2034,28 @@ void FeatureTracker::rejectSemGeoFused()
                       sem_policy_health.observability);
         }
         sem_geodf_feature_weights.swap(next_weights);
-        sem_track_lifecycle.retainOnly(ids);
+        if (cfg.sem_adaptive_arbitration_v2)
+        {
+            sem_track_lifecycle_v2.retainOnly(ids);
+            if (mask_available && sem_mask_trusted)
+            {
+                std::map<int, bool> next_status;
+                for (int i = 0; i < total; ++i)
+                    next_status[ids[i]] = sem_raw_set.count(i) != 0;
+                previous_semantic_status.swap(next_status);
+            }
+            ROS_DEBUG("adaptive_arbitration_v2 frame: sem=%d geo=%d joint=%d none=%d "
+                      "disagreement=%d mean_qs=%.3f mean_qg=%.3f mean_qm=%.3f "
+                      "mean_wd=%.3f mean_w=%.3f",
+                      arb2_authority_counts[1], arb2_authority_counts[2],
+                      arb2_authority_counts[3], arb2_authority_counts[0],
+                      arb2_disagreement, arb2_qs, arb2_qg,
+                      total > 0 ? arb2_qm_sum / total : 1.0,
+                      total > 0 ? arb2_wd_sum / total : 1.0,
+                      total > 0 ? arb2_final_sum / total : 1.0);
+        }
+        else
+            sem_track_lifecycle.retainOnly(ids);
     }
     else
     {
@@ -1959,7 +2174,26 @@ void FeatureTracker::rejectSemGeoFused()
                      << static_cast<int>(geo_degeneracy.cause) << ","
                      << geo_degeneracy.conditioning << ","
                      << (geo_ok ? geo.median_parallax_px : 0.0) << ","
-                     << (geo_ok ? geo.grid_occupancy : 0.0) << "\n";
+                     << (geo_ok ? geo.grid_occupancy : 0.0) << ","
+                     << arb2_qs << "," << arb2_qg << ","
+                     << arb2_authority_counts[1] << ","
+                     << arb2_authority_counts[2] << ","
+                     << arb2_authority_counts[3] << ","
+                     << arb2_authority_counts[0] << ","
+                     << arb2_disagreement << ","
+                     << arb2_action_counts[0] << ","
+                     << arb2_action_counts[1] << ","
+                     << arb2_action_counts[2] << ","
+                     << arb2_action_counts[3] << ","
+                     << (total > 0 ? arb2_qm_sum / total : 1.0) << ","
+                     << (total > 0 ? arb2_wd_sum / total : 1.0) << ","
+                     << (total > 0 ? arb2_final_sum / total : 1.0) << ","
+                     << (total > 0 ? arb2_agreement_sum / total : 0.0) << ","
+                     << lifecycle_v2_counts[0] << "," << lifecycle_v2_counts[1] << ","
+                     << lifecycle_v2_counts[2] << "," << lifecycle_v2_counts[3] << ","
+                     << lifecycle_v2_counts[4] << "," << lifecycle_v2_counts[5] << ","
+                     << lifecycle_v2_counts[6] << ","
+                     << arb2_blocked_dwell << "," << arb2_blocked_budget << "\n";
     }
 }
 

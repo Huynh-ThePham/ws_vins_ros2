@@ -255,6 +255,62 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
             static_cast<double>(fsSettings["sem_arb_geo_degenerate_floor"]);
     if (!fsSettings["sem_arb_geo_weak_scale"].empty())
         sem_arb_geo_weak_scale = static_cast<double>(fsSettings["sem_arb_geo_weak_scale"]);
+    if (!fsSettings["sem_adaptive_arbitration_v2"].empty())
+        sem_adaptive_arbitration_v2 = static_cast<int>(fsSettings["sem_adaptive_arbitration_v2"]);
+    if (!fsSettings["sem_arb2_fusion_mode"].empty())
+        sem_arb2_fusion_mode = static_cast<int>(fsSettings["sem_arb2_fusion_mode"]);
+    if (!fsSettings["sem_arb2_geo_combination"].empty())
+        sem_arb2_geo_combination = static_cast<int>(fsSettings["sem_arb2_geo_combination"]);
+    if (!fsSettings["sem_arb2_min_weight"].empty())
+        sem_arb2_min_weight = static_cast<double>(fsSettings["sem_arb2_min_weight"]);
+    if (!fsSettings["sem_arb2_sat_start"].empty())
+        sem_arb2_sat_start = static_cast<double>(fsSettings["sem_arb2_sat_start"]);
+    if (!fsSettings["sem_arb2_sat_end"].empty())
+        sem_arb2_sat_end = static_cast<double>(fsSettings["sem_arb2_sat_end"]);
+    if (!fsSettings["sem_arb2_sat_floor"].empty())
+        sem_arb2_sat_floor = static_cast<double>(fsSettings["sem_arb2_sat_floor"]);
+    if (!fsSettings["sem_arb2_sem_authority_min"].empty())
+        sem_arb2_sem_authority_min = static_cast<double>(fsSettings["sem_arb2_sem_authority_min"]);
+    if (!fsSettings["sem_arb2_geo_authority_min"].empty())
+        sem_arb2_geo_authority_min = static_cast<double>(fsSettings["sem_arb2_geo_authority_min"]);
+    if (!fsSettings["sem_arb2_agreement_min"].empty())
+        sem_arb2_agreement_min = static_cast<double>(fsSettings["sem_arb2_agreement_min"]);
+    if (!fsSettings["sem_arb2_dynamic_threshold"].empty())
+        sem_arb2_dynamic_threshold = static_cast<double>(fsSettings["sem_arb2_dynamic_threshold"]);
+    if (!fsSettings["sem_arb2_static_threshold"].empty())
+        sem_arb2_static_threshold = static_cast<double>(fsSettings["sem_arb2_static_threshold"]);
+    if (!fsSettings["sem_arb2_downweight_threshold"].empty())
+        sem_arb2_downweight_threshold = static_cast<double>(fsSettings["sem_arb2_downweight_threshold"]);
+    if (!fsSettings["sem_arb2_hard_risk"].empty())
+        sem_arb2_hard_risk = static_cast<double>(fsSettings["sem_arb2_hard_risk"]);
+    if (!fsSettings["sem_arb2_hard_reliability"].empty())
+        sem_arb2_hard_reliability = static_cast<double>(fsSettings["sem_arb2_hard_reliability"]);
+    if (!fsSettings["sem_arb2_hard_persistence"].empty())
+        sem_arb2_hard_persistence = static_cast<double>(fsSettings["sem_arb2_hard_persistence"]);
+    if (!fsSettings["sem_arb2_hard_track_age"].empty())
+        sem_arb2_hard_track_age = static_cast<double>(fsSettings["sem_arb2_hard_track_age"]);
+    if (!fsSettings["sem_arb2_min_obs_for_hard"].empty())
+        sem_arb2_min_obs_for_hard = static_cast<double>(fsSettings["sem_arb2_min_obs_for_hard"]);
+    if (!fsSettings["sem_arb2_min_redundancy_for_hard"].empty())
+        sem_arb2_min_redundancy_for_hard = static_cast<double>(fsSettings["sem_arb2_min_redundancy_for_hard"]);
+    if (!fsSettings["sem_arb2_dynamic_smooth_lo"].empty())
+        sem_arb2_dynamic_smooth_lo = static_cast<double>(fsSettings["sem_arb2_dynamic_smooth_lo"]);
+    if (!fsSettings["sem_arb2_dynamic_smooth_hi"].empty())
+        sem_arb2_dynamic_smooth_hi = static_cast<double>(fsSettings["sem_arb2_dynamic_smooth_hi"]);
+    if (!fsSettings["sem_arb2_alpha_base"].empty())
+        sem_arb2_alpha_base = static_cast<double>(fsSettings["sem_arb2_alpha_base"]);
+    if (!fsSettings["sem_arb2_alpha_authority_gain"].empty())
+        sem_arb2_alpha_authority_gain = static_cast<double>(fsSettings["sem_arb2_alpha_authority_gain"]);
+    if (!fsSettings["sem_arb2_hard_dwell_frames"].empty())
+        sem_arb2_hard_dwell_frames = static_cast<int>(fsSettings["sem_arb2_hard_dwell_frames"]);
+    if (!fsSettings["sem_arb2_logodds_bias"].empty())
+        sem_arb2_logodds_bias = static_cast<double>(fsSettings["sem_arb2_logodds_bias"]);
+    if (!fsSettings["sem_arb2_logodds_beta_semantic"].empty())
+        sem_arb2_logodds_beta_semantic = static_cast<double>(fsSettings["sem_arb2_logodds_beta_semantic"]);
+    if (!fsSettings["sem_arb2_logodds_beta_geo"].empty())
+        sem_arb2_logodds_beta_geo = static_cast<double>(fsSettings["sem_arb2_logodds_beta_geo"]);
+    if (!fsSettings["sem_arb2_logodds_beta_agreement"].empty())
+        sem_arb2_logodds_beta_agreement = static_cast<double>(fsSettings["sem_arb2_logodds_beta_agreement"]);
 
     if (!fsSettings["geodf_min_grid_occupancy"].empty())
         geodf_min_grid_occupancy = static_cast<double>(fsSettings["geodf_min_grid_occupancy"]);
@@ -384,6 +440,35 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::min(1.0, std::max(0.0, sem_arb_geo_degenerate_floor));
     sem_arb_geo_weak_scale = std::min(1.0, std::max(sem_arb_geo_degenerate_floor,
                                                     sem_arb_geo_weak_scale));
+    sem_adaptive_arbitration_v2 = sem_adaptive_arbitration_v2 ? 1 : 0;
+    // A resolved config may never enable both implementations at once.
+    if (sem_adaptive_arbitration_v2)
+        sem_adaptive_arbitration = 0;
+    sem_arb2_fusion_mode = std::min(2, std::max(0, sem_arb2_fusion_mode));
+    sem_arb2_geo_combination = std::min(2, std::max(0, sem_arb2_geo_combination));
+    sem_arb2_min_weight = std::min(1.0, std::max(0.0, sem_arb2_min_weight));
+    sem_arb2_sat_start = std::min(1.0, std::max(0.0, sem_arb2_sat_start));
+    sem_arb2_sat_end = std::min(1.0, std::max(sem_arb2_sat_start + 1e-6, sem_arb2_sat_end));
+    sem_arb2_sat_floor = std::min(1.0, std::max(0.0, sem_arb2_sat_floor));
+    sem_arb2_sem_authority_min = std::min(1.0, std::max(0.0, sem_arb2_sem_authority_min));
+    sem_arb2_geo_authority_min = std::min(1.0, std::max(0.0, sem_arb2_geo_authority_min));
+    sem_arb2_agreement_min = std::min(1.0, std::max(0.0, sem_arb2_agreement_min));
+    sem_arb2_dynamic_threshold = std::min(1.0, std::max(0.0, sem_arb2_dynamic_threshold));
+    sem_arb2_static_threshold = std::min(sem_arb2_dynamic_threshold,
+                                        std::max(0.0, sem_arb2_static_threshold));
+    sem_arb2_downweight_threshold = std::min(1.0, std::max(0.0, sem_arb2_downweight_threshold));
+    sem_arb2_hard_risk = std::min(1.0, std::max(sem_arb2_downweight_threshold, sem_arb2_hard_risk));
+    sem_arb2_hard_reliability = std::min(1.0, std::max(0.0, sem_arb2_hard_reliability));
+    sem_arb2_hard_persistence = std::min(1.0, std::max(0.0, sem_arb2_hard_persistence));
+    sem_arb2_hard_track_age = std::min(1.0, std::max(0.0, sem_arb2_hard_track_age));
+    sem_arb2_min_obs_for_hard = std::min(1.0, std::max(0.0, sem_arb2_min_obs_for_hard));
+    sem_arb2_min_redundancy_for_hard = std::min(1.0, std::max(0.0, sem_arb2_min_redundancy_for_hard));
+    sem_arb2_dynamic_smooth_lo = std::min(1.0, std::max(0.0, sem_arb2_dynamic_smooth_lo));
+    sem_arb2_dynamic_smooth_hi = std::min(1.0, std::max(sem_arb2_dynamic_smooth_lo + 1e-6,
+                                                       sem_arb2_dynamic_smooth_hi));
+    sem_arb2_alpha_base = std::min(1.0, std::max(0.0, sem_arb2_alpha_base));
+    sem_arb2_alpha_authority_gain = std::min(1.0, std::max(0.0, sem_arb2_alpha_authority_gain));
+    sem_arb2_hard_dwell_frames = std::max(1, sem_arb2_hard_dwell_frames);
     geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
     geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
     geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);
@@ -657,7 +742,18 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         "lifecycle_downgraded_rejections,lifecycle_blocked_health,"
                         "lifecycle_blocked_observability,lifecycle_blocked_redundancy,"
                         "geometry_health,geometry_cause,geometry_conditioning,"
-                        "median_parallax_px,grid_occupancy\n";
+                        "median_parallax_px,grid_occupancy,"
+                        // Phase 3.5 authority/action and separated-weight telemetry.
+                        "arb2_q_s,arb2_q_g,arb2_semantic_authoritative,"
+                        "arb2_geodf_authoritative,arb2_joint_authoritative,"
+                        "arb2_no_authoritative,arb2_disagreement,arb2_keep,"
+                        "arb2_downweight,arb2_quarantine,arb2_hard_reject,"
+                        "arb2_mean_q_m,arb2_mean_dynamic_weight,arb2_mean_final_weight,"
+                        "arb2_mean_expert_agreement,arb2_lifecycle_trusted,"
+                        "arb2_lifecycle_suspect,arb2_lifecycle_disagreement,"
+                        "arb2_lifecycle_downweighted,arb2_lifecycle_quarantined,"
+                        "arb2_lifecycle_rejected,arb2_lifecycle_recovering,"
+                        "arb2_hard_blocked_dwell,arb2_hard_blocked_budget\n";
         fusion_stats.close();
     }
 
@@ -683,7 +779,10 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
                         << sem_adaptive_policy
                         << ", backend_weight=" << sem_geodf_backend_weight
                         << ", risk_rank=" << sem_geodf_rank_by_risk
-                        << ", adaptive_arbitration=" << sem_adaptive_arbitration << ")");
+                        << ", adaptive_arbitration=" << sem_adaptive_arbitration
+                        << ", adaptive_arbitration_v2=" << sem_adaptive_arbitration_v2
+                        << ", arb2_fusion=" << sem_arb2_fusion_mode
+                        << ", arb2_geo=" << sem_arb2_geo_combination << ")");
     }
 
     if (visual_adaptive_quality || visual_adaptive_huber || imu_adaptive_covariance) {

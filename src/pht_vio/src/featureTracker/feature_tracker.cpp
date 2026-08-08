@@ -1620,7 +1620,6 @@ void FeatureTracker::rejectSemGeoFused()
             const sem_geodf::WeightResult weighting =
                 sem_geodf::computeMeasurementWeight(evidence, risk_config);
             const double target_weight = weighting.target_weight;
-            ranking_risk_scores[i] = weighting.ranking_risk;
 
             double previous_weight = target_weight;
             const auto prev = sem_geodf_feature_weights.find(ids[i]);
@@ -1633,16 +1632,10 @@ void FeatureTracker::rejectSemGeoFused()
                                     : (1.0 / 20.0);
             const double tau_recover =
                 temporal_smooth::tauFromFrameAlpha(cfg.sem_geodf_backend_recovery, 20.0);
-            const double applied_weight =
+            double applied_weight =
                 sem_geodf::recoverWeight(previous_weight, target_weight,
                                          temporal_smooth::alphaFromDt(dt_w, tau_recover),
                                          cfg.sem_geodf_backend_min_weight);
-            next_weights[ids[i]] = applied_weight;
-            if (applied_weight < 0.999)
-                weighted_candidates_pre_guard++;
-            applied_weight_sum += applied_weight;
-            target_weight_sum += target_weight;
-            min_weight_seen = std::min(min_weight_seen, applied_weight);
 
             // Plan P1.4: each track carries its own lifecycle. Hard rejection needs
             // sustained evidence AND high risk AND two-expert agreement AND healthy
@@ -1665,6 +1658,23 @@ void FeatureTracker::rejectSemGeoFused()
                 lifecycle_blocked_by_observability++;
             if (decision.hard_reject_blocked_by_redundancy)
                 lifecycle_blocked_by_redundancy++;
+
+            // Phase 3.3: DownWeight was telemetry-only; apply it to the residual
+            // scale so survivors of the hard-reject guards are still de-emphasized.
+            if (cfg.sem_lifecycle_enable)
+            {
+                applied_weight = sem_policy::applyDownWeightScale(
+                    applied_weight, decision.action,
+                    cfg.sem_lifecycle_downweight_scale,
+                    cfg.sem_geodf_backend_min_weight);
+            }
+            ranking_risk_scores[i] = 1.0 - applied_weight;
+            next_weights[ids[i]] = applied_weight;
+            if (applied_weight < 0.999)
+                weighted_candidates_pre_guard++;
+            applied_weight_sum += applied_weight;
+            target_weight_sum += target_weight;
+            min_weight_seen = std::min(min_weight_seen, applied_weight);
         }
         sem_geodf_feature_weights.swap(next_weights);
         sem_track_lifecycle.retainOnly(ids);

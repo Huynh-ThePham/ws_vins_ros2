@@ -232,6 +232,9 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     if (!fsSettings["sem_lifecycle_recover_dwell_s"].empty())
         sem_lifecycle_recover_dwell_s =
             static_cast<double>(fsSettings["sem_lifecycle_recover_dwell_s"]);
+    if (!fsSettings["sem_lifecycle_downweight_scale"].empty())
+        sem_lifecycle_downweight_scale =
+            static_cast<double>(fsSettings["sem_lifecycle_downweight_scale"]);
 
     if (!fsSettings["geodf_min_grid_occupancy"].empty())
         geodf_min_grid_occupancy = static_cast<double>(fsSettings["geodf_min_grid_occupancy"]);
@@ -347,6 +350,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     sem_lifecycle_require_agreement = sem_lifecycle_require_agreement ? 1 : 0;
     sem_lifecycle_recover_dwell_s =
         std::min(60.0, std::max(0.0, sem_lifecycle_recover_dwell_s));
+    sem_lifecycle_downweight_scale =
+        std::min(1.0, std::max(0.0, sem_lifecycle_downweight_scale));
     geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
     geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
     geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);

@@ -234,6 +234,10 @@ struct VinsConfig
     double sem_lifecycle_hard_reject_risk = 0.60;
     int sem_lifecycle_require_agreement = 1;
     double sem_lifecycle_recover_dwell_s = 0.5;
+    // Phase 3.3: Action::DownWeight used to be telemetry only. When < 1, the
+    // applied backend weight is multiplied by this scale (then re-clamped to
+    // sem_geodf_backend_min_weight). 1.0 restores the pre-Phase-3.3 behaviour.
+    double sem_lifecycle_downweight_scale = 0.55;
 
     // GeoDF fundamental-matrix degeneracy guard (plan P1.7). Checking only F.empty()
     // let a confidently wrong F from pure rotation or low parallax hard-reject static

@@ -117,6 +117,8 @@ sem_lifecycle_downweight_frames: 2
 sem_lifecycle_hard_reject_risk: 0.60
 sem_lifecycle_require_agreement: 1
 sem_lifecycle_recover_dwell_s: 0.5
+# Phase 3.3: multiply backend weight when lifecycle says DownWeight (1.0 = off).
+sem_lifecycle_downweight_scale: 0.55
 # Health thresholds (P1.3). An unhealthy expert may not hard-reject; low
 # observability downgrades deletion to down-weighting.
 sem_health_mask_saturation_ratio: 0.60

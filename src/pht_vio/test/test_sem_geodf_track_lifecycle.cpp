@@ -386,5 +386,21 @@ int main()
         CHECK(std::string(sp::toString(sp::Action::HardReject)) == "hard_reject");
     }
 
+    TEST_CASE("Lifecycle.DownWeightScaleAffectsResidualWeight");
+    {
+        // Phase 3.3: Accept and HardReject leave the weight alone; DownWeight
+        // multiplies it and respects the backend floor.
+        CHECK_NEAR(sp::applyDownWeightScale(0.80, sp::Action::Accept, 0.55, 0.25),
+                    0.80, 1e-12);
+        CHECK_NEAR(sp::applyDownWeightScale(0.80, sp::Action::HardReject, 0.55, 0.25),
+                    0.80, 1e-12);
+        CHECK_NEAR(sp::applyDownWeightScale(0.80, sp::Action::DownWeight, 0.55, 0.25),
+                    0.44, 1e-12);
+        CHECK_NEAR(sp::applyDownWeightScale(0.40, sp::Action::DownWeight, 0.55, 0.25),
+                    0.25, 1e-12);  // clamped to min_weight
+        CHECK_NEAR(sp::applyDownWeightScale(0.80, sp::Action::DownWeight, 1.0, 0.25),
+                    0.80, 1e-12);  // scale=1 is a no-op
+    }
+
     TEST_MAIN_RETURN();
 }

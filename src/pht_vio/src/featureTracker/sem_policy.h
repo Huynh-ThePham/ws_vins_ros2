@@ -457,6 +457,18 @@ inline const char *toString(Action action)
     return "unknown";
 }
 
+// Phase 3.3: map a lifecycle action onto the backend weight. HardReject deletes
+// the track, so only DownWeight changes the residual scale. scale==1 is a no-op.
+inline double applyDownWeightScale(double weight, Action action,
+                                   double scale, double min_weight)
+{
+    if (action != Action::DownWeight)
+        return weight;
+    const double s = std::min(1.0, std::max(0.0, scale));
+    const double floor = std::min(1.0, std::max(0.0, min_weight));
+    return std::min(1.0, std::max(floor, weight * s));
+}
+
 struct LifecycleConfig
 {
     // Consecutive suspicious frames before a track leaves TRUSTED, and before a

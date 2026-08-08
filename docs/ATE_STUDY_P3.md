@@ -96,11 +96,50 @@ Caveats: `MH_03_medium` and `city_day_3_high` still show small union regressions
 under adaptation; `city_day_2_mid` still has union worse than baseline in both
 matrices. Three trials per cell.
 
-## Not yet run
+## Phase 3.2b — uniform full adaptation (visual + IMU)
 
-- `ADAPTATION_MODE=full` (visual + IMU covariance together).
-- Phase 3.3 lifecycle / redundancy-aware drop changes (would be a third
-  mechanism; deferred after two risk-channel edits failed keep criteria).
+**Tag** `p32-full-9e50597`, `ADAPTATION_MODE=full`.
+
+| aggregate | vs P0 | vs visual-only |
+|---|---:|---:|
+| baseline mean Δ% | −1.0% | +0.0% |
+| union_weight mean Δ% | −1.0% | **+0.7%** |
+
+IMU covariance on top of visual quality hurts `MH_04` (+6.1% vs visual) and
+`MH_05` (+2.4%). **Rejected as an addition to visual-only.** Prefer
+`ADAPTATION_MODE=visual`.
+
+## Phase 3.3 — lifecycle DownWeight → residual scale
+
+**Commit** `93ae100`, tag `p33-life-93ae100`.
+
+`Action::DownWeight` was telemetry only. It now multiplies the applied backend
+weight by `sem_lifecycle_downweight_scale` (commons default 0.55). Baseline is
+unaffected (`sem_geodf_backend_weight=0`). Adaptation off.
+
+| scene | union_weight Δ% vs P0 |
+|---|---:|
+| MH_03_medium | +0.2% |
+| MH_04_difficult | −0.2% |
+| MH_05_difficult | **−2.9%** |
+| city_day_2_mid | **−8.8%** |
+| city_day_3_high | +6.4% |
+| city_night_3_high (hold-out) | **−5.6%** |
+| **mean** | **−1.8%** |
+
+SR = 1.00 everywhere. **Kept:** aggregate and hold-out improve; recovers the P0
+regressions on `MH_05` and `city_day_2_mid`. `city_day_3_high` gives back some of
+the P0 gain (0.2246 → 0.2389) but remains below BEFORE (0.2697).
+
+## Shipped stack after Phase 3
+
+| layer | status |
+|---|---|
+| P0 correctness | kept (`b46dc1f` math) |
+| P3.1 h_geometry risk gate | rejected |
+| P3.2 visual quality (uniform) | kept as orthogonal matrix |
+| P3.2b full (visual+IMU) | rejected vs visual-only |
+| P3.3 lifecycle DownWeight scale | **kept in default commons** |
 
 ## Shipped recommendation
 

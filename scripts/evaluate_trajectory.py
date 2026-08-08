@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 
 def _parse_evo_metrics(text: str) -> dict[str, float]:
@@ -83,6 +84,38 @@ def _convert(src: Path, dst: Path, label: str, nfields_min: int) -> int:
     return n
 
 
+def _time_bounds(tum_path: Path) -> Optional[tuple[float, float]]:
+    """Return the first/last valid timestamp in a TUM trajectory."""
+    first: Optional[float] = None
+    last: Optional[float] = None
+    with tum_path.open() as trajectory:
+        for line in trajectory:
+            fields = line.split()
+            if not fields:
+                continue
+            try:
+                timestamp = float(fields[0])
+            except ValueError:
+                continue
+            first = timestamp if first is None else min(first, timestamp)
+            last = timestamp if last is None else max(last, timestamp)
+    if first is None or last is None:
+        return None
+    return first, last
+
+
+def _trajectory_coverage(est_bounds: tuple[float, float],
+                         gt_bounds: tuple[float, float]) -> float:
+    """Fraction of the GT time span covered by the estimated trajectory."""
+    gt_duration = gt_bounds[1] - gt_bounds[0]
+    if gt_duration <= 0.0:
+        return 0.0
+    overlap_start = max(est_bounds[0], gt_bounds[0])
+    overlap_end = min(est_bounds[1], gt_bounds[1])
+    overlap_duration = max(0.0, overlap_end - overlap_start)
+    return min(1.0, overlap_duration / gt_duration)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("est_csv", type=Path, help="VINS-Fusion vio.csv")
@@ -101,6 +134,12 @@ def main():
     if n_est == 0 or n_gt == 0:
         print("ERROR: empty trajectory.", file=sys.stderr)
         sys.exit(1)
+    est_bounds = _time_bounds(est)
+    gt_bounds = _time_bounds(gt)
+    if est_bounds is None or gt_bounds is None:
+        print("ERROR: trajectory timestamps are unavailable.", file=sys.stderr)
+        sys.exit(1)
+    coverage = _trajectory_coverage(est_bounds, gt_bounds)
 
     cmd_ate = [
         "evo_ape", "tum", str(gt), str(est),
@@ -145,6 +184,7 @@ def main():
         "rpe_rmse_m": rpe_metrics.get("rmse"),
         "n_poses_est": n_est,
         "n_poses_gt": n_gt,
+        "trajectory_coverage": coverage,
     }
     (args.out_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
     rmse = metrics["ate_rmse_m"]

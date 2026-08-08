@@ -239,6 +239,19 @@ struct VinsConfig
     // sem_geodf_backend_min_weight). 1.0 restores the pre-Phase-3.3 behaviour.
     double sem_lifecycle_downweight_scale = 0.55;
 
+    // Degradation-aware expert arbitration (no GT / no sequence labels).
+    // When enabled on top of union_weight, replaces fixed confirmation-cap
+    // backend weights with reliability-gated fusion + redundancy-aware actions.
+    int sem_adaptive_arbitration = 0;
+    double sem_arb_lambda0 = 0.40;
+    double sem_arb_lambda1 = 0.60;
+    double sem_arb_rd_downweight = 0.20;
+    double sem_arb_rd_hard = 0.65;
+    double sem_arb_min_expert_for_hard = 0.35;
+    double sem_arb_min_obs_for_hard = 0.35;
+    double sem_arb_geo_degenerate_floor = 0.20;
+    double sem_arb_geo_weak_scale = 0.55;
+
     // GeoDF fundamental-matrix degeneracy guard (plan P1.7). Checking only F.empty()
     // let a confidently wrong F from pure rotation or low parallax hard-reject static
     // structure.

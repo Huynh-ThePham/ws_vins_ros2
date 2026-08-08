@@ -12,6 +12,8 @@
 #include "feature_tracker.h"
 #include "geodf_sampson.h"
 #include "sem_geodf_risk.h"
+#include "expert_reliability.h"
+#include "adaptive_arbitration.h"
 #include "temporal_smoothing.h"
 #include "camera_focal_scale.h"
 #include "../factor/adaptive_factor_quality.h"
@@ -552,8 +554,17 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
         cfg.visual_lk_error_scale,
         cfg.visual_fb_error_scale,
         cfg.visual_quality_full_age};
+    // Arbitration-internal q_m: always evaluate LK/FB/age when the flag is on,
+    // without flipping visual_adaptive_quality for the factor path.
+    const adaptive_factor::VisualQualityConfig arbitration_qm_config{
+        cfg.sem_adaptive_arbitration != 0,
+        cfg.visual_quality_min_weight,
+        cfg.visual_lk_error_scale,
+        cfg.visual_fb_error_scale,
+        cfg.visual_quality_full_age};
     std::map<int, double> left_measurement_weights;
     std::map<int, double> right_measurement_weights;
+    arbitration_measurement_quality.clear();
     cur_time = _cur_time;
     cur_img = _img;
     cur_img1 = _img1;  // (F) keep right image accessible to rejectGeoDynamic()
@@ -639,6 +650,12 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             left_measurement_weights[ids[i]] =
                 adaptive_factor::visualObservationWeight(
                     lk_error, fb_error[i], track_cnt[i], visual_quality_config);
+            if (cfg.sem_adaptive_arbitration)
+            {
+                arbitration_measurement_quality[ids[i]] =
+                    adaptive_factor::visualObservationWeight(
+                        lk_error, fb_error[i], track_cnt[i], arbitration_qm_config);
+            }
         }
         reduceVector(prev_pts, status);
         reduceVector(cur_pts, status);
@@ -695,6 +712,8 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             // A newly detected corner has no temporal LK residual yet; retain
             // neutral measurement confidence until the first verified track.
             left_measurement_weights[ids.back()] = 1.0;
+            if (cfg.sem_adaptive_arbitration)
+                arbitration_measurement_quality[ids.back()] = 1.0;
         }
         //printf("feature cnt after add %d\n", (int)ids.size());
     }
@@ -1585,6 +1604,65 @@ void FeatureTracker::rejectSemGeoFused()
             cfg.sem_geodf_backend_geo_weight,
             cfg.sem_geodf_backend_agree_weight};
 
+        // Frame-level expert reliability (once per image). Soft GeoDF floor —
+        // never binary-kill soft risk on Weak geometry (P3.1 rejected).
+        expert_reliability::SemanticReliability sem_rel;
+        expert_reliability::GeoReliability geo_rel;
+        adaptive_arbitration::Config arb_cfg;
+        if (cfg.sem_adaptive_arbitration)
+        {
+            expert_reliability::SemanticInputs sem_in;
+            sem_in.mask_available = mask_available != 0;
+            sem_in.mask_fresh = sem_mask_trusted;
+            sem_in.mask_age_ms = sem_mask_lag_ms > 0.0 ? sem_mask_lag_ms : 0.0;
+            sem_in.max_age_ms = cfg.sem_mask_max_age_ms;
+            sem_in.dynamic_pixel_ratio = dynamic_pixel_ratio;
+            sem_in.saturation_ratio = cfg.sem_health_mask_saturation_ratio;
+            sem_in.activation_ema = std::max(0.0, sem_activation_ema);
+            sem_in.activate_ratio = cfg.sem_activate_ratio;
+            sem_in.overlap_ema = std::max(0.0, sem_geo_overlap_ema);
+            sem_in.semantic_health = sem_policy_health.semantic;
+            sem_rel = expert_reliability::computeSemantic(sem_in);
+
+            expert_reliability::GeoInputs geo_in;
+            geo_in.health = geo_ok ? geo_degeneracy.health
+                                   : geodf_degeneracy::Health::Degenerate;
+            geo_in.conditioning = geo_ok ? geo.geometry_conditioning : 0.0;
+            geo_in.inlier_ratio = geo_ok ? geo.geometry_inlier_ratio : 0.0;
+            geo_in.grid_occupancy = geo_ok ? geo.grid_occupancy : 0.0;
+            geo_in.median_parallax_px = geo_ok ? geo.median_parallax_px : 0.0;
+            geo_in.min_parallax_px = cfg.geodf_min_median_parallax_px;
+            geo_in.min_grid_occupancy = cfg.geodf_min_grid_occupancy;
+            geo_in.min_inlier_ratio = cfg.geodf_min_ransac_inlier_ratio;
+            double measurable = 0.0;
+            if (geo_ok && !geo.errors.empty())
+            {
+                int finite_n = 0;
+                for (double e : geo.errors)
+                {
+                    if (std::isfinite(e))
+                        finite_n++;
+                }
+                measurable = static_cast<double>(finite_n) /
+                             static_cast<double>(std::max(1, static_cast<int>(geo.errors.size())));
+            }
+            geo_in.measurable_fraction = measurable;
+            geo_in.degenerate_floor = cfg.sem_arb_geo_degenerate_floor;
+            geo_in.weak_scale = cfg.sem_arb_geo_weak_scale;
+            geo_rel = expert_reliability::computeGeo(geo_in);
+
+            arb_cfg.min_weight = cfg.sem_geodf_backend_min_weight;
+            arb_cfg.lambda0 = cfg.sem_arb_lambda0;
+            arb_cfg.lambda1 = cfg.sem_arb_lambda1;
+            arb_cfg.rd_downweight = cfg.sem_arb_rd_downweight;
+            arb_cfg.rd_hard = cfg.sem_arb_rd_hard;
+            arb_cfg.min_expert_for_hard = cfg.sem_arb_min_expert_for_hard;
+            arb_cfg.min_obs_for_hard = cfg.sem_arb_min_obs_for_hard;
+        }
+
+        int arb_keep = 0, arb_down = 0, arb_hard = 0;
+        double arb_qs_sum = 0.0, arb_qg_sum = 0.0, arb_rd_sum = 0.0;
+
         std::map<int, double> next_weights;
         for (int i = 0; i < total; i++)
         {
@@ -1608,18 +1686,72 @@ void FeatureTracker::rejectSemGeoFused()
             if (geo_confirmed_hit)
                 geo_error_conf = std::max(geo_error_conf, 1.0);
 
-            const sem_geodf::RiskEvidence evidence{
-                sem_hit,
-                sem_confirmed_hit,
-                geo_raw_hit || geo_confirmed_hit,
-                geo_confirmed_hit,
-                sem_conf,
-                geo_scene_conf,
-                geo_error_conf,
-                overlap_conf};
-            const sem_geodf::WeightResult weighting =
-                sem_geodf::computeMeasurementWeight(evidence, risk_config);
-            const double target_weight = weighting.target_weight;
+            double target_weight = 1.0;
+            double fused_risk_for_lifecycle = 0.0;
+            adaptive_arbitration::Action arb_action = adaptive_arbitration::Action::KeepFull;
+
+            if (cfg.sem_adaptive_arbitration)
+            {
+                // Expert dynamic risks in [0,1] before reliability gating.
+                double r_s = 0.0;
+                if (sem_hit)
+                    r_s = sem_confirmed_hit ? 1.0 : 0.55;
+                double r_g = 0.0;
+                if (geo_raw_hit || geo_confirmed_hit)
+                    r_g = std::max(geo_error_conf, geo_confirmed_hit ? 1.0 : 0.55);
+
+                double q_m = 1.0;
+                const auto qm_it = arbitration_measurement_quality.find(ids[i]);
+                if (qm_it != arbitration_measurement_quality.end())
+                    q_m = qm_it->second;
+
+                adaptive_arbitration::ExpertEvidence ev;
+                ev.semantic_risk = r_s;
+                ev.semantic_reliability = sem_rel.q_s;
+                ev.geo_risk = r_g;
+                ev.geo_reliability = geo_rel.q_g;
+                ev.measurement_quality = q_m;
+                ev.observability = sem_policy_health.observability;
+
+                const adaptive_arbitration::ArbitrationResult arb =
+                    adaptive_arbitration::arbitrate(ev, arb_cfg);
+                target_weight = arb.backend_weight;
+                fused_risk_for_lifecycle = arb.fused_dynamic_risk;
+                arb_action = arb.action;
+                arb_qs_sum += arb.semantic_reliability;
+                arb_qg_sum += arb.geo_reliability;
+                arb_rd_sum += arb.fused_dynamic_risk;
+                if (arb.action == adaptive_arbitration::Action::KeepFull)
+                    arb_keep++;
+                else if (arb.action == adaptive_arbitration::Action::DownWeight)
+                    arb_down++;
+                else
+                    arb_hard++;
+
+                // Reliability-aware reject set: KeepFull never hard-deletes;
+                // HardReject may enter the shared budget; DownWeight stays alive.
+                if (arb.action == adaptive_arbitration::Action::KeepFull)
+                    fused_set.erase(i);
+                else if (arb.action == adaptive_arbitration::Action::HardReject)
+                    fused_set.insert(i);
+            }
+            else
+            {
+                const sem_geodf::RiskEvidence evidence{
+                    sem_hit,
+                    sem_confirmed_hit,
+                    geo_raw_hit || geo_confirmed_hit,
+                    geo_confirmed_hit,
+                    sem_conf,
+                    geo_scene_conf,
+                    geo_error_conf,
+                    overlap_conf};
+                const sem_geodf::WeightResult weighting =
+                    sem_geodf::computeMeasurementWeight(evidence, risk_config);
+                target_weight = weighting.target_weight;
+                fused_risk_for_lifecycle = weighting.risk.fused_risk;
+                (void)arb_action;
+            }
 
             double previous_weight = target_weight;
             const auto prev = sem_geodf_feature_weights.find(ids[i]);
@@ -1642,7 +1774,7 @@ void FeatureTracker::rejectSemGeoFused()
             // experts AND observability AND redundancy; anything short of that is a
             // down-weight, which is recoverable.
             sem_policy::TrackEvidence track_evidence;
-            track_evidence.fused_risk = weighting.risk.fused_risk;
+            track_evidence.fused_risk = fused_risk_for_lifecycle;
             track_evidence.semantic_hit = sem_hit;
             track_evidence.geo_hit = geo_raw_hit || geo_confirmed_hit;
             track_evidence.two_expert_agreement =
@@ -1661,7 +1793,10 @@ void FeatureTracker::rejectSemGeoFused()
 
             // Phase 3.3: DownWeight was telemetry-only; apply it to the residual
             // scale so survivors of the hard-reject guards are still de-emphasized.
-            if (cfg.sem_lifecycle_enable)
+            // Under adaptive arbitration the continuous w_i already encodes the
+            // down-weight decision; skip the extra fixed 0.55 scale to avoid
+            // double-penalizing (monotonicity + city_day_3 conservation).
+            if (cfg.sem_lifecycle_enable && !cfg.sem_adaptive_arbitration)
             {
                 applied_weight = sem_policy::applyDownWeightScale(
                     applied_weight, decision.action,
@@ -1675,6 +1810,34 @@ void FeatureTracker::rejectSemGeoFused()
             applied_weight_sum += applied_weight;
             target_weight_sum += target_weight;
             min_weight_seen = std::min(min_weight_seen, applied_weight);
+        }
+        // Redundancy-aware reject budget: shrink shared hard-reject pool when
+        // observability is low (B_reject = B_max * q_obs).
+        if (cfg.sem_adaptive_arbitration && cfg.geodf_ratio_guard && !fused_set.empty())
+        {
+            const double q_obs = clampDouble(sem_policy_health.observability, 0.0, 1.0);
+            const int budget = static_cast<int>(
+                std::floor(cfg.geodf_max_reject_ratio * total * q_obs));
+            if (static_cast<int>(fused_set.size()) > budget && budget >= 0)
+            {
+                std::vector<int> ranked(fused_set.begin(), fused_set.end());
+                std::stable_sort(ranked.begin(), ranked.end(), [&](int a, int b) {
+                    return ranking_risk_scores[a] > ranking_risk_scores[b];
+                });
+                fused_set.clear();
+                for (int k = 0; k < budget && k < static_cast<int>(ranked.size()); ++k)
+                    fused_set.insert(ranked[k]);
+            }
+        }
+        if (cfg.sem_adaptive_arbitration)
+        {
+            ROS_DEBUG("adaptive_arbitration frame: keep=%d down=%d hard=%d "
+                      "mean_qs=%.3f mean_qg=%.3f mean_rd=%.3f q_obs=%.3f",
+                      arb_keep, arb_down, arb_hard,
+                      total > 0 ? arb_qs_sum / total : 0.0,
+                      total > 0 ? arb_qg_sum / total : 0.0,
+                      total > 0 ? arb_rd_sum / total : 0.0,
+                      sem_policy_health.observability);
         }
         sem_geodf_feature_weights.swap(next_weights);
         sem_track_lifecycle.retainOnly(ids);

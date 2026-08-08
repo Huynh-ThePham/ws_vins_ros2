@@ -175,6 +175,11 @@ public:
     // that are semantically/geometrically suspicious but not hard-deleted are
     // kept with reduced influence in the backend.
     std::map<int, double> sem_geodf_feature_weights;
+    // Per-track measurement quality for adaptive arbitration only. Always
+    // computed from LK/FB/age when sem_adaptive_arbitration is on, independent
+    // of visual_adaptive_quality (so Proposed does not silently enable the
+    // visual-adaptation overlay key).
+    std::map<int, double> arbitration_measurement_quality;
 
     struct GeoDynamicAnalysis
     {

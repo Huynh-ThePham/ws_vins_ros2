@@ -235,6 +235,26 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     if (!fsSettings["sem_lifecycle_downweight_scale"].empty())
         sem_lifecycle_downweight_scale =
             static_cast<double>(fsSettings["sem_lifecycle_downweight_scale"]);
+    if (!fsSettings["sem_adaptive_arbitration"].empty())
+        sem_adaptive_arbitration = static_cast<int>(fsSettings["sem_adaptive_arbitration"]);
+    if (!fsSettings["sem_arb_lambda0"].empty())
+        sem_arb_lambda0 = static_cast<double>(fsSettings["sem_arb_lambda0"]);
+    if (!fsSettings["sem_arb_lambda1"].empty())
+        sem_arb_lambda1 = static_cast<double>(fsSettings["sem_arb_lambda1"]);
+    if (!fsSettings["sem_arb_rd_downweight"].empty())
+        sem_arb_rd_downweight = static_cast<double>(fsSettings["sem_arb_rd_downweight"]);
+    if (!fsSettings["sem_arb_rd_hard"].empty())
+        sem_arb_rd_hard = static_cast<double>(fsSettings["sem_arb_rd_hard"]);
+    if (!fsSettings["sem_arb_min_expert_for_hard"].empty())
+        sem_arb_min_expert_for_hard =
+            static_cast<double>(fsSettings["sem_arb_min_expert_for_hard"]);
+    if (!fsSettings["sem_arb_min_obs_for_hard"].empty())
+        sem_arb_min_obs_for_hard = static_cast<double>(fsSettings["sem_arb_min_obs_for_hard"]);
+    if (!fsSettings["sem_arb_geo_degenerate_floor"].empty())
+        sem_arb_geo_degenerate_floor =
+            static_cast<double>(fsSettings["sem_arb_geo_degenerate_floor"]);
+    if (!fsSettings["sem_arb_geo_weak_scale"].empty())
+        sem_arb_geo_weak_scale = static_cast<double>(fsSettings["sem_arb_geo_weak_scale"]);
 
     if (!fsSettings["geodf_min_grid_occupancy"].empty())
         geodf_min_grid_occupancy = static_cast<double>(fsSettings["geodf_min_grid_occupancy"]);
@@ -352,6 +372,18 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         std::min(60.0, std::max(0.0, sem_lifecycle_recover_dwell_s));
     sem_lifecycle_downweight_scale =
         std::min(1.0, std::max(0.0, sem_lifecycle_downweight_scale));
+    sem_adaptive_arbitration = sem_adaptive_arbitration ? 1 : 0;
+    sem_arb_lambda0 = std::min(1.0, std::max(0.0, sem_arb_lambda0));
+    sem_arb_lambda1 = std::min(1.0, std::max(0.0, sem_arb_lambda1));
+    sem_arb_rd_downweight = std::min(1.0, std::max(0.0, sem_arb_rd_downweight));
+    sem_arb_rd_hard = std::min(1.0, std::max(sem_arb_rd_downweight, sem_arb_rd_hard));
+    sem_arb_min_expert_for_hard =
+        std::min(1.0, std::max(0.0, sem_arb_min_expert_for_hard));
+    sem_arb_min_obs_for_hard = std::min(1.0, std::max(0.0, sem_arb_min_obs_for_hard));
+    sem_arb_geo_degenerate_floor =
+        std::min(1.0, std::max(0.0, sem_arb_geo_degenerate_floor));
+    sem_arb_geo_weak_scale = std::min(1.0, std::max(sem_arb_geo_degenerate_floor,
+                                                    sem_arb_geo_weak_scale));
     geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
     geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
     geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);
@@ -650,7 +682,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         ROS_INFO_STREAM("Semantic–GeoDF fusion enabled (scene-gated OR reject, adaptive_policy="
                         << sem_adaptive_policy
                         << ", backend_weight=" << sem_geodf_backend_weight
-                        << ", risk_rank=" << sem_geodf_rank_by_risk << ")");
+                        << ", risk_rank=" << sem_geodf_rank_by_risk
+                        << ", adaptive_arbitration=" << sem_adaptive_arbitration << ")");
     }
 
     if (visual_adaptive_quality || visual_adaptive_huber || imu_adaptive_covariance) {

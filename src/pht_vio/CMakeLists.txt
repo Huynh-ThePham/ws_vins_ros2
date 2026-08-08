@@ -60,6 +60,7 @@ if(BUILD_TESTING)
     sem_geodf_risk
     sem_geodf_risk_properties
     adaptive_factor_quality
+    adaptive_arbitration
     failure_detection
     stereo_validity
     sem_geodf_overlap

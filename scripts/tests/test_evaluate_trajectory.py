@@ -26,6 +26,12 @@ class TrajectoryCoverageCase(unittest.TestCase):
     def test_disjoint_trajectory(self) -> None:
         self.assertEqual(EVALUATE._trajectory_coverage((21.0, 30.0), (10.0, 20.0)), 0.0)
 
+    def test_skipped_bag_prefix_is_not_counted_as_missing(self) -> None:
+        self.assertEqual(
+            EVALUATE._trajectory_coverage((15.0, 20.0), (10.0, 20.0), bag_start_s=5.0),
+            1.0,
+        )
+
     def test_time_bounds_are_order_independent(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             trajectory = Path(temp_dir) / "est.tum"

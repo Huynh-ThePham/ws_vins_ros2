@@ -105,12 +105,14 @@ def _time_bounds(tum_path: Path) -> Optional[tuple[float, float]]:
 
 
 def _trajectory_coverage(est_bounds: tuple[float, float],
-                         gt_bounds: tuple[float, float]) -> float:
-    """Fraction of the GT time span covered by the estimated trajectory."""
-    gt_duration = gt_bounds[1] - gt_bounds[0]
+                         gt_bounds: tuple[float, float],
+                         bag_start_s: float = 0.0) -> float:
+    """Fraction of the requested evaluation interval covered by the estimate."""
+    evaluation_start = min(gt_bounds[1], gt_bounds[0] + max(0.0, bag_start_s))
+    gt_duration = gt_bounds[1] - evaluation_start
     if gt_duration <= 0.0:
         return 0.0
-    overlap_start = max(est_bounds[0], gt_bounds[0])
+    overlap_start = max(est_bounds[0], evaluation_start)
     overlap_end = min(est_bounds[1], gt_bounds[1])
     overlap_duration = max(0.0, overlap_end - overlap_start)
     return min(1.0, overlap_duration / gt_duration)
@@ -123,6 +125,8 @@ def main():
     ap.add_argument("out_dir", type=Path)
     ap.add_argument("--no-plot", action="store_true", help="skip evo plot generation")
     ap.add_argument("--run-name", type=str, default="", help="results folder name for metadata")
+    ap.add_argument("--bag-start-s", type=float, default=0.0,
+                    help="Seconds skipped at bag start; excluded from coverage denominator")
     args = ap.parse_args()
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -139,7 +143,7 @@ def main():
     if est_bounds is None or gt_bounds is None:
         print("ERROR: trajectory timestamps are unavailable.", file=sys.stderr)
         sys.exit(1)
-    coverage = _trajectory_coverage(est_bounds, gt_bounds)
+    coverage = _trajectory_coverage(est_bounds, gt_bounds, args.bag_start_s)
 
     cmd_ate = [
         "evo_ape", "tum", str(gt), str(est),
@@ -173,6 +177,7 @@ def main():
     rpe_metrics = _parse_evo_metrics(res.stdout)
 
     meta = _parse_run_metadata(args.out_dir, args.run_name)
+    meta["bag_start_s"] = args.bag_start_s
     if args.run_name:
         meta["run_dir"] = args.run_name
     metrics = {

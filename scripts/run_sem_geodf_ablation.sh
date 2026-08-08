@@ -501,7 +501,8 @@ run_one() {
         if [ "$status" = "ok" ]; then
             python3 "${WS}/scripts/evaluate_trajectory.py" \
                 "${out}/vio.csv" "$gt" "${out}/eval" \
-                --no-plot --run-name "${seq}_${method}_t${trial}" || status=eval_failed
+                --no-plot --run-name "${seq}_${method}_t${trial}" \
+                --bag-start-s "$start" || status=eval_failed
         fi
         write_run_manifest "$out" "euroc" "$seq" "$method" "$trial" "$rate" "$use_yolo" "$status" "$run_cfg" "$bag" \
             "$(read_sem_policy_level "$run_cfg")" "0" "$gt"

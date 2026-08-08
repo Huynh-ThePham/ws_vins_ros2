@@ -161,6 +161,54 @@ Honest reading for the paper row:
 
 Raw table: `results/sem_geodf_ablation/pub-ablation-c560406/ATE_TABLE.md`.
 
+## Phase 3.4 — reliability-gated adaptive arbitration
+
+**Commits** `11ad440` (logic) + `063f12d` (overlay / matrix wiring).
+**Tag** `arb-n3r-063f12d`, `ADAPTATION_MODE=off`, N=3, six methods including
+`adaptive_arbitration`. 108/108 QC-pass, SR = 1.00.
+
+Hypothesis: continuous expert reliabilities \(q_s/q_g/q_m\) with noisy-OR fusion
+and KEEP/DOWNWEIGHT/HARD_REJECT should beat fixed U+W when one expert is stale
+or geometry is weak, without the rejected hard geometry gate.
+
+Mean ATE (m); Δ% of adaptive vs union_weight / baseline / semantic:
+
+| scene | baseline | semantic | union_weight | adaptive | Δ% vs U+W | Δ% vs sem |
+|---|---:|---:|---:|---:|---:|---:|
+| MH_03_medium | 0.2907 | 0.2581 | **0.2546** | 0.2560 | +0.6% | −0.8% |
+| MH_04_difficult | 0.4493 | **0.4418** | 0.4436 | 0.4516 | +1.8% | +2.2% |
+| MH_05_difficult | 0.3026 | 0.3002 | 0.3032 | 0.3028 | −0.1% | +0.9% |
+| city_day_2_mid | 0.1738 | 0.1568 | 0.1707 | 0.1603 | **−6.1%** | +2.2% |
+| city_day_3_high | 0.3528 | **0.1996** | 0.2387 | 0.2602 | **+9.0%** | +30.4% |
+| city_night_3_high (hold-out) | 0.9012 | **0.2579** | 0.3464 | 0.3491 | +0.8% | +35.4% |
+| **train mean Δ%** | | | | | **+1.0%** | **+7.0%** |
+
+Honest reading:
+
+- On EuRoC, adaptive tracks U+W (MH03) or is slightly worse (MH04).
+- Helps `city_day_2_mid` vs U+W (−6.1%) but still trails semantic / U-noweight.
+- Regresses the load-bearing high-dynamic cell `city_day_3_high` vs U+W (+9%)
+  and loses badly to semantic on VIODE high/night.
+- Hold-out is essentially U+W, far behind semantic.
+
+**Rejected as a replacement for U+W** under the Phase 3 keep criteria (aggregate
+proposed-method ATE rises; high-dynamic train cell regresses). Overlay remains
+available as method `adaptive_arbitration` for further work; paper commons stay
+on fixed U+W (`sem_adaptive_arbitration: 0`).
+
+First matrix attempt `arb-n3-063f12d` was a washout (0/108) from an ABI mismatch
+(`pht_vio` rebuilt without `pht_vio_ros`); ignored. Reproduce with a matching
+rebuild of both packages:
+
+```bash
+colcon build --packages-select pht_vio pht_vio_ros --cmake-args -DBUILD_TESTING=OFF
+PROTOCOL_TAG=arb-n3r-<sha> N=3 ADAPTATION_MODE=off \
+  METHODS="baseline geodf semantic union_noweight union_weight adaptive_arbitration" \
+  bash scripts/run_ate_matrix.sh
+```
+
+Raw table: `results/sem_geodf_ablation/arb-n3r-063f12d/ATE_TABLE.md`.
+
 ## Shipped stack after Phase 3
 
 | layer | status |
@@ -170,6 +218,7 @@ Raw table: `results/sem_geodf_ablation/pub-ablation-c560406/ATE_TABLE.md`.
 | P3.2 visual quality (uniform) | kept as orthogonal matrix |
 | P3.2b full (visual+IMU) | rejected vs visual-only |
 | P3.3 lifecycle DownWeight scale | **kept in default commons** |
+| P3.4 adaptive arbitration | rejected vs U+W (`arb-n3r-063f12d`) |
 | Full method ablation | recorded at `pub-ablation-c560406` |
 
 ## Shipped recommendation
@@ -178,4 +227,4 @@ Raw table: `results/sem_geodf_ablation/pub-ablation-c560406/ATE_TABLE.md`.
 |---|---|
 | Fixed-backbone U+W | `src/` at `b46dc1f` (= HEAD after Phase 3.1 revert), adaptation off |
 | Visual quality extension | same binary, `ADAPTATION_MODE=visual` for every method |
-| Rejected | risksep, P3.1 h_geometry gate, continuous-time Huber EMA |
+| Rejected | risksep, P3.1 h_geometry gate, continuous-time Huber EMA, P3.4 adaptive arbitration |

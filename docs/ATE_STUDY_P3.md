@@ -131,6 +131,36 @@ SR = 1.00 everywhere. **Kept:** aggregate and hold-out improve; recovers the P0
 regressions on `MH_05` and `city_day_2_mid`. `city_day_3_high` gives back some of
 the P0 gain (0.2246 → 0.2389) but remains below BEFORE (0.2697).
 
+## Full publication ablation
+
+**Tag** `pub-ablation-c560406` on HEAD with P0 + Phase 3.3 lifecycle scale,
+`ADAPTATION_MODE=off`. Methods: baseline / geodf / semantic / union_noweight /
+union_weight. 90/90 trials, SR = 1.00, coverage matched.
+
+Median ATE (Δ% vs baseline in parentheses):
+
+| scene | baseline | geodf | semantic | union_noweight | union_weight |
+|---|---:|---:|---:|---:|---:|
+| MH_03_medium | 0.2910 | 0.2706 (−7.0%) | 0.2591 (−11.0%) | 0.2759 (−5.2%) | **0.2569 (−11.7%)** |
+| MH_04_difficult | 0.4493 | 0.4457 (−0.8%) | 0.4367 (−2.8%) | 0.4496 (+0.1%) | **0.4339 (−3.4%)** |
+| MH_05_difficult | 0.3016 | 0.3014 (−0.1%) | 0.2989 (−0.9%) | **0.2970 (−1.5%)** | 0.3039 (+0.8%) |
+| city_day_2_mid | 0.1738 | 0.1655 (−4.8%) | **0.1439 (−17.2%)** | 0.1446 (−16.8%) | 0.1789 (+2.9%) |
+| city_day_3_high | 0.3528 | 0.3120 (−11.5%) | 0.2400 (−32.0%) | **0.2322 (−34.2%)** | 0.2388 (−32.3%) |
+| city_night_3_high | 0.9012 | 0.8558 (−5.0%) | **0.3250 (−63.9%)** | 0.3944 (−56.2%) | 0.3602 (−60.0%) |
+
+Mean Δ% vs baseline over six scenes: geodf −4.9%, semantic **−21.3%**,
+union_noweight −19.0%, union_weight −17.3%.
+
+Honest reading for the paper row:
+
+- On EuRoC MH03/MH04, **U+W is best**.
+- On high-dynamic VIODE, **U (noweight) or semantic** beat U+W slightly;
+  backend weighting is not free.
+- `city_day_2_mid` still shows U+W worse than baseline; semantic/U help there.
+- Hold-out is dominated by the semantic expert (~−60%).
+
+Raw table: `results/sem_geodf_ablation/pub-ablation-c560406/ATE_TABLE.md`.
+
 ## Shipped stack after Phase 3
 
 | layer | status |
@@ -140,6 +170,7 @@ the P0 gain (0.2246 → 0.2389) but remains below BEFORE (0.2697).
 | P3.2 visual quality (uniform) | kept as orthogonal matrix |
 | P3.2b full (visual+IMU) | rejected vs visual-only |
 | P3.3 lifecycle DownWeight scale | **kept in default commons** |
+| Full method ablation | recorded at `pub-ablation-c560406` |
 
 ## Shipped recommendation
 

@@ -6,7 +6,5 @@ geodf_hard_reject: 1
 sem_geodf_fusion: 1
 sem_adaptive_policy: 1
 sem_geodf_backend_weight: 1
-sem_adaptive_arbitration: 0
 sem_adaptive_arbitration_v2: 1
-sem_arb2_fusion_mode: 1
 sem_arb2_geo_combination: 2

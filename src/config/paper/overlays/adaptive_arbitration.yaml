@@ -1,0 +1,13 @@
+# @method: adaptive_arbitration
+# @label: Sem-GeoDF adaptive arbitration
+# @description: U+W backbone + reliability-gated expert arbitration (no GT).
+#
+# Identical to union_weight except sem_adaptive_arbitration. Calibration /
+# backend confirmation-cap scalars stay in commons (forbidden differences).
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1
+sem_adaptive_arbitration: 1

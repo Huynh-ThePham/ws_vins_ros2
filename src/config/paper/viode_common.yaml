@@ -140,6 +140,18 @@ sem_geodf_backend_agree_weight: 0.25
 sem_geodf_backend_recovery: 0.20
 sem_geodf_rank_by_risk: 1
 
+# Degradation-aware expert arbitration (off by default; owned by overlay).
+# Coefficients are frozen protocol constants (TRAIN-selected, HOLD-OUT frozen).
+sem_adaptive_arbitration: 0
+sem_arb_lambda0: 0.40
+sem_arb_lambda1: 0.60
+sem_arb_rd_downweight: 0.20
+sem_arb_rd_hard: 0.65
+sem_arb_min_expert_for_hard: 0.35
+sem_arb_min_obs_for_hard: 0.35
+sem_arb_geo_degenerate_floor: 0.20
+sem_arb_geo_weak_scale: 0.55
+
 # ------------------------------------------------------- geometric expert ---
 # Off for B0. Owned by the `geodf` / `union*` / `full_adaptive` overlays.
 geodf_enable: 0

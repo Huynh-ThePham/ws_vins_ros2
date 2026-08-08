@@ -164,13 +164,14 @@ normalize_method() {
         union_noweight|sem_geodf_noweight) echo union_noweight ;;
         union_weight|sem_geodf) echo union_weight ;;
         full_adaptive) echo full_adaptive ;;
+        adaptive_arbitration) echo adaptive_arbitration ;;
         *) echo "Unknown publication method: $1" >&2; return 1 ;;
     esac
 }
 
 method_needs_yolo() {
     case "$(normalize_method "$1")" in
-        semantic|union_noweight|union_weight|full_adaptive) return 0 ;;
+        semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -304,7 +305,7 @@ apply_sem_policy_params_if_needed() {
         return 0
     fi
     case "$method" in
-        union_noweight|union_weight|full_adaptive) ;;
+        union_noweight|union_weight|full_adaptive|adaptive_arbitration) ;;
         *) return 0 ;;
     esac
     if [ ! -f "$SEM_POLICY_PARAMS_FILE" ]; then

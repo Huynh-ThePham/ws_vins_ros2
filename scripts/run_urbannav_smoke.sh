@@ -85,7 +85,7 @@ fi
 source_ros2_ws "$WS"
 USE_YOLO=0
 case "$METHOD" in
-    semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration) USE_YOLO=1 ;;
+    semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3) USE_YOLO=1 ;;
 esac
 
 echo "=== UrbanNav $canon $METHOD bag=$BAG out=$OUT ==="

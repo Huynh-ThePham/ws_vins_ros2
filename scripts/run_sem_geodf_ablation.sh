@@ -164,14 +164,19 @@ normalize_method() {
         union_noweight|sem_geodf_noweight) echo union_noweight ;;
         union_weight|sem_geodf) echo union_weight ;;
         full_adaptive) echo full_adaptive ;;
-        adaptive_arbitration) echo adaptive_arbitration ;;
+        adaptive_arbitration|adaptive_arbitration_v1) echo adaptive_arbitration ;;
+        adaptive_arbitration_v2|adaptive_v2) echo adaptive_arbitration_v2 ;;
+        adaptive_arbitration_v2_f0|adaptive_v2_f0) echo adaptive_arbitration_v2_f0 ;;
+        adaptive_arbitration_v2_f2|adaptive_v2_f2) echo adaptive_arbitration_v2_f2 ;;
+        adaptive_arbitration_v2_g1|adaptive_v2_g1) echo adaptive_arbitration_v2_g1 ;;
+        adaptive_arbitration_v2_g3|adaptive_v2_g3) echo adaptive_arbitration_v2_g3 ;;
         *) echo "Unknown publication method: $1" >&2; return 1 ;;
     esac
 }
 
 method_needs_yolo() {
     case "$(normalize_method "$1")" in
-        semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration) return 0 ;;
+        semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -305,7 +310,7 @@ apply_sem_policy_params_if_needed() {
         return 0
     fi
     case "$method" in
-        union_noweight|union_weight|full_adaptive|adaptive_arbitration) ;;
+        union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3) ;;
         *) return 0 ;;
     esac
     if [ ! -f "$SEM_POLICY_PARAMS_FILE" ]; then
@@ -564,9 +569,19 @@ echo "[ablation] protocol_tag=$PROTOCOL_TAG protocol_version=$PROTOCOL_VERSION c
 echo "[ablation] adaptation_mode=$ADAPTATION_MODE"
 echo "[ablation] bag_rate=$BAG_RATE_NON_YOLO fair=$PROTOCOL_FAIR"
 
-# Preflight: fair overlays must audit clean before any cell runs.
-python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/viode_common.yaml"
-python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/euroc_common.yaml"
+# Preflight: audit the exact requested overlays, including v1/v2 extensions.
+AUDIT_METHODS=""
+for method in $METHODS; do
+    method_n="$(normalize_method "$method")"
+    case ",${AUDIT_METHODS}," in
+        *,"${method_n}",*) ;;
+        *) AUDIT_METHODS="${AUDIT_METHODS:+${AUDIT_METHODS},}${method_n}" ;;
+    esac
+done
+python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/viode_common.yaml" \
+    --methods "$AUDIT_METHODS"
+python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/euroc_common.yaml" \
+    --methods "$AUDIT_METHODS"
 
 for trial in $(seq 1 "$N"); do
     if [ -n "$EUROC" ]; then

@@ -13,6 +13,11 @@ from pathlib import Path
 # not appear as primary methods in new paper assets.
 METHODS_ORDER = (
     "sem_geodf_mask_gated",
+    "adaptive_arbitration_v2_f0",
+    "adaptive_arbitration_v2_f2",
+    "adaptive_arbitration_v2_g1",
+    "adaptive_arbitration_v2_g3",
+    "adaptive_arbitration_v2",
     "adaptive_arbitration",
     "union_noweight",
     "sem_geodf_noweight",
@@ -35,9 +40,12 @@ METHODS_ORDER_DISPLAY = (
     "union_noweight",
     "union_weight",
     "adaptive_arbitration",
+    "adaptive_arbitration_v2",
 )
 
 LEGACY_METHOD_ALIASES = {
+    "adaptive_arbitration_v1": "adaptive_arbitration",
+    "adaptive_v2": "adaptive_arbitration_v2",
     "adaptive": "geodf",
     "geodf_adaptive": "geodf",
     "sad_sem": "semantic",

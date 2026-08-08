@@ -35,6 +35,22 @@ def fusion_stats(run_dir: Path) -> dict[str, float]:
         vals = [float(r[col]) for r in rows if r.get(col) not in (None, "")]
         return sum(vals) / len(vals) if vals else 0.0
 
+    def median_col(col: str) -> float:
+        vals = [float(r[col]) for r in rows if r.get(col) not in (None, "")]
+        return statistics.median(vals) if vals else 0.0
+
+    def count_fraction(col: str) -> float:
+        numerator = sum(float(r.get(col, 0) or 0) for r in rows)
+        denominator = sum(float(r.get("tracks_before", 0) or 0) for r in rows)
+        return numerator / denominator if denominator > 0 else 0.0
+
+    def weighted_frame_mean(col: str) -> float:
+        pairs = [(float(r[col]), float(r.get("tracks_before", 0) or 0))
+                 for r in rows if r.get(col) not in (None, "")]
+        denominator = sum(weight for _, weight in pairs)
+        return (sum(value * weight for value, weight in pairs) / denominator
+                if denominator > 0 else 0.0)
+
     out = {
         "sem_active_frac": frac_col("sem_scene_active"),
         "geo_active_frac": frac_col("geo_frame_active"),
@@ -55,6 +71,25 @@ def fusion_stats(run_dir: Path) -> dict[str, float]:
         out["trigger_strong_frac"] = frac_col("sem_policy_trigger_strong")
     if "sem_policy_trigger_overlap" in rows[0]:
         out["trigger_overlap_frac"] = frac_col("sem_policy_trigger_overlap")
+    if "arb2_q_s" in rows[0]:
+        out.update({
+            "mean_q_s": weighted_frame_mean("arb2_q_s"),
+            "median_q_s": median_col("arb2_q_s"),
+            "mean_q_g": weighted_frame_mean("arb2_q_g"),
+            "median_q_g": median_col("arb2_q_g"),
+            "semantic_authoritative_frac": count_fraction("arb2_semantic_authoritative"),
+            "geodf_authoritative_frac": count_fraction("arb2_geodf_authoritative"),
+            "joint_authoritative_frac": count_fraction("arb2_joint_authoritative"),
+            "no_authoritative_frac": count_fraction("arb2_no_authoritative"),
+            "disagreement_frac": count_fraction("arb2_disagreement"),
+            "keep_frac": count_fraction("arb2_keep"),
+            "downweight_frac": count_fraction("arb2_downweight"),
+            "quarantine_frac": count_fraction("arb2_quarantine"),
+            "hard_reject_frac": count_fraction("arb2_hard_reject"),
+            "mean_q_m": weighted_frame_mean("arb2_mean_q_m"),
+            "mean_dynamic_weight": weighted_frame_mean("arb2_mean_dynamic_weight"),
+            "mean_final_weight": weighted_frame_mean("arb2_mean_final_weight"),
+        })
     return out
 
 
@@ -74,7 +109,11 @@ def aggregate_records(records: list[RunRecord]) -> tuple[
         if rec.ate_rmse_m is None:
             continue
         by_key_method[(rec.scene, rec.method)].append(float(rec.ate_rmse_m))
-        if rec.method in ("sem_geodf", "sem_geodf_mask_gated", "sequential"):
+        if rec.method in ("union_weight", "adaptive_arbitration",
+                          "adaptive_arbitration_v2", "adaptive_arbitration_v2_f0",
+                          "adaptive_arbitration_v2_f2", "adaptive_arbitration_v2_g1",
+                          "adaptive_arbitration_v2_g3", "sem_geodf",
+                          "sem_geodf_mask_gated", "sequential"):
             fs = fusion_stats(rec.run_dir)
             if fs:
                 fusion_by_key[f"{rec.scene}:{rec.method}"] = fs
@@ -163,6 +202,28 @@ def main() -> None:
                 f"overlap_ema={fs.get('avg_sem_geo_overlap_ema', 0):.2f}"
                 f"{extra}"
             )
+            if "mean_q_s" in fs:
+                lines.append(
+                    f"  - authority: semantic={fs['semantic_authoritative_frac']:.1%}, "
+                    f"GeoDF={fs['geodf_authoritative_frac']:.1%}, "
+                    f"joint={fs['joint_authoritative_frac']:.1%}, "
+                    f"none={fs['no_authoritative_frac']:.1%}, "
+                    f"disagreement={fs['disagreement_frac']:.1%}"
+                )
+                lines.append(
+                    f"  - action: keep={fs['keep_frac']:.1%}, "
+                    f"downweight={fs['downweight_frac']:.1%}, "
+                    f"quarantine={fs['quarantine_frac']:.1%}, "
+                    f"hard_reject={fs['hard_reject_frac']:.1%}"
+                )
+                lines.append(
+                    f"  - reliability/weight: q_s mean/median="
+                    f"{fs['mean_q_s']:.3f}/{fs['median_q_s']:.3f}, "
+                    f"q_g={fs['mean_q_g']:.3f}/{fs['median_q_g']:.3f}, "
+                    f"q_m={fs['mean_q_m']:.3f}, w_dynamic="
+                    f"{fs['mean_dynamic_weight']:.3f}, w_final="
+                    f"{fs['mean_final_weight']:.3f}"
+                )
 
     if qc_failed:
         lines.extend(["", "## QC failures (excluded from means)", ""])

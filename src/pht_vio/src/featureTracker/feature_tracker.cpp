@@ -555,15 +555,27 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
         cfg.visual_quality_min_weight,
         cfg.visual_lk_error_scale,
         cfg.visual_fb_error_scale,
-        cfg.visual_quality_full_age};
+        cfg.visual_quality_full_age,
+        cfg.visual_quality_stereo_aware != 0,
+        cfg.visual_quality_stereo_disparity_ref_px,
+        cfg.visual_quality_stereo_triangulation_ref_rad,
+        cfg.visual_quality_stereo_reprojection_scale_px,
+        cfg.visual_quality_border_margin_px};
     // Arbitration-internal q_m: always evaluate LK/FB/age when the flag is on,
     // without flipping visual_adaptive_quality for the factor path.
+    // M2 (sem_arb2_force_qm_one) forces q_m=1 later; stereo-aware remains off
+    // here so arbitration timing (pre-stereo) stays unchanged.
     const adaptive_factor::VisualQualityConfig arbitration_qm_config{
         cfg.sem_adaptive_arbitration != 0 || cfg.sem_adaptive_arbitration_v2 != 0,
         cfg.sem_adaptive_arbitration_v2 ? 0.01 : cfg.visual_quality_min_weight,
         cfg.visual_lk_error_scale,
         cfg.visual_fb_error_scale,
-        cfg.visual_quality_full_age};
+        cfg.visual_quality_full_age,
+        false,
+        cfg.visual_quality_stereo_disparity_ref_px,
+        cfg.visual_quality_stereo_triangulation_ref_rad,
+        cfg.visual_quality_stereo_reprojection_scale_px,
+        cfg.visual_quality_border_margin_px};
     std::map<int, double> left_measurement_weights;
     std::map<int, double> right_measurement_weights;
     arbitration_measurement_quality.clear();
@@ -783,6 +795,73 @@ map<int, vector<pair<int, FeatureObservation>>> FeatureTracker::trackImage(doubl
             */
             cur_un_right_pts = undistortedPts(cur_right_pts, m_camera[1]);
             right_pts_velocity = ptsVelocity(ids_right, cur_un_right_pts, cur_un_right_pts_map, prev_un_right_pts_map);
+
+            // Phase 3.6: after the stereo contract, fold disparity / triangulation /
+            // reprojection / border into the visual precision multiplier. This is
+            // measurement covariance (R_i), not dynamic weighting (w_d).
+            if (visual_quality_config.enabled && visual_quality_config.stereo_aware)
+            {
+                for (size_t i = 0; i < ids.size(); ++i)
+                {
+                    adaptive_factor::VisualObservationEvidence ev;
+                    ev.track_age = track_cnt[i];
+                    ev.has_image_position = true;
+                    ev.image_u = cur_pts[i].x;
+                    ev.image_v = cur_pts[i].y;
+                    ev.image_width = static_cast<double>(col);
+                    ev.image_height = static_cast<double>(row);
+                    const auto stereo_it = stereo_validity_by_id.find(ids[i]);
+                    if (stereo_it != stereo_validity_by_id.end() && stereo_it->second.valid)
+                    {
+                        ev.has_stereo = true;
+                        ev.disparity_px = stereo_it->second.disparity_px;
+                        ev.triangulation_angle_rad =
+                            stereo_it->second.triangulation_angle_rad;
+                        ev.stereo_reprojection_px = stereo_it->second.reprojection_px;
+                    }
+                    // Preserve the already-computed tracking quality and multiply
+                    // only the stereo/border factors (tracking was applied earlier).
+                    double q_extra = 1.0;
+                    if (ev.has_stereo)
+                    {
+                        q_extra *= adaptive_factor::stereoGeometryQuality(
+                            ev.disparity_px, ev.triangulation_angle_rad,
+                            ev.stereo_reprojection_px, visual_quality_config);
+                    }
+                    q_extra *= adaptive_factor::borderProximityQuality(
+                        ev.image_u, ev.image_v, ev.image_width, ev.image_height,
+                        visual_quality_config.border_margin_px);
+                    auto &w = left_measurement_weights[ids[i]];
+                    if (w <= 0.0)
+                        w = 1.0;
+                    w = adaptive_factor::clamp(
+                        w * q_extra,
+                        adaptive_factor::clamp(visual_quality_config.min_weight, 0.01, 1.0),
+                        1.0);
+                }
+                for (size_t i = 0; i < ids_right.size(); ++i)
+                {
+                    double q_extra = adaptive_factor::borderProximityQuality(
+                        cur_right_pts[i].x, cur_right_pts[i].y,
+                        static_cast<double>(col), static_cast<double>(row),
+                        visual_quality_config.border_margin_px);
+                    const auto stereo_it = stereo_validity_by_id.find(ids_right[i]);
+                    if (stereo_it != stereo_validity_by_id.end() && stereo_it->second.valid)
+                    {
+                        q_extra *= adaptive_factor::stereoGeometryQuality(
+                            stereo_it->second.disparity_px,
+                            stereo_it->second.triangulation_angle_rad,
+                            stereo_it->second.reprojection_px, visual_quality_config);
+                    }
+                    auto &w = right_measurement_weights[ids_right[i]];
+                    if (w <= 0.0)
+                        w = 1.0;
+                    w = adaptive_factor::clamp(
+                        w * q_extra,
+                        adaptive_factor::clamp(visual_quality_config.min_weight, 0.01, 1.0),
+                        1.0);
+                }
+            }
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
         // (F) store id -> right pixel for next-frame stereo temporal cross-check.
@@ -1820,9 +1899,12 @@ void FeatureTracker::rejectSemGeoFused()
                 double r_g = (geo_raw_hit || geo_confirmed_hit)
                     ? std::max(geo_error_conf, geo_confirmed_hit ? 1.0 : 0.55) : 0.0;
                 double q_m = 1.0;
-                const auto qm_it = arbitration_measurement_quality.find(ids[i]);
-                if (qm_it != arbitration_measurement_quality.end())
-                    q_m = qm_it->second;
+                if (!cfg.sem_arb2_force_qm_one)
+                {
+                    const auto qm_it = arbitration_measurement_quality.find(ids[i]);
+                    if (qm_it != arbitration_measurement_quality.end())
+                        q_m = qm_it->second;
+                }
 
                 const auto sem_streak = sem_dyn_streak.find(ids[i]);
                 const auto geo_streak = geo_dyn_streak.find(ids[i]);

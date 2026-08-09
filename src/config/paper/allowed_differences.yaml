@@ -22,6 +22,10 @@ adaptive_arbitration_v2_f0: sem_enable, geodf_enable, geodf_hard_reject, sem_geo
 adaptive_arbitration_v2_f2: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, sem_adaptive_arbitration_v2, sem_arb2_fusion_mode
 adaptive_arbitration_v2_g1: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, sem_adaptive_arbitration_v2, sem_arb2_geo_combination
 adaptive_arbitration_v2_g3: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, sem_adaptive_arbitration_v2, sem_arb2_geo_combination
+# Phase 3.6 mechanism isolation (M1/M2) and covariance-aware q_m (Q3).
+qm_only: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, visual_adaptive_quality
+arbitration_only: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, sem_adaptive_arbitration_v2, sem_arb2_force_qm_one
+qm_stereo: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, visual_adaptive_quality, visual_quality_stereo_aware
 full_adaptive: sem_enable, geodf_enable, geodf_hard_reject, sem_geodf_fusion, sem_adaptive_policy, sem_geodf_backend_weight, visual_adaptive_quality, imu_adaptive_covariance
 
 # --- keys that may NEVER differ between methods, even if an overlay lists them

@@ -22,16 +22,41 @@ struct VisualQualityConfig
     double lk_error_scale = 20.0;
     double fb_error_scale = 0.5;
     int full_age = 4;
+    // When true, fold stereo/geometry evidence into the precision multiplier.
+    // Tracking quality and stereo geometry stay separable in telemetry.
+    bool stereo_aware = false;
+    double stereo_disparity_ref_px = 8.0;
+    double stereo_triangulation_ref_rad = 0.02;  // ~1.15 deg
+    double stereo_reprojection_scale_px = 1.5;
+    double border_margin_px = 20.0;
 };
 
-inline double visualObservationWeight(double lk_error,
-                                      double fb_error,
-                                      int track_age,
-                                      const VisualQualityConfig &config)
+// Per-observation evidence for uncertainty-aware visual precision.
+// Measurement covariance R_i is conceptually R_track + R_stereo + R_geometry;
+// the backend still consumes a scalar precision multiplier w = σ0²/σ² that
+// multiplies the whitened residual as √w · L r with LᵀL = R₀⁻¹.
+struct VisualObservationEvidence
 {
-    if (!config.enabled)
-        return 1.0;
+    double lk_error = 0.0;
+    double fb_error = 0.0;
+    int track_age = 1;
+    bool has_stereo = false;
+    double disparity_px = 0.0;
+    double triangulation_angle_rad = 0.0;
+    double stereo_reprojection_px = 0.0;
+    bool has_image_position = false;
+    double image_u = 0.0;
+    double image_v = 0.0;
+    double image_width = 0.0;
+    double image_height = 0.0;
+};
 
+// Tracking-only quality: LK residual, forward-backward error, track age.
+inline double trackingObservationQuality(double lk_error,
+                                         double fb_error,
+                                         int track_age,
+                                         const VisualQualityConfig &config)
+{
     const double lk_scale = std::max(1e-6, config.lk_error_scale);
     const double fb_scale = std::max(1e-6, config.fb_error_scale);
     const double lk_ratio = std::max(0.0, lk_error) / lk_scale;
@@ -45,8 +70,89 @@ inline double visualObservationWeight(double lk_error,
     // New tracks are useful for coverage but should not immediately carry the
     // same information as a temporally verified track.
     const double q_age = 0.85 + 0.15 * age_ratio;
-    return clamp(q_lk * q_fb * q_age,
-                 clamp(config.min_weight, 0.01, 1.0), 1.0);
+    return clamp(q_lk * q_fb * q_age, 0.0, 1.0);
+}
+
+// Stereo geometry quality. Small disparity ⇒ large depth uncertainty
+// (σ_z ∝ z²/(f b) σ_d), so precision must fall — never the reverse.
+inline double stereoGeometryQuality(double disparity_px,
+                                    double triangulation_angle_rad,
+                                    double reprojection_px,
+                                    const VisualQualityConfig &config)
+{
+    const double d_ref = std::max(1e-6, config.stereo_disparity_ref_px);
+    const double ang_ref = std::max(1e-6, config.stereo_triangulation_ref_rad);
+    const double reproj_scale = std::max(1e-6, config.stereo_reprojection_scale_px);
+    const double d = std::max(0.0, disparity_px);
+    const double ang = std::max(0.0, triangulation_angle_rad);
+    // Soft saturation toward 1 as disparity / triangulation grow past the
+    // reference; near-zero disparity collapses precision.
+    const double q_disp = d / (d + d_ref);
+    const double q_ang = ang / (ang + ang_ref);
+    const double reproj_ratio = std::max(0.0, reprojection_px) / reproj_scale;
+    const double q_reproj = 1.0 / (1.0 + reproj_ratio * reproj_ratio);
+    return clamp(q_disp * q_ang * q_reproj, 0.0, 1.0);
+}
+
+// Observations near the image border are more sensitive to distortion /
+// rolling-shutter / FOV edge effects; down-weight rather than hard-drop.
+inline double borderProximityQuality(double u, double v,
+                                     double width, double height,
+                                     double margin_px)
+{
+    if (!(width > 1.0) || !(height > 1.0) || !(margin_px > 0.0))
+        return 1.0;
+    const double dist = std::min({u, v, width - 1.0 - u, height - 1.0 - v});
+    if (!std::isfinite(dist))
+        return 1.0;
+    if (dist >= margin_px)
+        return 1.0;
+    if (dist <= 0.0)
+        return 0.25;
+    return clamp(0.25 + 0.75 * (dist / margin_px), 0.25, 1.0);
+}
+
+// Diagonal pixel covariance proxy σ_u² = σ_v² = σ0² / q.
+// quality↓ ⇒ covariance↑ ⇒ precision↓ (never inverted).
+inline double visualPixelVariance(double quality, double sigma0_px)
+{
+    const double q = clamp(quality, 1e-4, 1.0);
+    const double s0 = std::max(1e-6, sigma0_px);
+    return (s0 * s0) / q;
+}
+
+inline double visualObservationWeightFromEvidence(
+    const VisualObservationEvidence &ev,
+    const VisualQualityConfig &config)
+{
+    if (!config.enabled)
+        return 1.0;
+
+    double q = trackingObservationQuality(ev.lk_error, ev.fb_error, ev.track_age,
+                                          config);
+    if (config.stereo_aware && ev.has_stereo)
+    {
+        q *= stereoGeometryQuality(ev.disparity_px, ev.triangulation_angle_rad,
+                                   ev.stereo_reprojection_px, config);
+    }
+    if (config.stereo_aware && ev.has_image_position)
+    {
+        q *= borderProximityQuality(ev.image_u, ev.image_v, ev.image_width,
+                                    ev.image_height, config.border_margin_px);
+    }
+    return clamp(q, clamp(config.min_weight, 0.01, 1.0), 1.0);
+}
+
+inline double visualObservationWeight(double lk_error,
+                                      double fb_error,
+                                      int track_age,
+                                      const VisualQualityConfig &config)
+{
+    VisualObservationEvidence ev;
+    ev.lk_error = lk_error;
+    ev.fb_error = fb_error;
+    ev.track_age = track_age;
+    return visualObservationWeightFromEvidence(ev, config);
 }
 
 inline double median(std::vector<double> values)

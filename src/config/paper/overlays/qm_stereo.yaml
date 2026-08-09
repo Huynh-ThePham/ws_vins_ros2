@@ -1,0 +1,12 @@
+# @method: qm_stereo
+# @label: Covariance-aware q_m with stereo geometry (Phase 3.6 Q3)
+# @description: U+W + visual quality including stereo disparity / triangulation /
+#               reprojection / border proximity. No arbitration.
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1
+visual_adaptive_quality: 1
+visual_quality_stereo_aware: 1

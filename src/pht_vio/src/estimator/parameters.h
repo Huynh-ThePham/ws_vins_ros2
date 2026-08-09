@@ -176,6 +176,13 @@ struct VinsConfig
     double visual_lk_error_scale = 20.0;
     double visual_fb_error_scale = 0.5;
     int visual_quality_full_age = 4;
+    // Phase 3.6: fold stereo disparity / triangulation / reprojection / border
+    // into the measurement precision multiplier (still separate from w_d).
+    int visual_quality_stereo_aware = 0;
+    double visual_quality_stereo_disparity_ref_px = 8.0;
+    double visual_quality_stereo_triangulation_ref_rad = 0.02;
+    double visual_quality_stereo_reprojection_scale_px = 1.5;
+    double visual_quality_border_margin_px = 20.0;
 
     // Robust scale learned from the previous optimized window's whitened
     // reprojection norms. Disabled by default for legacy configurations.
@@ -282,6 +289,9 @@ struct VinsConfig
     double sem_arb2_logodds_beta_semantic = 0.65;
     double sem_arb2_logodds_beta_geo = 0.65;
     double sem_arb2_logodds_beta_agreement = 0.25;
+    // Phase 3.6 M2: force measurement_quality = 1 inside arbitration so only
+    // dynamic/expert arbitration can change the backend weight.
+    int sem_arb2_force_qm_one = 0;
 
     // GeoDF fundamental-matrix degeneracy guard (plan P1.7). Checking only F.empty()
     // let a confidently wrong F from pure rotation or low parallax hard-reject static

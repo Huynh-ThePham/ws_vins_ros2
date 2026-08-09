@@ -1,0 +1,11 @@
+# @method: qm_only
+# @label: U+W + measurement-quality q_m only (Phase 3.6 M1)
+# @description: Fixed Semantic/U+W risk weights plus visual observation quality.
+#               No adaptive arbitration. Isolates ΔE_qm from Phase 3.5 confound.
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1
+visual_adaptive_quality: 1

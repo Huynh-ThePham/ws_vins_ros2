@@ -19,6 +19,9 @@ METHODS_ORDER = (
     "adaptive_arbitration_v2_g3",
     "adaptive_arbitration_v2",
     "adaptive_arbitration",
+    "arbitration_only",
+    "qm_stereo",
+    "qm_only",
     "union_noweight",
     "sem_geodf_noweight",
     "union_weight",
@@ -39,6 +42,9 @@ METHODS_ORDER_DISPLAY = (
     "semantic",
     "union_noweight",
     "union_weight",
+    "qm_only",
+    "arbitration_only",
+    "qm_stereo",
     "adaptive_arbitration",
     "adaptive_arbitration_v2",
 )
@@ -51,6 +57,16 @@ LEGACY_METHOD_ALIASES = {
     "sad_sem": "semantic",
     "sem_geodf_noweight": "union_noweight",
     "sem_geodf": "union_weight",
+    "M0": "union_weight",
+    "m0": "union_weight",
+    "M1": "qm_only",
+    "m1": "qm_only",
+    "M2": "arbitration_only",
+    "m2": "arbitration_only",
+    "M3": "adaptive_arbitration_v2",
+    "m3": "adaptive_arbitration_v2",
+    "Q3": "qm_stereo",
+    "q3": "qm_stereo",
 }
 
 

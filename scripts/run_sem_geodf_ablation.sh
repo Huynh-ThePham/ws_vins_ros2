@@ -162,21 +162,24 @@ normalize_method() {
         geodf|adaptive|geodf_adaptive) echo geodf ;;
         semantic|sad_sem) echo semantic ;;
         union_noweight|sem_geodf_noweight) echo union_noweight ;;
-        union_weight|sem_geodf) echo union_weight ;;
+        union_weight|sem_geodf|M0|m0) echo union_weight ;;
         full_adaptive) echo full_adaptive ;;
         adaptive_arbitration|adaptive_arbitration_v1) echo adaptive_arbitration ;;
-        adaptive_arbitration_v2|adaptive_v2) echo adaptive_arbitration_v2 ;;
+        adaptive_arbitration_v2|adaptive_v2|M3|m3) echo adaptive_arbitration_v2 ;;
         adaptive_arbitration_v2_f0|adaptive_v2_f0) echo adaptive_arbitration_v2_f0 ;;
         adaptive_arbitration_v2_f2|adaptive_v2_f2) echo adaptive_arbitration_v2_f2 ;;
         adaptive_arbitration_v2_g1|adaptive_v2_g1) echo adaptive_arbitration_v2_g1 ;;
         adaptive_arbitration_v2_g3|adaptive_v2_g3) echo adaptive_arbitration_v2_g3 ;;
+        qm_only|M1|m1) echo qm_only ;;
+        arbitration_only|M2|m2) echo arbitration_only ;;
+        qm_stereo|Q3|q3) echo qm_stereo ;;
         *) echo "Unknown publication method: $1" >&2; return 1 ;;
     esac
 }
 
 method_needs_yolo() {
     case "$(normalize_method "$1")" in
-        semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3) return 0 ;;
+        semantic|union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3|qm_only|arbitration_only|qm_stereo) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -310,7 +313,7 @@ apply_sem_policy_params_if_needed() {
         return 0
     fi
     case "$method" in
-        union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3) ;;
+        union_noweight|union_weight|full_adaptive|adaptive_arbitration|adaptive_arbitration_v2|adaptive_arbitration_v2_f0|adaptive_arbitration_v2_f2|adaptive_arbitration_v2_g1|adaptive_arbitration_v2_g3|qm_only|arbitration_only|qm_stereo) ;;
         *) return 0 ;;
     esac
     if [ ! -f "$SEM_POLICY_PARAMS_FILE" ]; then
@@ -579,10 +582,20 @@ for method in $METHODS; do
         *) AUDIT_METHODS="${AUDIT_METHODS:+${AUDIT_METHODS},}${method_n}" ;;
     esac
 done
+AUDIT_MATRIX="main"
+case ",${AUDIT_METHODS}," in
+    *,qm_only,*|*,qm_stereo,*|*,arbitration_only,*)
+        AUDIT_MATRIX="mechanism-isolation"
+        ;;
+esac
+if [ "$ADAPTATION_MODE" = "visual" ] || [ "$ADAPTATION_MODE" = "full" ]; then
+    AUDIT_MATRIX="full-adaptation"
+fi
+echo "[ablation] config_audit_matrix=$AUDIT_MATRIX"
 python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/viode_common.yaml" \
-    --methods "$AUDIT_METHODS"
+    --methods "$AUDIT_METHODS" --matrix "$AUDIT_MATRIX"
 python3 "${WS}/scripts/audit_method_config_diff.py" --base "${PAPER_CFG}/euroc_common.yaml" \
-    --methods "$AUDIT_METHODS"
+    --methods "$AUDIT_METHODS" --matrix "$AUDIT_MATRIX"
 
 for trial in $(seq 1 "$N"); do
     if [ -n "$EUROC" ]; then

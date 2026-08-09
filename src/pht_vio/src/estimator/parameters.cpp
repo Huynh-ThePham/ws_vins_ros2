@@ -140,6 +140,21 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         visual_fb_error_scale = static_cast<double>(fsSettings["visual_fb_error_scale"]);
     if (!fsSettings["visual_quality_full_age"].empty())
         visual_quality_full_age = static_cast<int>(fsSettings["visual_quality_full_age"]);
+    if (!fsSettings["visual_quality_stereo_aware"].empty())
+        visual_quality_stereo_aware =
+            static_cast<int>(fsSettings["visual_quality_stereo_aware"]);
+    if (!fsSettings["visual_quality_stereo_disparity_ref_px"].empty())
+        visual_quality_stereo_disparity_ref_px =
+            static_cast<double>(fsSettings["visual_quality_stereo_disparity_ref_px"]);
+    if (!fsSettings["visual_quality_stereo_triangulation_ref_rad"].empty())
+        visual_quality_stereo_triangulation_ref_rad =
+            static_cast<double>(fsSettings["visual_quality_stereo_triangulation_ref_rad"]);
+    if (!fsSettings["visual_quality_stereo_reprojection_scale_px"].empty())
+        visual_quality_stereo_reprojection_scale_px =
+            static_cast<double>(fsSettings["visual_quality_stereo_reprojection_scale_px"]);
+    if (!fsSettings["visual_quality_border_margin_px"].empty())
+        visual_quality_border_margin_px =
+            static_cast<double>(fsSettings["visual_quality_border_margin_px"]);
     if (!fsSettings["visual_adaptive_huber"].empty())
         visual_adaptive_huber = static_cast<int>(fsSettings["visual_adaptive_huber"]);
     if (!fsSettings["visual_huber_delta_min"].empty())
@@ -311,6 +326,8 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
         sem_arb2_logodds_beta_geo = static_cast<double>(fsSettings["sem_arb2_logodds_beta_geo"]);
     if (!fsSettings["sem_arb2_logodds_beta_agreement"].empty())
         sem_arb2_logodds_beta_agreement = static_cast<double>(fsSettings["sem_arb2_logodds_beta_agreement"]);
+    if (!fsSettings["sem_arb2_force_qm_one"].empty())
+        sem_arb2_force_qm_one = static_cast<int>(fsSettings["sem_arb2_force_qm_one"]);
 
     if (!fsSettings["geodf_min_grid_occupancy"].empty())
         geodf_min_grid_occupancy = static_cast<double>(fsSettings["geodf_min_grid_occupancy"]);
@@ -376,7 +393,16 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
             static_cast<int>(fsSettings["failure_max_consecutive_low_feature_frames"]);
 
     visual_adaptive_quality = visual_adaptive_quality ? 1 : 0;
+    visual_quality_stereo_aware =
+        (visual_adaptive_quality && visual_quality_stereo_aware) ? 1 : 0;
     visual_quality_min_weight = std::min(1.0, std::max(0.01, visual_quality_min_weight));
+    visual_quality_stereo_disparity_ref_px =
+        std::max(1e-3, visual_quality_stereo_disparity_ref_px);
+    visual_quality_stereo_triangulation_ref_rad =
+        std::max(1e-6, visual_quality_stereo_triangulation_ref_rad);
+    visual_quality_stereo_reprojection_scale_px =
+        std::max(1e-3, visual_quality_stereo_reprojection_scale_px);
+    visual_quality_border_margin_px = std::max(0.0, visual_quality_border_margin_px);
     visual_lk_error_scale = std::min(1000.0, std::max(0.1, visual_lk_error_scale));
     visual_fb_error_scale = std::min(20.0, std::max(0.05, visual_fb_error_scale));
     visual_quality_full_age = std::min(100, std::max(1, visual_quality_full_age));
@@ -469,6 +495,7 @@ bool VinsConfig::loadFromYaml(const std::string &config_file)
     sem_arb2_alpha_base = std::min(1.0, std::max(0.0, sem_arb2_alpha_base));
     sem_arb2_alpha_authority_gain = std::min(1.0, std::max(0.0, sem_arb2_alpha_authority_gain));
     sem_arb2_hard_dwell_frames = std::max(1, sem_arb2_hard_dwell_frames);
+    sem_arb2_force_qm_one = sem_arb2_force_qm_one ? 1 : 0;
     geodf_min_grid_occupancy = std::min(1.0, std::max(0.0, geodf_min_grid_occupancy));
     geodf_min_median_parallax_px = std::max(0.0, geodf_min_median_parallax_px);
     geodf_max_design_condition_number = std::max(0.0, geodf_max_design_condition_number);

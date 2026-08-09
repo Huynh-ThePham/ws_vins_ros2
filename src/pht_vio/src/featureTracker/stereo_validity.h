@@ -131,6 +131,7 @@ struct TrackValidity
     double depth_cam0 = 0.0;
     double epipolar_px = 0.0;
     double reprojection_px = 0.0;
+    double triangulation_angle_rad = 0.0;
 };
 
 struct Counters
@@ -436,6 +437,7 @@ inline TrackValidity toTrackValidity(const Result &result)
     out.depth_cam0 = result.depth_cam0;
     out.epipolar_px = result.epipolar_px;
     out.reprojection_px = result.reprojection_px;
+    out.triangulation_angle_rad = result.triangulation_angle_rad;
     return out;
 }
 

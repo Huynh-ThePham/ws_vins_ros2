@@ -98,6 +98,10 @@ def audit(configs: dict[str, str], allowlist: dict[str, list[str]],
     # 3. Visual/IMU factor adaptation is either off for the whole matrix, or on for
     #    the whole matrix. Never on for one method only -- that is precisely the
     #    confound this audit exists to prevent.
+    #
+    #    Exception: --matrix mechanism-isolation (Phase 3.6 M1/Q3) intentionally
+    #    isolates visual_adaptive_quality / stereo-aware q_m as owned overlay keys.
+    #    Those methods may enable the key; the rest of the matrix stays off.
     if matrix == "full-adaptation":
         for key in sorted(uniform_keys):
             values = {name: keys.get(key) for name, keys in scalars.items()}
@@ -105,6 +109,10 @@ def audit(configs: dict[str, str], allowlist: dict[str, list[str]],
                 off = sorted(n for n, v in values.items() if v != "1")
                 failures.add(f"--matrix full-adaptation requires {key}=1 for every method; "
                              f"off for: {', '.join(off)}")
+    elif matrix == "mechanism-isolation":
+        # Ownership allowlist still governs pairwise diffs; only the uniform
+        # "all-or-nothing" rule is relaxed for keys owned by an isolation overlay.
+        pass
     else:
         for key in sorted(uniform_keys):
             on = sorted(name for name, keys in scalars.items() if keys.get(key) == "1")
@@ -112,9 +120,10 @@ def audit(configs: dict[str, str], allowlist: dict[str, list[str]],
                 failures.add(
                     f"'{key}' is enabled for {', '.join(on)} but not for every method in the "
                     f"main matrix. Factor adaptation is a separate contribution: either run it "
-                    f"for all methods (--matrix full-adaptation) or for none. Auditing the "
-                    f"'full_adaptive' row together with the main matrix is exactly the "
-                    f"confounded comparison this check blocks.")
+                    f"for all methods (--matrix full-adaptation), audit with "
+                    f"--matrix mechanism-isolation for Phase 3.6 M1/Q3 overlays, or for none. "
+                    f"Auditing the 'full_adaptive' row together with the main matrix is exactly "
+                    f"the confounded comparison this check blocks.")
 
     # 4. Pairwise diff against the ownership allowlist.
     for lhs, rhs in combinations(sorted(configs), 2):
@@ -201,8 +210,11 @@ def main() -> int:
     ap.add_argument("--allowlist", type=Path, default=DEFAULT_ALLOWLIST)
     ap.add_argument("--methods", default=",".join(MAIN_MATRIX),
                     help="Comma-separated overlay names to audit (--base mode)")
-    ap.add_argument("--matrix", choices=["main", "full-adaptation"], default="main",
-                    help="'full-adaptation' requires the adaptation keys on for ALL methods")
+    ap.add_argument("--matrix", choices=["main", "full-adaptation", "mechanism-isolation"],
+                    default="main",
+                    help="'full-adaptation' requires adaptation keys on for ALL methods; "
+                         "'mechanism-isolation' allows owned visual_adaptive_quality diffs "
+                         "(Phase 3.6 M1/Q3)")
     args = ap.parse_args()
 
     if not args.allowlist.is_file():

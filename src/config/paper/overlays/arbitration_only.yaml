@@ -1,0 +1,13 @@
+# @method: arbitration_only
+# @label: Expert-arbitration only, force q_m = 1 (Phase 3.6 M2)
+# @description: Adaptive arbitration v2 with measurement quality forced to 1 so
+#               only dynamic/expert arbitration can change the backend weight.
+#               Isolates ΔE_arb from the Phase 3.5 w≈q_m confound.
+sem_enable: 1
+geodf_enable: 1
+geodf_hard_reject: 1
+sem_geodf_fusion: 1
+sem_adaptive_policy: 1
+sem_geodf_backend_weight: 1
+sem_adaptive_arbitration_v2: 1
+sem_arb2_force_qm_one: 1

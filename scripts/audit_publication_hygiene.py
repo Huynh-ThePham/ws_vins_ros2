@@ -267,6 +267,50 @@ def check_fair_config_is_wired(failures: list[str]) -> None:
         failures.append("run_sem_geodf_ablation.sh missing PUBLICATION_MODE fail-closed switch")
 
 
+def check_no_runtime_gt_leak(failures: list[str]) -> None:
+    """Phase 3.6 §30: production code must not branch on GT / sequence name."""
+    prod_roots = [
+        REPO / "src/pht_vio/src",
+        REPO / "src/pht_vio_ros/src",
+    ]
+    # Patterns that indicate online use of ground truth or scene identity.
+    leak_re = re.compile(
+        r"(ground[_ ]?truth|gt_pose|oracle_pose|read_gt|"
+        r"sequence[_-]?name|difficulty[_-]?branch|"
+        r"if\s*\(.*MH_0[0-9]|if\s*\(.*city_(day|night))",
+        re.IGNORECASE,
+    )
+    allow_fragments = (
+        "test/",
+        "docs/",
+        "scripts/",
+        "eval",
+        "evaluate",
+        # Comments documenting the prohibition are fine.
+    )
+    for root in prod_roots:
+        if not root.is_dir():
+            continue
+        for path in root.rglob("*"):
+            if path.suffix not in {".cpp", ".h", ".hpp", ".cc"}:
+                continue
+            rel = str(path.relative_to(REPO))
+            if any(frag in rel for frag in ("test/", "docs/")):
+                continue
+            text = path.read_text(errors="ignore")
+            for number, line in enumerate(text.splitlines(), start=1):
+                stripped = line.strip()
+                if stripped.startswith("//") or stripped.startswith("/*") or stripped.startswith("*"):
+                    continue
+                if leak_re.search(stripped):
+                    # Allow string literals that only appear in log messages about
+                    # forbidding GT — still flag actual identifiers.
+                    if "must not" in stripped.lower() or "no gt" in stripped.lower():
+                        continue
+                    failures.append(
+                        f"{rel}:{number}: possible runtime GT/sequence leak -> {stripped}")
+
+
 def check_hold_frames_not_publication_primary(failures: list[str]) -> None:
     for path in sorted((REPO / "src/config/paper").glob("*_common.yaml")):
         text = path.read_text()
@@ -313,6 +357,7 @@ def main() -> int:
     check_dependencies_are_locked(failures)
     check_fair_config_is_wired(failures)
     check_hold_frames_not_publication_primary(failures)
+    check_no_runtime_gt_leak(failures)
 
     if failures:
         print(f"FAIL: {len(failures)} publication-hygiene violation(s)\n")

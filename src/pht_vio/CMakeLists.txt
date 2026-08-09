@@ -91,6 +91,7 @@ if(BUILD_TESTING)
     projection_two_frame_one_cam_gradient
     projection_two_frame_two_cam_gradient
     projection_one_frame_two_cam_gradient
+    projection_jacobian_edge_cases
   )
   foreach(test_name IN LISTS PHT_VIO_LINKED_TESTS)
     add_executable(test_${test_name} test/test_${test_name}.cpp)

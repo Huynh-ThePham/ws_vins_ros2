@@ -25,6 +25,45 @@ int main()
     assert(noisy < young);
     assert(noisy >= visual.min_weight);
 
+    // Phase 3.6: stereo geometry quality falls as disparity / triangulation fall.
+    {
+        const double strong = adaptive_factor::stereoGeometryQuality(20.0, 0.05, 0.2, visual);
+        const double weak = adaptive_factor::stereoGeometryQuality(0.5, 0.001, 0.2, visual);
+        assert(strong > weak);
+        assert(weak < 0.5);
+        const double clean_var = adaptive_factor::visualPixelVariance(1.0, 1.5);
+        const double weak_var = adaptive_factor::visualPixelVariance(0.25, 1.5);
+        assert(weak_var > clean_var);  // quality↓ ⇒ covariance↑
+    }
+    {
+        visual.stereo_aware = true;
+        adaptive_factor::VisualObservationEvidence ev;
+        ev.lk_error = 0.0;
+        ev.fb_error = 0.0;
+        ev.track_age = 4;
+        ev.has_stereo = true;
+        ev.disparity_px = 20.0;
+        ev.triangulation_angle_rad = 0.05;
+        ev.stereo_reprojection_px = 0.1;
+        const double q_strong =
+            adaptive_factor::visualObservationWeightFromEvidence(ev, visual);
+        ev.disparity_px = 0.6;
+        ev.triangulation_angle_rad = 0.001;
+        const double q_weak =
+            adaptive_factor::visualObservationWeightFromEvidence(ev, visual);
+        assert(q_strong > q_weak);
+        assert(q_weak >= visual.min_weight);
+        visual.stereo_aware = false;
+    }
+    {
+        const double center = adaptive_factor::borderProximityQuality(
+            320.0, 240.0, 640.0, 480.0, 20.0);
+        const double edge = adaptive_factor::borderProximityQuality(
+            2.0, 240.0, 640.0, 480.0, 20.0);
+        assert(near(center, 1.0));
+        assert(edge < center);
+    }
+
     adaptive_factor::AdaptiveHuberConfig huber;
     huber.enabled = true;
     huber.ema = 1.0;

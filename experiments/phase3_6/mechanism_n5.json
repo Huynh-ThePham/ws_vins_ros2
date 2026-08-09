@@ -1,0 +1,329 @@
+{
+  "root": "results/sem_geodf_ablation/p36-final-n5-653defa",
+  "rows": [
+    {
+      "scene": "MH_03_medium",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.2565408,
+        "std": 0.0013419775333439786,
+        "values": [
+          0.255911,
+          0.255309,
+          0.256916,
+          0.255862,
+          0.258706
+        ],
+        "coverage_mean": 1.0
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.25769020000000004,
+        "std": 0.0009567171473324806,
+        "values": [
+          0.255981,
+          0.258079,
+          0.258118,
+          0.258076,
+          0.258197
+        ],
+        "coverage_mean": 1.0
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.2576574,
+        "std": 0.0013430799678351307,
+        "values": [
+          0.25675,
+          0.25719,
+          0.257171,
+          0.260038,
+          0.257138
+        ],
+        "coverage_mean": 1.0
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    },
+    {
+      "scene": "MH_04_difficult",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.4396528,
+        "std": 0.012951979894981314,
+        "values": [
+          0.433859,
+          0.433849,
+          0.433859,
+          0.462822,
+          0.433875
+        ],
+        "coverage_mean": 1.0
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.4413822,
+        "std": 0.014152435733823344,
+        "values": [
+          0.425859,
+          0.451741,
+          0.451713,
+          0.451699,
+          0.425899
+        ],
+        "coverage_mean": 1.0
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.4382296,
+        "std": 0.01815953162391587,
+        "values": [
+          0.44818,
+          0.425204,
+          0.42666,
+          0.425436,
+          0.465668
+        ],
+        "coverage_mean": 0.9976002868287088
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    },
+    {
+      "scene": "MH_05_difficult",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.298882,
+        "std": 0.004803253584811021,
+        "values": [
+          0.293459,
+          0.302813,
+          0.30257,
+          0.301747,
+          0.293821
+        ],
+        "coverage_mean": 1.0
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.2904104,
+        "std": 0.004801939743478679,
+        "values": [
+          0.295552,
+          0.287085,
+          0.295783,
+          0.28695,
+          0.286682
+        ],
+        "coverage_mean": 1.0
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.2944428,
+        "std": 0.004126497509995608,
+        "values": [
+          0.296091,
+          0.295945,
+          0.28708,
+          0.296382,
+          0.296716
+        ],
+        "coverage_mean": 1.0
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    },
+    {
+      "scene": "city_day_2_mid",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.166532,
+        "std": 0.011839710617240611,
+        "values": [
+          0.155503,
+          0.178842,
+          0.155494,
+          0.179095,
+          0.163726
+        ],
+        "coverage_mean": 0.9835168922243608
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.1743514,
+        "std": 0.00749458329728878,
+        "values": [
+          0.160945,
+          0.177739,
+          0.177747,
+          0.177617,
+          0.177709
+        ],
+        "coverage_mean": 0.9835168922243608
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.156904,
+        "std": 0.00983199455858271,
+        "values": [
+          0.153009,
+          0.153231,
+          0.174456,
+          0.151691,
+          0.152133
+        ],
+        "coverage_mean": 0.9830651333655026
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    },
+    {
+      "scene": "city_day_3_high",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.2567992,
+        "std": 0.018938493160755965,
+        "values": [
+          0.251633,
+          0.243885,
+          0.286982,
+          0.239413,
+          0.262083
+        ],
+        "coverage_mean": 0.9789983959252003
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.25362,
+        "std": 0.019693702140532125,
+        "values": [
+          0.286753,
+          0.242178,
+          0.256887,
+          0.241655,
+          0.240627
+        ],
+        "coverage_mean": 0.982914547558346
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.2088046,
+        "std": 0.030452072988550394,
+        "values": [
+          0.195094,
+          0.195341,
+          0.196591,
+          0.193748,
+          0.263249
+        ],
+        "coverage_mean": 0.9832157198913534
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    },
+    {
+      "scene": "city_night_3_high",
+      "union_weight": {
+        "n": 5,
+        "mean": 0.3348852,
+        "std": 0.014869147426802932,
+        "values": [
+          0.346165,
+          0.31858,
+          0.318629,
+          0.344999,
+          0.346053
+        ],
+        "coverage_mean": 0.9813833275289864
+      },
+      "qm_only": {
+        "n": 5,
+        "mean": 0.3334446,
+        "std": 0.0055169095787406235,
+        "values": [
+          0.330166,
+          0.328341,
+          0.339608,
+          0.339271,
+          0.329837
+        ],
+        "coverage_mean": 0.9813833275289864
+      },
+      "arbitration_only": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      },
+      "adaptive_arbitration_v2": {
+        "n": 5,
+        "mean": 0.3244394,
+        "std": 0.014249101578696122,
+        "values": [
+          0.33523,
+          0.332898,
+          0.31388,
+          0.335504,
+          0.304685
+        ],
+        "coverage_mean": 0.9813833275289864
+      },
+      "qm_stereo": {
+        "n": 0,
+        "mean": null,
+        "std": null,
+        "values": []
+      }
+    }
+  ]
+}

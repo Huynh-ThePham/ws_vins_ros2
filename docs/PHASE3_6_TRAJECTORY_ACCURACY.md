@@ -71,3 +71,11 @@ PROTOCOL_TAG=p36-mech-n3-<sha> N=3 ADAPTATION_MODE=off \
 
 Acceptance: paired same seeds, coverage/SR conserved, no GT/sequence branches,
 no cherry-pick. Proposed keeps only mechanisms with isolated ATE evidence.
+
+
+## Status (after N=3 + N=5)
+
+- N=3 isolation tag: `p36-mech-n3-59440f8` — see `docs/PHASE3_6_N3_MECHANISM_ISOLATION.md`
+- N=5 final tag: `p36-final-n5-653defa` — see `docs/PHASE3_6_N5_FINAL.md`
+- **Proposed:** `adaptive_arbitration_v2` (TRAIN −4.40% vs U+W, bootstrap CI excludes 0)
+- Rejected as Proposed: `qm_only` alone, `arbitration_only`, `qm_stereo`

@@ -1,0 +1,81 @@
+{
+  "_comment": [
+    "Phase 3.5 frozen TRAIN matrix.",
+    "Trials 4-5 are the paired U+W/v2 Stage C extension of declared cells."
+  ],
+  "protocol_version": "sem-geodf-fair-v2",
+  "claim_matrix": "phase3_5_targeted_train",
+  "paper_trials": 3,
+  "datasets": {
+    "viode": {
+      "scenes": ["city_day_2_mid", "city_day_3_high"],
+      "methods": [
+        "baseline",
+        "geodf",
+        "semantic",
+        "union_noweight",
+        "union_weight",
+        "adaptive_arbitration",
+        "adaptive_arbitration_v2"
+      ],
+      "trials": 3,
+      "expected_bag_rate": 1.0,
+      "oracle": false,
+      "base_config": "src/config/paper/viode_common.yaml",
+      "required_artifacts": [
+        "run_manifest.json",
+        "resolved_config.yaml",
+        "eval/metrics.json",
+        "vio.csv"
+      ]
+    },
+    "euroc": {
+      "scenes": ["MH_03_medium", "MH_04_difficult"],
+      "methods": [
+        "baseline",
+        "geodf",
+        "semantic",
+        "union_noweight",
+        "union_weight",
+        "adaptive_arbitration",
+        "adaptive_arbitration_v2"
+      ],
+      "trials": 3,
+      "expected_bag_rate": 1.0,
+      "oracle": false,
+      "base_config": "src/config/paper/euroc_common.yaml",
+      "required_artifacts": [
+        "run_manifest.json",
+        "resolved_config.yaml",
+        "eval/metrics.json",
+        "vio.csv"
+      ]
+    }
+  },
+  "forbidden_methods_in_main_claim": ["full_adaptive"],
+  "requirements": {
+    "require_same_git_sha": true,
+    "require_clean_worktree": true,
+    "require_full_git_sha": true,
+    "require_resolved_config_hash": true,
+    "require_bag_hash": true,
+    "require_model_hash_when_semantic": true,
+    "require_paired_seeds": true,
+    "require_same_bag_rate": true,
+    "require_same_bag_identity": true,
+    "require_common_backbone": true,
+    "require_protocol_version": "sem-geodf-fair-v2",
+    "min_trajectory_coverage": 0.90,
+    "forbid_oracle_runs": true,
+    "required_config_values": {
+      "sem_policy_dynamic_level": "-1",
+      "failure_detection_enable": "1",
+      "stereo_contract_enable": "1",
+      "stereo_contract_require_calibration": "1",
+      "stereo_contract_allow_lk_fallback": "0",
+      "visual_adaptive_quality": "0",
+      "imu_adaptive_covariance": "0"
+    },
+    "diverged_ate_threshold_m": 50.0
+  }
+}

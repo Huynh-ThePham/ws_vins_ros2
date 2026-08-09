@@ -209,6 +209,27 @@ PROTOCOL_TAG=arb-n3r-<sha> N=3 ADAPTATION_MODE=off \
 
 Raw table: `results/sem_geodf_ablation/arb-n3r-063f12d/ATE_TABLE.md`.
 
+## Phase 3.5 — authority-aware adaptive arbitration v2
+
+**Commits** `33912ee` … `970fcf0` (logic, overlays, coverage/provenance fixes).
+Separate method `adaptive_arbitration_v2` (does not overwrite v1).
+
+Full write-up, Stage A/B/C numbers, telemetry, and reproducibility bundle:
+[`PHASE3_5_ADAPTIVE_ARBITRATION_V2.md`](PHASE3_5_ADAPTIVE_ARBITRATION_V2.md)
+and `experiments/phase3_5/`.
+
+Headline (paired vs U+W, TRAIN):
+
+| stage | aggregate | `city_day_2_mid` | `city_day_3_high` | decision driver |
+|---|---:|---:|---:|---|
+| N=3 | −1.37% | loss | win | CI includes 0 |
+| N=5 | −3.77% | **+4.71%** (loss) | −14.33% | mid-dynamic not conserved |
+
+**Rejected as the paper default; retained as a reproducible architecture
+ablation.** Fixes the Phase 3.4 high-dynamic regression but fails the
+conservation criterion on `city_day_2_mid` at N=5; bootstrap CI on the paired
+mean still includes zero. Paper claim stays fixed U+W.
+
 ## Shipped stack after Phase 3
 
 | layer | status |
@@ -218,7 +239,8 @@ Raw table: `results/sem_geodf_ablation/arb-n3r-063f12d/ATE_TABLE.md`.
 | P3.2 visual quality (uniform) | kept as orthogonal matrix |
 | P3.2b full (visual+IMU) | rejected vs visual-only |
 | P3.3 lifecycle DownWeight scale | **kept in default commons** |
-| P3.4 adaptive arbitration | rejected vs U+W (`arb-n3r-063f12d`) |
+| P3.4 adaptive arbitration (v1) | rejected vs U+W (`arb-n3r-063f12d`) |
+| P3.5 adaptive arbitration v2 | rejected as default; ablation retained |
 | Full method ablation | recorded at `pub-ablation-c560406` |
 
 ## Shipped recommendation
@@ -227,4 +249,4 @@ Raw table: `results/sem_geodf_ablation/arb-n3r-063f12d/ATE_TABLE.md`.
 |---|---|
 | Fixed-backbone U+W | `src/` at `b46dc1f` (= HEAD after Phase 3.1 revert), adaptation off |
 | Visual quality extension | same binary, `ADAPTATION_MODE=visual` for every method |
-| Rejected | risksep, P3.1 h_geometry gate, continuous-time Huber EMA, P3.4 adaptive arbitration |
+| Rejected | risksep, P3.1 h_geometry gate, continuous-time Huber EMA, P3.4/P3.5 adaptive arbitration as default |

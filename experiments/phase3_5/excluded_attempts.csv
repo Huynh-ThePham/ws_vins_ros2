@@ -1,0 +1,3 @@
+phase,dataset,scene,method,trial,status,failure_reason,manifest_sha256
+legacy_holdout,viode,city_night_3_high,adaptive_arbitration_v2,4,failed,benchmark_failed,a38f2b72dcf62210d1ff4751dd593d5caded1889cc05b7d0b711307fd8b763b5
+legacy_holdout,viode,city_night_3_high,union_weight,4,failed,benchmark_failed,ca3f4e5784e92b73cf3c02e42931d7b9cdb7d55a1613a33ed88a23cdf0c4e5d7
